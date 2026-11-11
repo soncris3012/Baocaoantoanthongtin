@@ -11,23 +11,21 @@ export const PROJECT_OVERVIEW = {
   courseTitle: "Học phần: Kiểm thử & An toàn Hệ thống Web (ATTT)",
   projectTitle: "Kiểm thử Hộp đen (Black-Box) & Kiểm toán Hộp trắng (White-Box) Hệ thống Web DVWA",
   subtitle:
-    "Kịch bản thực hành & thuyết trình phân vai 4 máy (1 MacBook macOS + 3 Laptop Windows Ubuntu VM) theo chuẩn PTES, kết hợp nâng Band 9.5 (Live Patching, Log Forensics, Bcrypt, Least Privilege & WAF ModSecurity).",
+    "Mô phỏng quy trình kiểm thử xâm nhập (Black-Box), kiểm toán mã nguồn & cơ sở dữ liệu (White-Box) và triển khai các giải pháp phòng thủ chiều sâu trên hệ thống mục tiêu DVWA, chia rõ từng bước thực hành cho 4 thành viên.",
   targetSystem: "Damn Vulnerable Web Application (DVWA) — Docker image vulnerables/web-dvwa (Apache/2.4.25 Debian + PHP + MariaDB)",
   methodology: "PTES (Penetration Testing Execution Standard) + White-Box Source/DB Audit + Defense-in-Depth (OWASP Top 10 A03:2021 - Injection)",
   recordedDate: "04/11/2026",
-  totalSlides: 15,
-  durationPerMember: "3,5 – 4 phút / người",
   toolkit: [
     {
       name: "Docker (DVWA)",
       role: "Máy chủ Mục tiêu (Target Server)",
-      config: "Mac: 215d3a734374 | Ubuntu: --name dvwa | 0.0.0.0:8080->80/tcp",
+      config: "Container ID: 215d3a734374 hoặc --name dvwa | 0.0.0.0:8080->80/tcp",
       outcome: "Vận hành Apache/2.4.25 (Debian) + PHP + MariaDB cô lập 100%",
     },
     {
       name: "Nmap & cURL + grep",
       role: "Trinh sát & Tự động bóc tách CLI",
-      config: "macOS zsh / Ubuntu Terminal",
+      config: "Terminal (zsh / bash)",
       outcome: "Quét cổng 8080, thu thập HTTP Header (PoC 1) & lọc HTML bằng regex (PoC 2)",
     },
     {
@@ -169,7 +167,7 @@ export const PHP_LEVEL_SOURCES = [
     severity: "high" as const,
     summary:
       "Dùng mysqli_real_escape_string() để thoát dấu nháy đơn trên $_POST['id'], nhưng câu truy vấn viết WHERE user_id = $id không có dấu nháy bao quanh. SQL coi $id là biểu thức số học, làm hàm lọc dấu nháy trở nên vô hiệu.",
-    code: `// Trich doan phan tich kien truc medium.php (KichBanNangBandATTT)
+    code: `// Trich doan phan tich kien truc medium.php
 $id = mysqli_real_escape_string($GLOBALS["___mysqli_ston"], $_POST['id']);
 $query = "SELECT first_name, last_name FROM users WHERE user_id = $id;";
 $result = mysqli_query($GLOBALS["___mysqli_ston"], $query);`,
@@ -223,12 +221,11 @@ export const TEAM_MEMBERS: TeamMember[] = [
     role_title: "Hạ tầng Lab, Trinh sát Bề mặt (PoC 1) & Gia cố Apache",
     device: "MacBook (macOS Apple Silicon)",
     os_env: "macOS Terminal (zsh) + Docker Desktop",
-    slide_range: "Slide 1 – 7",
-    duration_text: "3,5 – 4 phút",
+    stage_label: "Giai đoạn 1 • Trinh sát & Gia cố",
     main_practice: "Setup Docker, Trinh sát bằng Nmap & cURL (PoC 1)",
-    band95_upgrade: "Vá lỗi Apache Banner trực tiếp (Live Patching) & Chuẩn hóa CWE / CVSS v3.1",
+    defense_scope: "Vá lỗi Apache Banner trực tiếp (Live Patching) & Chuẩn hóa CWE / CVSS v3.1",
     overview_summary:
-      "Mở màn bài thuyết trình: giới thiệu đề tài, chuẩn kiểm thử PTES kết hợp Black-box & White-box, mô hình Lab Docker với bộ 4 công cụ, sơ đồ luồng 4 giai đoạn, thực hành trinh sát PoC 1 và vá ẩn phiên bản Apache trực tiếp.",
+      "Khởi tạo mô hình Lab Docker cô lập, giới thiệu chuẩn PTES kết hợp Black-box & White-box, thực hành quét dịch vụ Nmap và thu thập HTTP Header (PoC 1) bằng cURL, sau đó gia cố trực tiếp cấu hình Apache để ẩn phiên bản.",
     tools: ["Docker CLI (Container 215d3a734374)", "Nmap (-sV -p 8080)", "cURL (zsh)", "Apache security.conf"],
     accent_theme: "cyan",
   },
@@ -239,12 +236,11 @@ export const TEAM_MEMBERS: TeamMember[] = [
     role_title: "Đánh chặn Gói tin, Khai thác Thủ công (PoC 2) & Điều tra Log",
     device: "Laptop Windows 1 (Ubuntu VM)",
     os_env: "Ubuntu Terminal + Burp Suite Community",
-    slide_range: "Slide 8 – 9",
-    duration_text: "3,5 – 4 phút",
+    stage_label: "Giai đoạn 2 • Đánh chặn & Forensics",
     main_practice: "Burp Suite Repeater, cURL + grep bóc tách dữ liệu (PoC 2)",
-    band95_upgrade: "Điều tra Nhật ký Tấn công Blue Team — Log Forensics (access.log)",
+    defense_scope: "Điều tra Nhật ký Tấn công Blue Team — Log Forensics (access.log)",
     overview_summary:
-      "Giải thích cách xử lý 2 bài toán hạ tầng (Xung đột cổng 8080->8081 và vượt Loopback Bypass bằng localtest.me:8080), thực hành đánh chặn gói tin trên Burp Repeater gây lỗi MariaDB, trích xuất tự động bằng cURL + grep và điều tra dấu vết IoC trong access.log.",
+      "Xử lý xung đột cổng 8080/8081 và vượt cơ chế Loopback Bypass bằng tên miền localtest.me:8080, thực hành đánh chặn gói tin trên Burp Repeater gây lỗi cú pháp MariaDB, trích xuất tự động bằng cURL + grep và phân tích dấu vết IoC trong access.log.",
     tools: ["Burp Suite Community (Proxy 8081)", "Chromium (localtest.me:8080)", "cURL + grep", "Apache access.log"],
     accent_theme: "amber",
   },
@@ -255,12 +251,11 @@ export const TEAM_MEMBERS: TeamMember[] = [
     role_title: "Khai thác Tự động SQLMap, Kiểm toán CSDL (PoC 3) & Vá Mật mã học",
     device: "Laptop Windows 2 (Ubuntu VM)",
     os_env: "Ubuntu Terminal + SQLMap + Container MariaDB & PHP CLI",
-    slide_range: "Slide 10 – 11",
-    duration_text: "3,5 – 4 phút",
+    stage_label: "Giai đoạn 3 • SQLMap & CSDL",
     main_practice: "SQLMap 3 lệnh tự động & Kiểm toán hộp trắng MariaDB CLI (PoC 3)",
-    band95_upgrade: "Vá lỗi 1 (Băm Bcrypt cost=12) & Vá lỗi 2 (Phân quyền DB tối thiểu dvwa_svc)",
+    defense_scope: "Vá lỗi 1 (Băm Bcrypt cost=12) & Vá lỗi 2 (Phân quyền DB tối thiểu dvwa_svc)",
     overview_summary:
-      "Trình bày lý do dùng công cụ tự động SQLMap với chuỗi 3 lệnh (--dbs, --tables, --dump), kiểm toán hộp trắng bảng users qua MariaDB CLI để phơi bày lỗi MD5 không Salt (CWE-759, Rainbow Table), sau đó vá trực tiếp bằng Bcrypt và tài khoản dịch vụ Least Privilege.",
+      "Tự động hóa khai thác bằng chuỗi 3 lệnh SQLMap (--dbs, --tables, --dump), kiểm toán hộp trắng bảng users qua MariaDB CLI để phát hiện lỗi MD5 không Salt (CWE-759, Rainbow Table), sau đó vá trực tiếp bằng Bcrypt và tài khoản dịch vụ Least Privilege.",
     tools: ["SQLMap (--batch)", "MariaDB CLI (mysql -u root)", "PHP CLI (password_hash)", "GRANT Least Privilege"],
     accent_theme: "emerald",
   },
@@ -271,12 +266,11 @@ export const TEAM_MEMBERS: TeamMember[] = [
     role_title: "Kiểm toán Code PHP 4 Cấp độ (PoC 4), Kiểm chứng Bản vá (PoC 5) & WAF",
     device: "Laptop Windows 3 (Ubuntu VM)",
     os_env: "Ubuntu Terminal + Burp Suite Repeater + ModSecurity CRS",
-    slide_range: "Slide 12 – 15",
-    duration_text: "3,5 – 4 phút",
+    stage_label: "Giai đoạn 4 • Code Audit & WAF",
     main_practice: "Kiểm toán mã nguồn PHP (PoC 4) & Kiểm chứng bản vá PoC 5 trên Repeater",
-    band95_upgrade: "Đối chiếu 4 cấp độ PHP, PoC 5 tinh chỉnh với user_token & Luật WAF ModSecurity",
+    defense_scope: "Đối chiếu 4 cấp độ PHP, PoC 5 tinh chỉnh với user_token & Luật WAF ModSecurity",
     overview_summary:
-      "Chốt hạ bài báo cáo: phân tích nguyên nhân gốc rễ qua 4 cấp độ PHP (low/medium/high/impossible), chứng minh 3 lớp phòng thủ trên PoC 5 gốc (302 Found) và PoC 5 tinh chỉnh (có user_token), trình bày luật WAF ModSecurity chặn 403 Forbidden và thông điệp OWASP Top 10 A03:2021.",
+      "Phân tích nguyên nhân gốc rễ qua 4 cấp độ PHP (low/medium/high/impossible), chứng minh 3 lớp phòng thủ trên PoC 5 gốc (302 Found) và PoC 5 tinh chỉnh (có user_token), cấu hình luật WAF ModSecurity chặn 403 Forbidden theo chuẩn OWASP A03:2021.",
     tools: ["docker exec cat -n (PHP 4 cấp)", "Burp Suite Repeater (PoC 5)", "WAF ModSecurity SecRule", "OWASP A03:2021"],
     accent_theme: "violet",
   },
@@ -288,13 +282,13 @@ export const SCENARIO_STEPS: ScenarioStep[] = [
     id: "m1-s1",
     member_number: 1,
     step_order: 1,
-    phase_tag: "PHẦN CHÍNH • SLIDE 1–4",
+    phase_tag: "PHẦN CHÍNH • TRINH SÁT HẠ TẦNG",
     title: "Kiểm tra Hạ tầng Lab Docker & Quét Dịch vụ Mục tiêu bằng Nmap",
-    slide_ref: "Slide 1 – 4",
-    is_band95: false,
+    poc_ref: "Hạ tầng • Nmap",
+    is_defense: false,
     goal: "Xác nhận container DVWA đang hoạt động ổn định trên cổng 8080 và dùng Nmap (-sV) dò tìm phiên bản dịch vụ Web đang mở trước khi kiểm thử.",
     action_steps: [
-      "Mở Terminal (zsh) trên MacBook và đảm bảo Docker Desktop đang chạy container mục tiêu DVWA (ID: 215d3a734374, tên ngẫu nhiên epic_dijkstra).",
+      "Mở Terminal (zsh) và đảm bảo Docker Desktop đang chạy container mục tiêu DVWA (ID: 215d3a734374, tên ngẫu nhiên epic_dijkstra).",
       "Gõ lệnh docker ps để kiểm tra trạng thái Up và ánh xạ cổng 0.0.0.0:8080->80/tcp.",
       "Gõ lệnh nmap -sV -p 8080 127.0.0.1 để quét đúng cổng 8080 và xác định banner dịch vụ (Apache httpd).",
       "Nếu chưa cài Nmap trên macOS, cài nhanh bằng lệnh: brew install nmap.",
@@ -317,20 +311,20 @@ PORT     STATE SERVICE VERSION
     academic_explanation:
       "Theo chuẩn PTES (Giai đoạn 1 - Reconnaissance), kiểm thử viên không tấn công mù quáng mà phải xác định chính xác bề mặt dịch vụ (Attack Surface) và công nghệ nền tảng.",
     presenter_script:
-      "Thưa thầy cô, nhóm thực hiện kiểm thử theo chuẩn PTES kết hợp Black-box và White-box trên môi trường Lab Docker cô lập. Đầu tiên em xác nhận container DVWA đang chạy tại cổng 8080 và dùng Nmap ghi nhận dịch vụ Apache httpd.",
+      "Quy trình kiểm thử bắt đầu theo chuẩn PTES kết hợp Black-box và White-box trên môi trường Lab Docker cô lập. Bước đầu tiên xác nhận container DVWA đang mở cổng 8080 và dùng Nmap ghi nhận dịch vụ Apache httpd.",
     simulator_key: "m1-recon",
   },
   {
     id: "m1-s2",
     member_number: 1,
     step_order: 2,
-    phase_tag: "PHẦN CHÍNH • POC 1 • SLIDE 5–6",
+    phase_tag: "PHẦN CHÍNH • POC 1",
     title: "Thu thập HTTP Header qua cURL — Phát hiện Lộ Banner & Cookie thiếu cờ",
-    slide_ref: "Slide 5 – 6",
-    is_band95: false,
+    poc_ref: "PoC 1 • cURL",
+    is_defense: false,
     goal: "Thu thập 15 dòng đầu của phản hồi HTTP từ login.php để phát hiện 2 lỗ hổng bề mặt đầu tiên (PoC 1).",
     action_steps: [
-      "Chạy lệnh curl -is http://127.0.0.1:8080/login.php | head -n 15 trên Terminal macOS.",
+      "Chạy lệnh curl -is http://127.0.0.1:8080/login.php | head -n 15 trên Terminal.",
       "Quan sát dòng Server: để chỉ ra lỗi Server Banner Disclosure (tiết lộ chính xác Apache/2.4.25 và hệ điều hành Debian).",
       "Quan sát 2 dòng Set-Cookie: để chỉ ra PHPSESSID và security=low không có cờ bảo vệ HttpOnly hay SameSite=Strict, đồng thời lưu trạng thái bảo mật ngay phía Client.",
     ],
@@ -362,14 +356,14 @@ Content-Type: text/html;charset=utf-8`,
     id: "m1-s3",
     member_number: 1,
     step_order: 3,
-    phase_tag: "NÂNG BAND 9.5 • LIVE PATCHING • SLIDE 7",
+    phase_tag: "GIA CỐ & PHÒNG THỦ • LIVE PATCHING",
     title: "Vá lỗi 3 Trực tiếp — Gia cố Cấu hình Apache để Ẩn Banner Phiên bản",
-    slide_ref: "Slide 7",
-    is_band95: true,
+    poc_ref: "Vá lỗi 3 • Apache",
+    is_defense: true,
     goal: "Chuyển kiến nghị bảo mật thành hành động vá trực tiếp trên container đang chạy, ẩn hoàn toàn số phiên bản 2.4.25 và hệ điều hành Debian.",
     action_steps: [
       "Thực thi lệnh docker exec nối thêm hai chỉ thị ServerTokens Prod và ServerSignature Off vào file /etc/apache2/conf-available/security.conf.",
-      "Kích hoạt cấu hình bằng a2enconf security và tải lại dịch vụ Apache (service apache2 reload) không làm sập container.",
+      "Kích hoạt cấu hình bằng a2enconf security và tải lại dịch vụ Apache (service apache2 reload) không làm gián đoạn container.",
       "Chạy lại curl -Is http://127.0.0.1:8080/login.php | grep -i \"Server:\" để kiểm chứng sau khi vá.",
       "Đối chiếu kết quả: dòng Server chỉ còn hiển thị duy nhất 'Server: Apache'.",
     ],
@@ -397,9 +391,9 @@ Reloading Apache httpd web server: apache2.
 
 Server: Apache`,
     academic_explanation:
-      "Thay vì chỉ đề xuất trên giấy, nhóm chứng minh khả năng khắc phục thực tế (Live Hardening) triệt tiêu hoàn toàn thông tin phiên bản 2.4.25 và OS Debian trước khi bàn giao sang Giai đoạn 2.",
+      "Thay vì chỉ đề xuất lý thuyết, quá trình gia cố trực tiếp (Live Hardening) trên container giúp triệt tiêu hoàn toàn thông tin phiên bản 2.4.25 và OS Debian trước khi chuyển sang Giai đoạn 2.",
     presenter_script:
-      "Để nâng chất lượng kiểm toán lên mức khắc phục thực tế, em tiến hành vá trực tiếp cấu hình security.conf bên trong container với ServerTokens Prod và ServerSignature Off. Khi kiểm tra lại bằng cURL, phản hồi chỉ còn duy nhất 'Server: Apache'.",
+      "Để khắc phục ngay lỗ hổng rò rỉ thông tin máy chủ, cấu hình security.conf bên trong container được bổ sung ServerTokens Prod và ServerSignature Off. Khi kiểm tra lại bằng cURL, phản hồi chỉ còn duy nhất 'Server: Apache'.",
     simulator_key: "m1-patch",
   },
 
@@ -408,13 +402,13 @@ Server: Apache`,
     id: "m2-s1",
     member_number: 2,
     step_order: 1,
-    phase_tag: "PHẦN CHÍNH • HẠ TẦNG PROXY • SLIDE 8",
+    phase_tag: "PHẦN CHÍNH • HẠ TẦNG PROXY",
     title: "Cấu hình Burp Suite Proxy 8081 & Vượt Loopback Bypass bằng localtest.me",
-    slide_ref: "Slide 8",
-    is_band95: false,
+    poc_ref: "Burp Proxy • 8081",
+    is_defense: false,
     goal: "Thiết lập trạm đánh chặn Burp Suite Community chạy song song với Docker (cổng 8080) và ép trình duyệt Chromium định tuyến 100% gói tin qua Proxy.",
     action_steps: [
-      "Mở Burp Suite Community Edition trên Ubuntu VM 1.",
+      "Mở Burp Suite Community Edition trên máy kiểm thử.",
       "Vào tab Proxy -> Proxy settings -> chọn mục Proxy Listeners -> chỉnh cổng lắng nghe từ 8080 sang 127.0.0.1:8081 (tránh xung đột cổng 8080 của container dvwa).",
       "Bấm nút Open Browser để mở trình duyệt Chromium tích hợp của Burp Suite.",
       "KHÔNG gõ 127.0.0.1:8080 (vì Chromium bỏ qua Proxy cho loopback). Thay vào đó truy cập http://localtest.me:8080, đăng nhập admin / password.",
@@ -432,19 +426,19 @@ Server: Apache`,
     expected_output: `Proxy Listener Active: 127.0.0.1:8081
 DVWA Security Level: low | Username: admin | Route: localtest.me:8080 -> Burp Proxy`,
     academic_explanation:
-      "Đây là điểm thực chiến quan trọng giải thích 2 rào cản kỹ thuật thật: (1) Xung đột cổng giữa Docker và Burp đều mặc định 8080; (2) Cơ chế Loopback Bypass của trình duyệt hiện đại.",
+      "Giải quyết trọn vẹn 2 rào cản kỹ thuật thực tế: (1) Xung đột cổng giữa Docker và Burp đều mặc định 8080; (2) Cơ chế Loopback Bypass của trình duyệt hiện đại.",
     presenter_script:
-      "Tiếp nối phần trinh sát của bạn 1, trên Ubuntu VM em giải quyết 2 vấn đề hạ tầng thực tế: chuyển Burp Proxy sang cổng 8081 để tránh đụng cổng 8080 của Docker, và dùng tên miền localtest.me:8080 để buộc trình duyệt đi qua trạm đánh chặn.",
+      "Tiếp nối phần trinh sát, trạm đánh chặn Burp Suite được cấu hình lắng nghe ở cổng 8081 để tránh đụng cổng 8080 của Docker, đồng thời sử dụng tên miền localtest.me:8080 để buộc trình duyệt định tuyến 100% gói tin qua Proxy.",
     simulator_key: "m2-burp",
   },
   {
     id: "m2-s2",
     member_number: 2,
     step_order: 2,
-    phase_tag: "PHẦN CHÍNH • POC 2 (PHẦN 1) • SLIDE 8–9",
+    phase_tag: "PHẦN CHÍNH • POC 2 (PHẦN 1)",
     title: "Đánh chặn Gói tin & Xác nhận Error-based SQLi trên Burp Repeater",
-    slide_ref: "Slide 8 – 9",
-    is_band95: false,
+    poc_ref: "PoC 2 • Repeater",
+    is_defense: false,
     goal: "Bắt gói tin HTTP GET, trích xuất mã phiên PHPSESSID và gửi payload nháy đơn ' qua Repeater để ép MariaDB nhả lỗi cú pháp SQL.",
     action_steps: [
       "Tại tab Proxy -> Intercept, bật 'Intercept is on'.",
@@ -473,20 +467,20 @@ Content-Type: text/html;charset=utf-8
     academic_explanation:
       "Xác nhận lỗ hổng Error-based SQL Injection (CWE-89, CVSS v3.1: 8.8 High): dữ liệu đầu vào bị nối trực tiếp vào câu lệnh SQL và thông báo lỗi của MariaDB bị in thẳng ra HTTP Response.",
     presenter_script:
-      "Khi đưa gói tin sang Burp Repeater và chèn duy nhất dấu nháy đơn vào tham số id, máy chủ trả về lỗi cú pháp MariaDB ngay trên giao diện — khẳng định lỗ hổng Error-based SQL Injection mã CWE-89, mức High 8.8 điểm CVSS.",
+      "Khi đưa gói tin sang Burp Repeater và chèn dấu nháy đơn vào tham số id, máy chủ trả về lỗi cú pháp MariaDB ngay trên giao diện — khẳng định lỗ hổng Error-based SQL Injection mã CWE-89, mức High 8.8 điểm CVSS.",
     simulator_key: "m2-burp",
   },
   {
     id: "m2-s3",
     member_number: 2,
     step_order: 3,
-    phase_tag: "PHẦN CHÍNH • POC 2 (PHẦN 2) • SLIDE 9",
-    title: "Tự động hóa Bóc tách Dữ liệu bằng cURL + grep trên Terminal Ubuntu",
-    slide_ref: "Slide 9",
-    is_band95: false,
+    phase_tag: "PHẦN CHÍNH • POC 2 (PHẦN 2)",
+    title: "Tự động hóa Bóc tách Dữ liệu bằng cURL + grep trên Terminal",
+    poc_ref: "PoC 2 • cURL",
+    is_defense: false,
     goal: "Tái hiện truy vấn từ dòng lệnh bằng PHPSESSID đã lấy từ Burp Suite và dùng biểu thức chính quy grep lọc chính xác tên người dùng từ HTML phức tạp.",
     action_steps: [
-      "Mở Terminal trên Ubuntu VM 1.",
+      "Mở Terminal trên máy kiểm thử.",
       "Dán giá trị PHPSESSID vừa bắt được trên Burp Suite vào cờ -b của lệnh cURL (lưu ý điền cả security=low).",
       "Ống dẫn (pipe) kết quả HTML qua lệnh grep -o \"First name: [^<]*\" để trích gọn trường dữ liệu mong muốn.",
     ],
@@ -504,20 +498,20 @@ Content-Type: text/html;charset=utf-8
     academic_explanation:
       "Chứng minh khả năng chuyển đổi từ thao tác trình duyệt thủ công sang kịch bản dòng lệnh (CLI automation), mở đường để bàn giao Cookie phiên cho công cụ SQLMap ở Giai đoạn 3.",
     presenter_script:
-      "Từ PHPSESSID bắt được, em đưa vào câu lệnh cURL kết hợp regex grep ngay trên Terminal để bóc tách chính xác 'First name: admin' giữa hàng trăm dòng HTML.",
+      "Từ PHPSESSID bắt được, đưa vào câu lệnh cURL kết hợp regex grep ngay trên Terminal để bóc tách chính xác 'First name: admin' giữa hàng trăm dòng HTML.",
     simulator_key: "m2-curl-log",
   },
   {
     id: "m2-s4",
     member_number: 2,
     step_order: 4,
-    phase_tag: "NÂNG BAND 9.5 • BLUE TEAM FORENSICS • SLIDE 9",
+    phase_tag: "PHÒNG THỦ & ĐIỀU TRA • BLUE TEAM FORENSICS",
     title: "Điều tra Nhật ký Tấn công Apache (Log Forensics)",
-    slide_ref: "Slide 9",
-    is_band95: true,
+    poc_ref: "Forensics • access.log",
+    is_defense: true,
     goal: "Đóng vai Blue Team trích xuất và phân tích tệp access.log bên trong container DVWA để chỉ ra các dấu hiệu tấn công (IoC).",
     action_steps: [
-      "Chạy lệnh docker exec {{CONTAINER}} grep -E \"(\\%27|\\'|UNION|SELECT)\" /var/log/apache2/access.log | tail -n 5 trên Terminal Ubuntu.",
+      "Chạy lệnh docker exec {{CONTAINER}} grep -E \"(\\%27|\\'|UNION|SELECT)\" /var/log/apache2/access.log | tail -n 5 trên Terminal.",
       "Đọc và phân tích 4 dấu hiệu nhận diện tấn công (Indicators of Compromise - IoC) trên từng dòng log:",
       "1) Địa chỉ IP nguồn thực hiện rà quét; 2) Payload mã hóa URL (%27, UNION, SELECT) nằm trong URI; 3) Chuỗi User-Agent nhận diện công cụ (curl/... vs Mozilla/5.0 Chromium); 4) Mã phản hồi HTTP (200 hoặc 500) và kích thước gói tin bất thường.",
     ],
@@ -535,7 +529,7 @@ Content-Type: text/html;charset=utf-8
     academic_explanation:
       "Bổ sung góc nhìn phòng thủ Blue Team / Incident Response: mọi dấu vết khai thác qua Burp hay cURL đều để lại vết định danh IP, User-Agent và biến động kích thước response trong nhật ký máy chủ.",
     presenter_script:
-      "Ở phần nâng cao Blue Team, khi truy vấn ngược tệp access.log trong Apache, hệ thống ghi nhận rõ các IoC gồm IP nguồn, chuỗi payload %27/UNION, User-Agent là curl hay trình duyệt và sự thay đổi kích thước gói tin phản hồi.",
+      "Ở góc độ Blue Team, khi truy vấn ngược tệp access.log trong Apache, hệ thống ghi nhận rõ các IoC gồm IP nguồn, chuỗi payload %27/UNION, User-Agent là curl hay trình duyệt và sự thay đổi kích thước gói tin phản hồi.",
     simulator_key: "m2-curl-log",
   },
 
@@ -544,13 +538,13 @@ Content-Type: text/html;charset=utf-8
     id: "m3-s1",
     member_number: 3,
     step_order: 1,
-    phase_tag: "PHẦN CHÍNH • SQLMAP TỰ ĐỘNG • SLIDE 10",
+    phase_tag: "PHẦN CHÍNH • SQLMAP TỰ ĐỘNG",
     title: "Cài đặt SQLMap & Chạy Chuỗi 3 Lệnh Khai thác Tự động + Crack MD5",
-    slide_ref: "Slide 10",
-    is_band95: false,
-    goal: "Dùng công cụ tự động SQLMap với PHPSESSID từ Người 2 để dò tên CSDL, liệt kê bảng nhạy cảm và dump toàn bộ bảng users kèm bẻ khóa MD5.",
+    poc_ref: "SQLMap • 3 Lệnh",
+    is_defense: false,
+    goal: "Dùng công cụ tự động SQLMap với PHPSESSID từ bước trước để dò tên CSDL, liệt kê bảng nhạy cảm và dump toàn bộ bảng users kèm bẻ khóa MD5.",
     action_steps: [
-      "Trên Ubuntu VM 2, kiểm tra hoặc cài đặt SQLMap bằng lệnh: sudo apt install -y sqlmap.",
+      "Kiểm tra hoặc cài đặt SQLMap trên máy bằng lệnh: sudo apt install -y sqlmap.",
       "Lệnh 1 (--dbs): Khai thác danh sách các cơ sở dữ liệu hiện có (tìm thấy information_schema và dvwa).",
       "Lệnh 2 (-D dvwa --tables): Khóa mục tiêu vào CSDL dvwa và liệt kê các bảng (tìm thấy guestbook và users).",
       "Lệnh 3 (-D dvwa -T users --dump): Tải toàn bộ dữ liệu bảng users và để SQLMap tự động chạy Dictionary Attack bẻ khóa cột password (MD5).",
@@ -597,20 +591,20 @@ Database: dvwa | Table: users [5 entries]
     academic_explanation:
       "Giải thích lý do dùng SQLMap thay vì gõ tay: tự động thử hàng loạt kỹ thuật (Boolean-based, Error-based, UNION query), bỏ qua bước lặp thủ công và tích hợp sẵn bộ từ điển bẻ khóa hash MD5.",
     presenter_script:
-      "Từ cookie phiên hợp lệ, em chạy chuỗi 3 lệnh SQLMap liên hoàn: tìm ra database dvwa, xác định bảng users và cuối cùng dùng --dump trích xuất cả 5 tài khoản. Nhờ --batch, SQLMap tự nhận diện MD5 và bẻ khóa ngược ra mật khẩu gốc như password, abc123 ngay trên Terminal.",
+      "Từ cookie phiên hợp lệ, thực thi chuỗi 3 lệnh SQLMap liên hoàn: tìm ra database dvwa, xác định bảng users và dùng --dump trích xuất cả 5 tài khoản. Nhờ --batch, SQLMap tự nhận diện MD5 và bẻ khóa ngược ra mật khẩu gốc như password, abc123 ngay trên Terminal.",
     simulator_key: "m3-sqlmap",
   },
   {
     id: "m3-s2",
     member_number: 3,
     step_order: 2,
-    phase_tag: "PHẦN CHÍNH • POC 3 • SLIDE 11",
+    phase_tag: "PHẦN CHÍNH • POC 3",
     title: "Kiểm toán Hộp trắng MariaDB CLI — Chứng minh Điểm yếu MD5 không Salt",
-    slide_ref: "Slide 11",
-    is_band95: false,
+    poc_ref: "PoC 3 • MariaDB",
+    is_defense: false,
     goal: "Truy cập trực tiếp vào MariaDB bên trong container dvwa để kiểm toán cấu trúc lưu trữ mật khẩu (PoC 3) và phân tích rủi ro Rainbow Table.",
     action_steps: [
-      "Chạy lệnh docker exec -it {{CONTAINER}} mysql -u root -e \"USE dvwa; SELECT user_id, user, password FROM users;\" trên Terminal Ubuntu.",
+      "Chạy lệnh docker exec -it {{CONTAINER}} mysql -u root -e \"USE dvwa; SELECT user_id, user, password FROM users;\" trên Terminal.",
       "Chỉ trực tiếp vào độ dài chuỗi password: đúng 32 ký tự thập lục phân (128-bit) đặc trưng của thuật toán MD5 đã lỗi thời.",
       "So sánh bản ghi số 1 (admin) và số 5 (smithy): cả hai có chuỗi băm GIỐNG HỆT NHAU là 5f4dcc3b5aa765d61d8327deb882cf99.",
       "Kết luận điểm yếu mật mã học CWE-759 (CVSS 4.9 Medium): lưu hash không có Salt (Unsalted Hash) khiến Rainbow Table giải mã đồng loạt mọi tài khoản trùng mật khẩu.",
@@ -636,17 +630,17 @@ Database: dvwa | Table: users [5 entries]
     academic_explanation:
       "MD5 là hàm băm nhanh không thiết kế cho mật khẩu; việc thiếu chuỗi ngẫu nhiên (Salt) làm mọi mật khẩu giống nhau cho ra cùng 1 digest, bị tra ngược tức thì qua Rainbow Table (CWE-759, CVSS 4.9).",
     presenter_script:
-      "Khi kiểm toán hộp trắng trực tiếp trong MariaDB ở PoC 3, ta thấy rõ tài khoản số 1 (admin) và số 5 (smithy) có chuỗi băm MD5 giống hệt nhau: 5f4dcc3b5aa765d61d8327deb882cf99. Đây là lỗi băm không Salt (CWE-759), chỉ cần tra bảng cầu vồng một lần là lộ đồng loạt.",
+      "Khi kiểm toán hộp trắng trực tiếp trong MariaDB ở PoC 3, tài khoản số 1 (admin) và số 5 (smithy) có chuỗi băm MD5 giống hệt nhau: 5f4dcc3b5aa765d61d8327deb882cf99. Đây là lỗi băm không Salt (CWE-759), chỉ cần tra bảng cầu vồng một lần là lộ đồng loạt.",
     simulator_key: "m3-mariadb-patch",
   },
   {
     id: "m3-s3",
     member_number: 3,
     step_order: 3,
-    phase_tag: "NÂNG BAND 9.5 • VÁ LỖI 1 (BCRYPT) • SLIDE 11",
+    phase_tag: "GIA CỐ & PHÒNG THỦ • VÁ LỖI 1 (BCRYPT)",
     title: "Vá lỗi 1 Trực tiếp — Nâng cấp Thuật toán Băm sang Bcrypt (cost = 12)",
-    slide_ref: "Slide 11",
-    is_band95: true,
+    poc_ref: "Vá lỗi 1 • Bcrypt",
+    is_defense: true,
     goal: "Kiểm tra hỗ trợ Argon2id/Bcrypt trong PHP CLI, sinh chuỗi băm Bcrypt có Salt tự động (cost = 12) và cập nhật trực tiếp vào MariaDB.",
     action_steps: [
       "Kiểm tra PHP trên container có hỗ trợ PASSWORD_ARGON2ID hay dùng PASSWORD_BCRYPT.",
@@ -680,17 +674,17 @@ $2y$12$K9p8Q3vT2xL7wR4mN6zA1eH8cB5vD0fG2jK4lM6nP8qR0sT2uV4wX
     academic_explanation:
       "Bcrypt/Argon2id là thuật toán băm thích ứng (Adaptive Key Derivation) tích hợp Salt tự động và tham số cost làm chậm brute-force/GPU cracking gấp hàng nghìn lần so với MD5.",
     presenter_script:
-      "Để khắc phục PoC 3, em sinh chuỗi băm chuẩn Bcrypt với cost=12 có tích hợp Salt tự động qua PHP CLI và cập nhật trực tiếp vào MariaDB, loại bỏ hoàn toàn nguy cơ tra ngược Rainbow Table.",
+      "Để khắc phục PoC 3, tiến hành sinh chuỗi băm chuẩn Bcrypt với cost=12 có tích hợp Salt tự động qua PHP CLI và cập nhật trực tiếp vào MariaDB, loại bỏ hoàn toàn nguy cơ tra ngược Rainbow Table.",
     simulator_key: "m3-mariadb-patch",
   },
   {
     id: "m3-s4",
     member_number: 3,
     step_order: 4,
-    phase_tag: "NÂNG BAND 9.5 • VÁ LỖI 2 (LEAST PRIVILEGE) • SLIDE 11",
+    phase_tag: "GIA CỐ & PHÒNG THỦ • VÁ LỖI 2 (LEAST PRIVILEGE)",
     title: "Vá lỗi 2 Trực tiếp — Tạo Tài khoản CSDL Đặc quyền Tối thiểu (dvwa_svc)",
-    slide_ref: "Slide 11",
-    is_band95: true,
+    poc_ref: "Vá lỗi 2 • DB Grants",
+    is_defense: true,
     goal: "Chấm dứt việc kết nối ứng dụng web bằng tài khoản root toàn quyền, thay thế bằng tài khoản dịch vụ chỉ có quyền SELECT, INSERT, UPDATE trên bảng dvwa.users.",
     action_steps: [
       "Chạy lệnh CREATE USER tạo tài khoản 'dvwa_svc'@'localhost' với mật khẩu mạnh.",
@@ -715,7 +709,7 @@ $2y$12$K9p8Q3vT2xL7wR4mN6zA1eH8cB5vD0fG2jK4lM6nP8qR0sT2uV4wX
     academic_explanation:
       "Nguyên tắc Đặc quyền Tối thiểu (Least Privilege) giới hạn bán kính thiệt hại (Blast Radius): dù tầng web có sự cố, kẻ tấn công cũng không thể đọc file hệ thống (LOAD_FILE/INTO OUTFILE) hay phá hủy bảng/CSDL khác.",
     presenter_script:
-      "Song song với vá mật mã học, em áp dụng nguyên tắc Least Privilege bằng cách tạo tài khoản dịch vụ dvwa_svc chỉ được cấp quyền SELECT, INSERT, UPDATE trên đúng bảng dvwa.users thay cho tài khoản root toàn quyền.",
+      "Song song với vá mật mã học, áp dụng nguyên tắc Least Privilege bằng cách tạo tài khoản dịch vụ dvwa_svc chỉ được cấp quyền SELECT, INSERT, UPDATE trên đúng bảng dvwa.users thay cho tài khoản root toàn quyền.",
     simulator_key: "m3-mariadb-patch",
   },
 
@@ -724,16 +718,16 @@ $2y$12$K9p8Q3vT2xL7wR4mN6zA1eH8cB5vD0fG2jK4lM6nP8qR0sT2uV4wX
     id: "m4-s1",
     member_number: 4,
     step_order: 1,
-    phase_tag: "PHẦN CHÍNH + BAND 9.5 • POC 4 • SLIDE 12",
+    phase_tag: "PHẦN CHÍNH + MỞ RỘNG • POC 4",
     title: "Kiểm toán Hộp trắng & Đối chiếu Mã nguồn PHP 4 Cấp độ",
-    slide_ref: "Slide 12",
-    is_band95: true,
+    poc_ref: "PoC 4 • PHP 4 cấp",
+    is_defense: true,
     goal: "Đặt cả 4 file mã nguồn (low.php, medium.php, high.php, impossible.php) lên bàn cân kiểm toán để chỉ ra nguyên nhân gốc rễ và lý do các bộ lọc bề mặt vẫn bị vượt qua.",
     action_steps: [
       "Chạy 4 lệnh docker exec {{CONTAINER}} cat -n ... để xuất mã nguồn kèm số dòng của cả 4 cấp độ.",
       "Chỉ rõ low.php: Dòng 5 nhận thẳng $_REQUEST['id'], Dòng 8 nối chuỗi '$id', Dòng 9 in lỗi MariaDB qua mysqli_error().",
-      "Giải thích medium.php (Nâng band 9.5): Có dùng mysqli_real_escape_string() nhưng câu SQL viết WHERE user_id = $id không có dấu nháy đơn -> SQL coi là biểu thức số học, vô hiệu hóa hàm thoát nháy.",
-      "Giải thích high.php (Nâng band 9.5): Truyền qua $_SESSION và thêm LIMIT 1 nhưng vi phạm Trust Boundary khi vẫn ghép chuỗi trực tiếp.",
+      "Giải thích medium.php: Có dùng mysqli_real_escape_string() nhưng câu SQL viết WHERE user_id = $id không có dấu nháy đơn -> SQL coi là biểu thức số học, vô hiệu hóa hàm thoát nháy.",
+      "Giải thích high.php: Truyền qua $_SESSION và thêm LIMIT 1 nhưng vi phạm Trust Boundary khi vẫn ghép chuỗi trực tiếp.",
       "Phân tích impossible.php: Phòng thủ 3 lớp gồm checkToken() (dòng 5), is_numeric($id) (dòng 11), và PDO Prepared Statements prepare() + bindParam(..., PDO::PARAM_INT) (dòng 13–15).",
     ],
     commands: [
@@ -754,17 +748,17 @@ docker exec {{CONTAINER}} cat -n /var/www/html/vulnerabilities/sqli/source/impos
     academic_explanation:
       "Bản chất của Prepared Statements là tách biệt hoàn toàn Giai đoạn Biên dịch cây cú pháp SQL (Compilation Phase tại prepare) và Giai đoạn Nạp tham số (Execution Phase tại bindParam/execute), khiến dữ liệu nhập vào luôn là Data Literal.",
     presenter_script:
-      "Khi kiểm toán hộp trắng 4 cấp độ mã nguồn PHP, em chỉ ra lỗi gốc ở dòng 8 của low.php do nối chuỗi trực tiếp, giải thích vì sao medium và high dùng escape hay session vẫn bị bypass, và phân tích 3 lớp bảo vệ chuẩn của impossible.php.",
+      "Khi kiểm toán hộp trắng 4 cấp độ mã nguồn PHP, lỗi gốc nằm ở dòng 8 của low.php do nối chuỗi trực tiếp; medium và high dùng escape hay session vẫn bị bypass; còn impossible.php chặn đứng hoàn toàn nhờ 3 lớp bảo vệ chuẩn.",
     simulator_key: "m4-php-diff",
   },
   {
     id: "m4-s2",
     member_number: 4,
     step_order: 2,
-    phase_tag: "PHẦN CHÍNH • POC 5 GỐC • SLIDE 13",
+    phase_tag: "PHẦN CHÍNH • POC 5 GỐC",
     title: "Kiểm chứng Bản vá trên Burp Repeater — PoC 5 Gốc (Chặn ở tầng CSRF)",
-    slide_ref: "Slide 13",
-    is_band95: false,
+    poc_ref: "PoC 5 • 302 Found",
+    is_defense: false,
     goal: "Chứng minh khi chuyển Cookie sang security=impossible trên gói tin cũ (không chứa user_token), hệ thống lập tức chặn đứng yêu cầu.",
     action_steps: [
       "Mở lại tab Repeater trên Burp Suite (hoặc copy request từ PoC 2).",
@@ -798,10 +792,10 @@ Content-Type: text/html; charset=UTF-8`,
     id: "m4-s3",
     member_number: 4,
     step_order: 3,
-    phase_tag: "NÂNG BAND 9.5 • POC 5 TINH CHỈNH • SLIDE 13–14",
+    phase_tag: "GIA CỐ & PHÒNG THỦ • POC 5 TINH CHỈNH",
     title: "Kiểm chứng PoC 5 Tinh chỉnh — Điền Đủ user_token để Test Lớp SQLi & PDO",
-    slide_ref: "Slide 13 – 14",
-    is_band95: true,
+    poc_ref: "PoC 5 • user_token",
+    is_defense: true,
     goal: "Khắc phục hạn chế của PoC 5 gốc (mới test được lớp CSRF) bằng cách truyền user_token hợp lệ, buộc gói tin đi qua dòng 5 để kiểm chứng thực sự lớp is_numeric($id) và PDO Prepared Statements.",
     action_steps: [
       "Trên trình duyệt ở mức security=impossible, mở trang /vulnerabilities/sqli/ và Inspect HTML (hoặc xem Response GET trang chủ SQLi trong Burp) để lấy giá trị ẩn <input type=\"hidden\" name=\"user_token\" value=\"...\">.",
@@ -824,25 +818,25 @@ Cookie: security=impossible; PHPSESSID={{PHPSESSID}}`,
 Content-Type: text/html;charset=utf-8
 <!-- Trang web hiển thị form bình thường, KHÔNG trả về bản ghi nào và KHÔNG lộ bất kỳ thông báo lỗi MariaDB nào -->`,
     academic_explanation:
-      "Đây là điểm phân biệt bài Band 7.5 với Band 9.5: PoC 5 tinh chỉnh chứng minh thực nghiệm trọn vẹn cả 3 lớp phòng thủ (Anti-CSRF + Type Validation + PDO Prepared Statements) đều hoạt động chuẩn xác.",
+      "PoC 5 tinh chỉnh chứng minh thực nghiệm trọn vẹn cả 3 lớp phòng thủ (Anti-CSRF + Type Validation + PDO Prepared Statements) đều hoạt động chuẩn xác khi kiểm thử đầy đủ tham số.",
     presenter_script:
-      "Tuy nhiên nếu chỉ dừng ở 302 Found thì mới chứng minh được lớp chống CSRF. Để nâng band 9.5, em trích xuất user_token hợp lệ từ HTML gắn vào gói tin GET id=1': lúc này gói tin vượt qua checkToken() nhưng bị is_numeric() ở dòng 11 chặn đứng, không lộ bất kỳ lỗi CSDL nào.",
+      "Nếu chỉ dừng ở 302 Found thì mới chứng minh được lớp chống CSRF. Khi trích xuất user_token hợp lệ từ HTML gắn vào gói tin GET id=1', gói tin vượt qua checkToken() nhưng bị is_numeric() ở dòng 11 chặn đứng, không lộ bất kỳ lỗi CSDL nào.",
     simulator_key: "m4-poc5-waf",
   },
   {
     id: "m4-s4",
     member_number: 4,
     step_order: 4,
-    phase_tag: "NÂNG BAND 9.5 • WAF & PHÒNG THỦ CHIỀU SÂU • SLIDE 14–15",
+    phase_tag: "GIA CỐ & PHÒNG THỦ • WAF & DEFENSE-IN-DEPTH",
     title: "Thiết lập Luật WAF ModSecurity & Tổng kết Phòng thủ Chiều sâu (OWASP A03:2021)",
-    slide_ref: "Slide 14 – 15",
-    is_band95: true,
+    poc_ref: "WAF • SecRule 100001",
+    is_defense: true,
     goal: "Hoàn thiện lớp phòng ngự tầng biên bằng quy tắc ModSecurity OWASP CRS (chặn HTTP 403 trước khi chạm tới PHP) và tổng kết 3 kiến nghị Defense-in-Depth.",
     action_steps: [
       "Trình bày quy tắc SecRule ID 100001 của WAF ModSecurity kiểm tra tham số ARGS:id bằng biểu thức chính quy @rx.",
       "Giải thích cơ chế hành động: deny với mã trạng thái status:403, ghi nhật ký log mức CRITICAL ngay tại pha 2 (request body/args) trước khi PHP xử lý.",
       "Tổng kết 3 lớp Phòng thủ Chiều sâu (Defense-in-Depth): (1) Code & DB (PDO Prepared Statements + Least Privilege dvwa_svc), (2) Mật mã học (Argon2id/Bcrypt có Salt), (3) Hạ tầng & Tầng biên (Ẩn Banner Apache, Cookie HttpOnly/SameSite=Strict, WAF ModSecurity + Giám sát Log).",
-      "Khép lại bằng thông điệp Security by Design theo chuẩn OWASP Top 10 (A03:2021 - Injection).",
+      "Khép lại với thông điệp Security by Design theo chuẩn OWASP Top 10 (A03:2021 - Injection).",
     ],
     commands: [
       {
@@ -859,7 +853,7 @@ Content-Type: text/html;charset=utf-8
     academic_explanation:
       "Phòng thủ Chiều sâu (Defense-in-Depth) đảm bảo nếu một lớp gặp sơ hở (ví dụ lập trình viên quên sửa 1 file PHP cũ), WAF ở tầng biên, tài khoản DB tối thiểu và thuật toán Bcrypt vẫn bảo vệ hệ thống toàn vẹn.",
     presenter_script:
-      "Cuối cùng, để bảo vệ hệ thống ngay từ tầng biên trước khi mã độc chạm vào PHP, nhóm thiết lập quy tắc WAF ModSecurity SecRule id 100001 trả về 403 Forbidden. Tổng kết lại thông điệp Security by Design theo OWASP A03:2021: bảo mật phải được thiết kế đa tầng từ code, dữ liệu cho tới tầng mạng.",
+      "Cuối cùng, để bảo vệ hệ thống ngay từ tầng biên trước khi mã độc chạm vào PHP, quy tắc WAF ModSecurity SecRule id 100001 được thiết lập để trả về 403 Forbidden, khép lại mô hình bảo mật đa tầng Security by Design theo OWASP A03:2021.",
     simulator_key: "m4-poc5-waf",
   },
 ];
@@ -918,15 +912,15 @@ export const QA_ITEMS: QaItem[] = [
     question: "Tại sao trong PoC 1 chỉ cần ẩn phiên bản Apache (ServerTokens Prod) mà không sửa code PHP ngay?",
     answer_summary:
       "Ẩn banner Apache khắc phục trực tiếp lỗ hổng CWE-200 (CVSS 5.3) ở tầng cấu hình máy chủ web: kẻ tấn công không biết chính xác bản 2.4.25 (Debian) để tra cứu CVE khai thác tự động. Đây là bước hạ tầng (Layer 1) trong mô hình Defense-in-Depth, bổ trợ cho phần vá code PHP của Thành viên 4.",
-    is_band95: true,
+    is_defense: true,
   },
   {
     id: "qa-1-2",
     member_number: 1,
-    question: "Vì sao Docker container trên Mac dùng ID 215d3a734374 còn trên 3 máy Windows/Ubuntu lại dùng tên 'dvwa'?",
+    question: "Vì sao Docker container có lúc dùng ID 215d3a734374, lúc lại dùng tên 'dvwa'?",
     answer_summary:
-      "Trên Mac container được khởi tạo tự động (tên ngẫu nhiên epic_dijkstra, ID 215d3a734374). Khi nhân bản Lab sang 3 máy ảo Ubuntu, nhóm đặt cờ --name dvwa để đồng bộ câu lệnh docker exec giữa tất cả các máy mà không phụ thuộc vào hash ID ngẫu nhiên.",
-    is_band95: false,
+      "Container được tạo tự động có tên ngẫu nhiên như epic_dijkstra (ID 215d3a734374). Khi nhân bản môi trường sang các máy thực hành khác, việc đặt thêm cờ --name dvwa giúp đồng bộ câu lệnh docker exec giữa tất cả các máy mà không phụ thuộc vào hash ID ngẫu nhiên.",
+    is_defense: false,
   },
   {
     id: "qa-2-1",
@@ -934,7 +928,7 @@ export const QA_ITEMS: QaItem[] = [
     question: "Tại sao trình duyệt của Burp Suite lại bỏ qua Proxy khi truy cập 127.0.0.1:8080 và localtest.me giải quyết thế nào?",
     answer_summary:
       "Nhân Chromium mặc định áp dụng danh sách bỏ qua Proxy (Loopback Bypass) cho localhost và 127.0.0.1 nhằm tránh vòng lặp nội bộ. Tên miền localtest.me phân giải DNS công khai về 127.0.0.1 nhưng về mặt chuỗi tên miền lại khác localhost, buộc Chromium đẩy 100% gói tin qua cổng Proxy 8081 của Burp Suite.",
-    is_band95: true,
+    is_defense: true,
   },
   {
     id: "qa-2-2",
@@ -942,7 +936,7 @@ export const QA_ITEMS: QaItem[] = [
     question: "Khi kiểm tra Apache access.log, làm sao phân biệt được request tấn công từ cURL hay từ trình duyệt Burp?",
     answer_summary:
       "Dựa vào 3 IoC cốt lõi trong mỗi dòng log: (1) Chuỗi truy vấn chứa ký tự đặc biệt mã hóa như %27, UNION, SELECT; (2) Trường User-Agent ghi rõ 'curl/...' đối với CLI so với 'Mozilla/5.0...' của trình duyệt tích hợp Burp; (3) Mã phản hồi HTTP và kích thước response (response dump 5 users dài hơn hẳn query thường).",
-    is_band95: true,
+    is_defense: true,
   },
   {
     id: "qa-3-1",
@@ -950,7 +944,7 @@ export const QA_ITEMS: QaItem[] = [
     question: "Nếu không dùng Salt, tại sao admin và smithy có cùng hash MD5 lại nguy hiểm hơn bình thường?",
     answer_summary:
       "Khi không có Salt, hàm băm MD5 luôn tạo ra một đầu ra cố định cho cùng một đầu vào (5f4dcc3b5aa765d61d8327deb882cf99 cho 'password'). Kẻ tấn công chỉ cần tra bảng cầu vồng (Rainbow Table) 1 lần là biết ngay cả admin lẫn smithy dùng chung mật khẩu, mở rộng chiếm quyền hàng loạt.",
-    is_band95: true,
+    is_defense: true,
   },
   {
     id: "qa-3-2",
@@ -958,7 +952,7 @@ export const QA_ITEMS: QaItem[] = [
     question: "Tạo user dvwa_svc với quyền SELECT, INSERT, UPDATE có giúp chống được lỗi SQL Injection không?",
     answer_summary:
       "Least Privilege không tự chặn lỗi nối chuỗi SQLi, nhưng nó giới hạn tối đa hậu quả (Blast Radius): kẻ tấn công không thể dùng quyền root để DROP TABLE, tạo user mới, hoặc đọc/ghi file hệ điều hành qua LOAD_FILE / INTO OUTFILE.",
-    is_band95: true,
+    is_defense: true,
   },
   {
     id: "qa-4-1",
@@ -966,7 +960,7 @@ export const QA_ITEMS: QaItem[] = [
     question: "Tại sao hàm mysqli_real_escape_string() trong medium.php vẫn bị SQL Injection vượt qua?",
     answer_summary:
       "Hàm mysqli_real_escape_string() chỉ thêm dấu gạch chéo ngược trước các ký tự nháy đơn ', nháy kép \"... Nhưng trong medium.php, biến $id đặt thẳng sau dấu bằng (WHERE user_id = $id) không có dấu nháy đơn bao quanh. Kẻ tấn công truyền payload kiểu số học như '1 OR 1=1' hoàn toàn không cần dùng dấu nháy đơn nên bộ lọc bị vô hiệu.",
-    is_band95: true,
+    is_defense: true,
   },
   {
     id: "qa-4-2",
@@ -974,7 +968,7 @@ export const QA_ITEMS: QaItem[] = [
     question: "Tại sao trong PoC 5 phải làm thêm bước tinh chỉnh trích xuất user_token thay vì chỉ chụp ảnh mã 302 Found?",
     answer_summary:
       "Mã 302 Found chỉ chứng minh lớp bảo vệ đầu tiên là Anti-CSRF checkToken() ở dòng 5 đã chạy, chưa chạm tới lớp kiểm tra $id và PDO Prepared Statements ở dòng 11–15. Phải gửi kèm user_token hợp lệ và payload id=1' để thấy hệ thống chặn ở is_numeric() và trả về 200 OK sạch lỗi mới chứng minh trọn vẹn bản vá SQLi.",
-    is_band95: true,
+    is_defense: true,
   },
 ];
 
@@ -985,7 +979,7 @@ export const DEFAULT_WORKSPACE_STATES: Record<number, LabWorkspaceState> = {
     phpsessid: "2d0vvd715drf3nv8mgq7vderg6",
     user_token: "d41d8cd98f00b204e9800998ecf8427e",
     completed_step_ids: [],
-    notes: "MacBook (macOS) - Container ID thực tế 215d3a734374 (epic_dijkstra).",
+    notes: "Container ID thực tế 215d3a734374 (epic_dijkstra).",
   },
   2: {
     member_number: 2,
@@ -993,7 +987,7 @@ export const DEFAULT_WORKSPACE_STATES: Record<number, LabWorkspaceState> = {
     phpsessid: "7nst0hrqrfmv744a5ouj7663b0",
     user_token: "d41d8cd98f00b204e9800998ecf8427e",
     completed_step_ids: [],
-    notes: "Lap Win 1 (Ubuntu VM) - Burp Proxy 127.0.0.1:8081, truy cập localtest.me:8080.",
+    notes: "Burp Proxy 127.0.0.1:8081, truy cập localtest.me:8080.",
   },
   3: {
     member_number: 3,
@@ -1001,7 +995,7 @@ export const DEFAULT_WORKSPACE_STATES: Record<number, LabWorkspaceState> = {
     phpsessid: "7nst0hrqrfmv744a5ouj7663b0",
     user_token: "d41d8cd98f00b204e9800998ecf8427e",
     completed_step_ids: [],
-    notes: "Lap Win 2 (Ubuntu VM) - SQLMap --batch & MariaDB CLI.",
+    notes: "SQLMap --batch & MariaDB CLI.",
   },
   4: {
     member_number: 4,
@@ -1009,7 +1003,7 @@ export const DEFAULT_WORKSPACE_STATES: Record<number, LabWorkspaceState> = {
     phpsessid: "7nst0hrqrfmv744a5ouj7663b0",
     user_token: "d41d8cd98f00b204e9800998ecf8427e",
     completed_step_ids: [],
-    notes: "Lap Win 3 (Ubuntu VM) - Kiểm toán 4 file PHP & PoC 5 tinh chỉnh.",
+    notes: "Kiểm toán 4 file PHP & PoC 5 tinh chỉnh.",
   },
 };
 

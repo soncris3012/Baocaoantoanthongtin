@@ -43,7 +43,7 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
   const memberQa = snapshot.qaItems.filter((q) => q.member_number === memberNumber);
   const currentState = snapshot.workspaceStates[memberNumber];
 
-  const [filterMode, setFilterMode] = useState<"all" | "main" | "band95">("all");
+  const [filterMode, setFilterMode] = useState<"all" | "main" | "defense">("all");
   const [containerInput, setContainerInput] = useState(currentState.container_ref);
   const [phpsessidInput, setPhpsessidInput] = useState(currentState.phpsessid);
   const [userTokenInput, setUserTokenInput] = useState(currentState.user_token);
@@ -72,8 +72,8 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
   }, [member.display_name]);
 
   const filteredSteps = memberSteps.filter((s) => {
-    if (filterMode === "main") return !s.is_band95;
-    if (filterMode === "band95") return s.is_band95;
+    if (filterMode === "main") return !s.is_defense;
+    if (filterMode === "defense") return s.is_defense;
     return true;
   });
 
@@ -150,7 +150,7 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
               {member.device}
             </span>
             <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-xs text-slate-300">
-              {member.slide_range} • {member.duration_text}
+              {member.stage_label}
             </span>
           </div>
 
@@ -221,9 +221,9 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
           </div>
           <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/15 p-3.5 text-xs">
             <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-emerald-300">
-              <Sparkles className="h-3.5 w-3.5" /> Phần Nâng cấp Band 9.5
+              <Sparkles className="h-3.5 w-3.5" /> Gia cố &amp; Phòng thủ Chiều sâu
             </div>
-            <p className="mt-1 text-sm text-emerald-100">{member.band95_upgrade}</p>
+            <p className="mt-1 text-sm text-emerald-100">{member.defense_scope}</p>
           </div>
         </div>
       </section>
@@ -312,11 +312,11 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
               { id: "all" as const, label: `Tất cả (${memberSteps.length})` },
               {
                 id: "main" as const,
-                label: `Phần chính (${memberSteps.filter((s) => !s.is_band95).length})`,
+                label: `Khai thác & Kiểm toán (${memberSteps.filter((s) => !s.is_defense).length})`,
               },
               {
-                id: "band95" as const,
-                label: `Nâng Band 9.5 (${memberSteps.filter((s) => s.is_band95).length})`,
+                id: "defense" as const,
+                label: `Gia cố & Phòng thủ (${memberSteps.filter((s) => s.is_defense).length})`,
               },
             ].map((f) => (
               <button
@@ -346,7 +346,7 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                 className={`rounded-2xl border bg-[#0b1120] p-5 shadow-lg transition sm:p-6 ${
                   isDone
                     ? "border-emerald-500/45"
-                    : step.is_band95
+                    : step.is_defense
                     ? "border-violet-500/35"
                     : "border-slate-800"
                 }`}
@@ -360,14 +360,14 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                       </span>
                       <span
                         className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${
-                          step.is_band95
+                          step.is_defense
                             ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
                             : "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
                         }`}
                       >
                         {step.phase_tag}
                       </span>
-                      <span className="text-xs text-slate-400">{step.slide_ref}</span>
+                      <span className="text-xs text-slate-400">{step.poc_ref}</span>
                     </div>
                     <h3 className="text-lg font-bold text-white sm:text-xl">
                       {step.title}
@@ -467,17 +467,17 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                     <div className="rounded-xl border border-amber-500/25 bg-amber-950/15 p-3.5">
                       <div className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-300">
                         <MessageSquareQuote className="h-3.5 w-3.5" />
-                        Lời thoại Thuyết trình Gợi ý
+                        Tóm tắt Diễn giải Bước Thực hành
                       </div>
                       <p className="text-xs leading-relaxed text-slate-200 sm:text-sm">
-                        &ldquo;{step.presenter_script}&rdquo;
+                        {step.presenter_script}
                       </p>
                     </div>
 
                     <div className="rounded-xl border border-violet-500/25 bg-violet-950/15 p-3.5">
                       <div className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-violet-300">
                         <BookOpen className="h-3.5 w-3.5" />
-                        Giải thích Học thuật (Ăn điểm Band 9.5)
+                        Phân tích Kỹ thuật &amp; Cơ chế Bảo mật
                       </div>
                       <p className="text-xs leading-relaxed text-slate-200 sm:text-sm">
                         {step.academic_explanation}
@@ -525,14 +525,14 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
             value={notesInput}
             onChange={(e) => setNotesInput(e.target.value)}
             className="w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-xs leading-relaxed text-slate-200 focus:border-cyan-400 focus:outline-none sm:text-sm"
-            placeholder="Ghi lại IP máy ảo, ảnh chụp PoC hoặc lưu ý riêng khi lên thuyết trình..."
+            placeholder="Ghi lại IP máy ảo, ảnh chụp PoC hoặc lưu ý riêng khi thực hành..."
           />
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-[#0b1120] p-5">
           <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-white">
             <HelpCircle className="h-5 w-5 text-violet-400" />
-            Câu hỏi Phản biện Trọng tâm (Dành cho Người {memberNumber})
+            Câu hỏi Kỹ thuật Trọng tâm (Phần Người {memberNumber})
           </h2>
           <div className="space-y-2.5">
             {memberQa.map((qa) => {

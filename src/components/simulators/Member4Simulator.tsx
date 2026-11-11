@@ -61,7 +61,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
       return {
         badge: "200 OK RỖNG • CHẶN BỞI is_numeric() & PDO (Dòng 11–15)",
         badgeClass: "bg-emerald-500/20 text-emerald-300",
-        body: `HTTP/1.1 200 OK\nContent-Type: text/html;charset=utf-8\n\n<!-- Trang HTML hợp lệ, KHÔNG có bản ghi, KHÔNG lộ lỗi MariaDB -->\n# Phân tích PoC 5 tinh chỉnh (Band 9.5):\n# 1) Đã vượt qua checkToken() ở dòng 5 nhờ có user_token hợp lệ.\n# 2) Hàm is_numeric("1'") ở dòng 11 trả về FALSE -> bỏ qua khối truy vấn SQL!\n# 3) PDO prepare() + bindParam(':id', $id, PDO::PARAM_INT) khóa chặt cấu trúc lệnh.`,
+        body: `HTTP/1.1 200 OK\nContent-Type: text/html;charset=utf-8\n\n<!-- Trang HTML hợp lệ, KHÔNG có bản ghi, KHÔNG lộ lỗi MariaDB -->\n# Phân tích PoC 5 tinh chỉnh:\n# 1) Đã vượt qua checkToken() ở dòng 5 nhờ có user_token hợp lệ.\n# 2) Hàm is_numeric("1'") ở dòng 11 trả về FALSE -> bỏ qua khối truy vấn SQL!\n# 3) PDO prepare() + bindParam(':id', $id, PDO::PARAM_INT) khóa chặt cấu trúc lệnh.`,
       };
     }
 
@@ -223,7 +223,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
                       : "border-slate-700 bg-slate-950 text-slate-400"
                   }`}
                 >
-                  Đủ Token (9.5)
+                  Đủ Token (Tinh chỉnh)
                 </button>
               </div>
             </div>

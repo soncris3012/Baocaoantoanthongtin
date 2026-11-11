@@ -36,12 +36,12 @@ export function Navbar() {
               <span className="text-sm font-bold tracking-tight text-slate-100 sm:text-base">
                 DVWA Security Audit
               </span>
-              <span className="hidden rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-300 sm:inline-block">
-                Band 9.5
+              <span className="hidden rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-medium text-cyan-300 sm:inline-block">
+                OWASP A03:2021
               </span>
             </div>
             <p className="text-[11px] text-slate-400">
-              BTL An Toàn Thông Tin • Kịch bản 4 Thành viên
+              BTL An Toàn Thông Tin • Mô phỏng Kịch bản 4 Thành viên
             </p>
           </div>
         </Link>
@@ -129,7 +129,7 @@ export function Navbar() {
                 ? "border-cyan-400/60 bg-cyan-500/20 text-cyan-200"
                 : "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-600"
             }`}
-            title="Phóng to cỡ chữ và khối lệnh để trình chiếu trên lớp"
+            title="Phóng to cỡ chữ và khối lệnh để trình chiếu"
           >
             {presentationMode ? (
               <MonitorPlay className="h-3.5 w-3.5 text-cyan-300" />
@@ -137,7 +137,7 @@ export function Navbar() {
               <Terminal className="h-3.5 w-3.5" />
             )}
             <span className="hidden lg:inline">
-              {presentationMode ? "Đang chiếu" : "Chế độ chiếu"}
+              {presentationMode ? "Đang phóng to" : "Phóng to chữ"}
             </span>
           </button>
         </div>

@@ -262,7 +262,7 @@ Surname: admin`}
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-300">
                 <FileSearch className="h-3.5 w-3.5" />
-                Nâng Band 9.5: Blue Team Log Forensics (/var/log/apache2/access.log)
+                Blue Team Log Forensics (/var/log/apache2/access.log)
               </span>
               <button
                 type="button"

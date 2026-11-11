@@ -11,10 +11,9 @@ CREATE TABLE IF NOT EXISTS public.team_members (
   role_title TEXT NOT NULL,
   device TEXT NOT NULL,
   os_env TEXT NOT NULL,
-  slide_range TEXT NOT NULL,
-  duration_text TEXT NOT NULL,
+  stage_label TEXT NOT NULL,
   main_practice TEXT NOT NULL,
-  band95_upgrade TEXT NOT NULL,
+  defense_scope TEXT NOT NULL,
   overview_summary TEXT NOT NULL,
   tools JSONB NOT NULL DEFAULT '[]'::jsonb,
   accent_theme TEXT NOT NULL DEFAULT 'cyan',
@@ -28,8 +27,8 @@ CREATE TABLE IF NOT EXISTS public.scenario_steps (
   step_order INTEGER NOT NULL,
   phase_tag TEXT NOT NULL,
   title TEXT NOT NULL,
-  slide_ref TEXT NOT NULL,
-  is_band95 BOOLEAN NOT NULL DEFAULT FALSE,
+  poc_ref TEXT NOT NULL,
+  is_defense BOOLEAN NOT NULL DEFAULT FALSE,
   goal TEXT NOT NULL,
   action_steps JSONB NOT NULL DEFAULT '[]'::jsonb,
   commands JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -55,13 +54,13 @@ CREATE TABLE IF NOT EXISTS public.vulnerabilities (
   remediation TEXT NOT NULL
 );
 
--- 4. Ngan hang cau hoi phan bien danh cho 4 thanh vien
+-- 4. Ngan hang cau hoi ky thuat danh cho 4 thanh vien
 CREATE TABLE IF NOT EXISTS public.qa_items (
   id TEXT PRIMARY KEY,
   member_number INTEGER NOT NULL REFERENCES public.team_members(member_number) ON DELETE CASCADE,
   question TEXT NOT NULL,
   answer_summary TEXT NOT NULL,
-  is_band95 BOOLEAN NOT NULL DEFAULT TRUE
+  is_defense BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- 5. Trang thai thuc hanh thuc te & bien phien dong bo cua nhom

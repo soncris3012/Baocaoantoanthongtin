@@ -75,10 +75,10 @@ export function OverviewPageClient() {
             {PROJECT_OVERVIEW.courseTitle}
           </span>
           <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 font-semibold text-emerald-300">
-            Mục tiêu: Band 9.5 (Live Patching & Forensics)
+            Chuẩn PTES • Black-Box &amp; White-Box
           </span>
           <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-slate-300">
-            15 Slides • {PROJECT_OVERVIEW.durationPerMember}
+            OWASP Top 10 (A03:2021 - Injection)
           </span>
         </div>
 
@@ -111,7 +111,7 @@ export function OverviewPageClient() {
               Docker DVWA Cô lập
             </p>
             <p className="mt-1 text-xs text-slate-400">
-              Apache/2.4.25 (Debian) + PHP + MariaDB chạy cổng 8080 trên cả macOS & Ubuntu VM.
+              Apache/2.4.25 (Debian) + PHP + MariaDB chạy tại cổng 8080.
             </p>
           </div>
 
@@ -123,7 +123,7 @@ export function OverviewPageClient() {
               OWASP A03:2021
             </p>
             <p className="mt-1 text-xs text-slate-400">
-              Vá Banner Apache, Bcrypt cost=12, Least Privilege DB, PDO Prepared Statements & WAF.
+              Vá Banner Apache, Bcrypt cost=12, Least Privilege DB, PDO Prepared Statements &amp; WAF.
             </p>
           </div>
 
@@ -154,7 +154,7 @@ export function OverviewPageClient() {
               Phân chia Kịch bản Thực hành 4 Thành viên
             </h2>
             <p className="mt-1 text-sm text-slate-400">
-              Mỗi thành viên chọn đúng thẻ máy của mình để xem kịch bản từng bước, copy lệnh động và chạy trình mô phỏng thực tế.
+              Mỗi thành viên chọn đúng phần của mình để xem kịch bản từng bước, copy lệnh động và chạy trình mô phỏng thực tế.
             </p>
           </div>
           <Link
@@ -162,7 +162,7 @@ export function OverviewPageClient() {
             className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:border-cyan-400 hover:text-cyan-200"
           >
             <Wrench className="h-4 w-4 text-cyan-400" />
-            Hướng dẫn Setup 3 máy Ubuntu & Script .sh
+            Hướng dẫn Setup Lab &amp; Script .sh
           </Link>
         </div>
 
@@ -193,7 +193,7 @@ export function OverviewPageClient() {
                       {member.device}
                     </span>
                     <span className="rounded-md bg-slate-900 px-2.5 py-1 font-mono text-xs text-slate-300">
-                      {member.slide_range} • {member.duration_text}
+                      {member.stage_label}
                     </span>
                   </div>
 
@@ -215,8 +215,8 @@ export function OverviewPageClient() {
                     <div className="flex items-start gap-1.5">
                       <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
                       <div>
-                        <span className="font-semibold text-emerald-300">Nâng Band 9.5: </span>
-                        <span className="text-slate-300">{member.band95_upgrade}</span>
+                        <span className="font-semibold text-emerald-300">Gia cố &amp; Mở rộng: </span>
+                        <span className="text-slate-300">{member.defense_scope}</span>
                       </div>
                     </div>
                   </div>
@@ -250,7 +250,7 @@ export function OverviewPageClient() {
                     href={`/thanh-vien/${member.member_number}`}
                     className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${theme.button}`}
                   >
-                    <span>Vào Kịch bản Từng bước & Mô phỏng</span>
+                    <span>Vào Kịch bản Từng bước &amp; Mô phỏng</span>
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
@@ -369,7 +369,7 @@ export function OverviewPageClient() {
         <div className="rounded-2xl border border-slate-800 bg-[#0b1120] p-5">
           <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-white">
             <ShieldAlert className="h-5 w-5 text-rose-400" />
-            Bảng Chuẩn hóa Rủi ro (CWE & CVSS v3.1)
+            Bảng Chuẩn hóa Rủi ro (CWE &amp; CVSS v3.1)
           </h2>
           <div className="space-y-2.5">
             {snapshot.vulnerabilities.map((v) => (

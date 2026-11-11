@@ -14,10 +14,9 @@ export interface TeamMember {
   role_title: string;
   device: string;
   os_env: string;
-  slide_range: string;
-  duration_text: string;
+  stage_label: string;
   main_practice: string;
-  band95_upgrade: string;
+  defense_scope: string;
   overview_summary: string;
   tools: string[];
   accent_theme: AccentTheme;
@@ -29,8 +28,8 @@ export interface ScenarioStep {
   step_order: number;
   phase_tag: string;
   title: string;
-  slide_ref: string;
-  is_band95: boolean;
+  poc_ref: string;
+  is_defense: boolean;
   goal: string;
   action_steps: string[];
   commands: StepCommand[];
@@ -57,7 +56,7 @@ export interface QaItem {
   member_number: 1 | 2 | 3 | 4;
   question: string;
   answer_summary: string;
-  is_band95: boolean;
+  is_defense: boolean;
 }
 
 export interface LabWorkspaceState {
