@@ -1,24 +1,26 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { WorkspaceProvider } from "@/components/WorkspaceProvider";
 import { Navbar } from "@/components/Navbar";
 import { getWorkspaceSnapshot } from "@/lib/repository";
 
-const inter = Inter({
+const ibmPlexSans = IBM_Plex_Sans({
   subsets: ["latin", "vietnamese"],
-  variable: "--font-inter",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-ibm-plex",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-jetbrains",
 });
 
 export const metadata: Metadata = {
-  title: "BTL An Toàn Thông Tin — Mô phỏng Kịch bản 4 Thành viên (DVWA)",
+  title: "DVWA Security Audit — Tài liệu & Mô phỏng Thực hành 4 Thành viên",
   description:
-    "Trang web mô phỏng thực tế kịch bản kiểm thử hộp đen & kiểm toán hộp trắng DVWA chia rõ 4 thành viên, đồng bộ dữ liệu Supabase & Vercel.",
+    "Hệ thống mô phỏng kịch bản kiểm thử hộp đen và kiểm toán hộp trắng DVWA theo chuẩn PTES, đồng bộ dữ liệu trên Supabase và Vercel.",
 };
 
 export const dynamic = "force-dynamic";
@@ -31,11 +33,11 @@ export default async function RootLayout({
   const initialSnapshot = await getWorkspaceSnapshot();
 
   return (
-    <html lang="vi" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="min-h-screen bg-[#060913] text-slate-100 font-sans antialiased cyber-grid-bg">
+    <html lang="vi" className={`${ibmPlexSans.variable} ${jetbrainsMono.variable}`}>
+      <body className="min-h-screen bg-canvas text-ink font-sans antialiased">
         <WorkspaceProvider initialSnapshot={initialSnapshot}>
           <Navbar />
-          <main className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+          <main className="mx-auto max-w-6xl px-4 pb-16 pt-8 sm:px-6 lg:px-8">
             {children}
           </main>
         </WorkspaceProvider>

@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 export default {
+  darkMode: "class",
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,11 +10,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        canvas: "var(--bg-canvas)",
+        surface: "var(--bg-surface)",
+        subtle: "var(--bg-subtle)",
+        hairline: "var(--border-hairline)",
+        ink: "var(--text-ink)",
+        secondary: "var(--text-secondary)",
+        muted: "var(--text-muted)",
+        accent: "var(--accent)",
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
+        sans: ["var(--font-ibm-plex)", "system-ui", "sans-serif"],
         mono: ["var(--font-jetbrains)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
     },

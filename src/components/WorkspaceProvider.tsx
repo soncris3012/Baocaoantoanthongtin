@@ -5,6 +5,8 @@ import { LabWorkspaceState, WorkspaceSnapshot } from "@/types/scenario";
 
 interface WorkspaceContextValue {
   snapshot: WorkspaceSnapshot;
+  theme: "light" | "dark";
+  toggleTheme: () => void;
   presentationMode: boolean;
   setPresentationMode: (val: boolean) => void;
   savingMember: number | null;
@@ -22,6 +24,7 @@ interface WorkspaceContextValue {
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 const LOCAL_STORAGE_KEY = "btl_attt_workspace_states_v1";
+const THEME_STORAGE_KEY = "btl_attt_theme_v1";
 
 export function WorkspaceProvider({
   initialSnapshot,
@@ -31,11 +34,22 @@ export function WorkspaceProvider({
   children: React.ReactNode;
 }) {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>(initialSnapshot);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [presentationMode, setPresentationMode] = useState(false);
   const [savingMember, setSavingMember] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+      if (savedTheme === "dark") {
+        setTheme("dark");
+        document.documentElement.classList.add("dark");
+      }
+    } catch {
+      // ignore storage errors
+    }
+
     if (!initialSnapshot.supabaseConfigured) {
       try {
         const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -60,11 +74,26 @@ export function WorkspaceProvider({
     }
   }, [presentationMode]);
 
+  const toggleTheme = () => {
+    const next = theme === "light" ? "dark" : "light";
+    setTheme(next);
+    if (next === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch {
+      // ignore
+    }
+  };
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage((cur) => (cur === msg ? null : cur));
-    }, 3200);
+    }, 3000);
   };
 
   const persistLocal = (nextStates: Record<number, LabWorkspaceState>) => {
@@ -107,9 +136,9 @@ export function WorkspaceProvider({
       });
       const data = await res.json();
       if (data.persistedTo === "supabase") {
-        showToast(`Đã lưu tiến độ Thành viên ${memberNumber} lên Supabase Cloud.`);
+        showToast(`Đã lưu tiến độ Thành viên ${memberNumber} lên Supabase.`);
       } else {
-        showToast(`Đã lưu tạm cục bộ (Local) cho Thành viên ${memberNumber}.`);
+        showToast(`Đã lưu tạm trên trình duyệt cho Thành viên ${memberNumber}.`);
       }
     } catch {
       showToast("Đã lưu cục bộ trên trình duyệt.");
@@ -172,7 +201,7 @@ export function WorkspaceProvider({
     const data = (await res.json()) as { ok: boolean; message: string };
     if (data.ok) {
       await refreshSnapshot();
-      showToast("Đồng bộ dữ liệu lên Supabase thành công!");
+      showToast("Đồng bộ dữ liệu lên Supabase thành công.");
     } else {
       showToast(data.message);
     }
@@ -183,6 +212,8 @@ export function WorkspaceProvider({
     <WorkspaceContext.Provider
       value={{
         snapshot,
+        theme,
+        toggleTheme,
         presentationMode,
         setPresentationMode,
         savingMember,
@@ -197,8 +228,12 @@ export function WorkspaceProvider({
     >
       {children}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-3 rounded-xl border border-cyan-500/40 bg-slate-900/95 px-4 py-3 text-sm text-slate-100 shadow-2xl backdrop-blur">
-          <span className="h-2 w-2 rounded-full bg-cyan-400" />
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-5 right-5 z-50 flex items-center gap-2.5 rounded-md border border-hairline bg-surface px-4 py-2.5 text-sm font-medium text-ink shadow-sm"
+        >
+          <span className="h-2 w-2 rounded-full bg-emerald-600" aria-hidden="true" />
           <span>{toastMessage}</span>
         </div>
       )}

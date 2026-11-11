@@ -3,19 +3,31 @@
 @tailwind utilities;
 
 :root {
-  --background: #060913;
-  --foreground: #e2e8f0;
+  --bg-canvas: #f8f9fb;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f1f3f6;
+  --border-hairline: #dfe3ea;
+  --text-ink: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #526075;
+  --accent: #1d4ed8;
+}
+
+html.dark {
+  --bg-canvas: #0b0d10;
+  --bg-surface: #12151a;
+  --bg-subtle: #181c23;
+  --border-hairline: #262b35;
+  --text-ink: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --accent: #3b82f6;
 }
 
 body {
-  background-color: #060913;
-  color: #e2e8f0;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-}
-
-.cyber-grid-bg {
-  background-image: radial-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px);
-  background-size: 28px 28px;
+  background-color: var(--bg-canvas);
+  color: var(--text-ink);
+  line-height: 1.6;
 }
 
 .presentation-mode {
@@ -24,22 +36,32 @@ body {
 
 .presentation-mode pre,
 .presentation-mode code {
-  font-size: 0.98rem !important;
+  font-size: 0.96rem !important;
   line-height: 1.65 !important;
 }
 
-/* Custom subtle scrollbars for terminal / code blocks */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Scrollbar for terminal / code blocks */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #0b1120;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #64748b55;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #64748b99;
 }

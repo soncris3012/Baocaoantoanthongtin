@@ -5,16 +5,11 @@ import Link from "next/link";
 import {
   ArrowLeft,
   ArrowRight,
-  BookOpen,
   CheckCircle2,
   Circle,
   Edit3,
-  Laptop,
-  MessageSquareQuote,
   Play,
   Save,
-  Sliders,
-  Sparkles,
 } from "lucide-react";
 import { CodeBlock } from "@/components/CodeBlock";
 import { RoleSimulator } from "@/components/RoleSimulator";
@@ -105,52 +100,45 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
 
   return (
     <div className="space-y-8">
-      {/* Top Breadcrumb + Quick Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Top Breadcrumb + Segmented Member Switcher */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 transition hover:text-cyan-300 sm:text-sm"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted transition-colors hover:text-ink sm:text-sm"
         >
-          <ArrowLeft className="h-4 w-4" />
-          Quay lại Trang tổng quan BTL
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Trang tổng quan BTL
         </Link>
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="inline-flex rounded-md border border-hairline bg-subtle p-0.5">
           {[1, 2, 3, 4].map((num) => (
             <Link
               key={num}
               href={`/thanh-vien/${num}`}
-              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+              className={`rounded px-3 py-1 font-mono text-xs font-medium transition-colors ${
                 num === memberNumber
-                  ? "border-cyan-400 bg-cyan-500/20 text-white"
-                  : "border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-600"
+                  ? "bg-surface text-ink font-bold shadow-sm"
+                  : "text-muted hover:text-ink"
               }`}
             >
-              Người {num}
+              0{num} · Người {num}
             </Link>
           ))}
         </div>
       </div>
 
-      {/* Member Hero Summary Card */}
-      <section className="rounded-3xl border border-slate-800 bg-gradient-to-br from-[#0d152a] to-[#080d1b] p-5 shadow-xl sm:p-7">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-bold text-cyan-300">
-              <Laptop className="h-3.5 w-3.5" />
-              {member.device}
-            </span>
-            <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 font-mono text-xs text-slate-300">
-              {member.stage_label}
-            </span>
-          </div>
-
-          <div className="text-xs font-semibold text-emerald-300">
-            Hoàn thành: {completedCount} / {memberSteps.length} bước
-          </div>
+      {/* Member Header */}
+      <section className="space-y-4 border-b border-hairline pb-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-xs text-muted">
+          <span>
+            {member.device} · {member.os_env}
+          </span>
+          <span>
+            Tiến độ: <strong className="text-ink">{completedCount}/{memberSteps.length}</strong> bước
+          </span>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {editingName ? (
             <div className="flex flex-wrap items-center gap-2">
               <input
@@ -158,7 +146,7 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
                 aria-label="Tên thành viên"
-                className="rounded-lg border border-cyan-500/50 bg-slate-950 px-3 py-1.5 text-lg font-bold text-white focus:outline-none"
+                className="rounded-md border border-accent bg-surface px-3 py-1.5 text-lg font-bold text-ink focus:outline-none"
               />
               <button
                 type="button"
@@ -166,7 +154,7 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                   await renameMember(memberNumber, nameDraft);
                   setEditingName(false);
                 }}
-                className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-cyan-400"
+                className="cursor-pointer rounded-md bg-ink px-3 py-1.5 text-xs font-semibold text-canvas"
               >
                 Lưu tên
               </button>
@@ -176,68 +164,64 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                   setNameDraft(member.display_name);
                   setEditingName(false);
                 }}
-                className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300"
+                className="cursor-pointer rounded-md border border-hairline px-3 py-1.5 text-xs text-secondary"
               >
                 Hủy
               </button>
             </div>
           ) : (
             <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-extrabold text-white sm:text-3xl">
+              <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
                 {member.display_name}
               </h1>
               <button
                 type="button"
                 onClick={() => setEditingName(true)}
+                aria-label="Đổi tên thành viên"
                 title="Đổi sang tên thật của thành viên trong nhóm"
-                className="rounded-lg border border-slate-800 bg-slate-900 p-1.5 text-slate-400 transition hover:border-cyan-500/50 hover:text-cyan-300"
+                className="cursor-pointer rounded-md border border-hairline bg-surface p-1.5 text-muted transition-colors hover:bg-subtle hover:text-ink"
               >
-                <Edit3 className="h-3.5 w-3.5" />
+                <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
           )}
         </div>
 
-        <p className="mt-1 text-base font-semibold text-cyan-300">{member.role_title}</p>
-        <p className="mt-2 max-w-4xl text-sm leading-relaxed text-slate-300">
+        <p className="text-base font-semibold text-accent">{member.role_title}</p>
+        <p className="max-w-3xl text-sm leading-relaxed text-secondary">
           {member.overview_summary}
         </p>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3.5 text-xs">
-            <div className="font-bold uppercase tracking-wider text-slate-400">
-              Phần Thực hành Chính
-            </div>
-            <p className="mt-1 text-sm text-slate-100">{member.main_practice}</p>
+        <div className="grid gap-4 pt-2 sm:grid-cols-2">
+          <div className="border-l-2 border-ink pl-3.5 text-xs sm:text-sm">
+            <div className="font-semibold text-ink">Phần Thực hành Chính</div>
+            <p className="mt-0.5 text-secondary">{member.main_practice}</p>
           </div>
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/15 p-3.5 text-xs">
-            <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-emerald-300">
-              <Sparkles className="h-3.5 w-3.5" /> Gia cố &amp; Phòng thủ Chiều sâu
-            </div>
-            <p className="mt-1 text-sm text-emerald-100">{member.defense_scope}</p>
+          <div className="border-l-2 border-emerald-600 pl-3.5 text-xs sm:text-sm">
+            <div className="font-semibold text-ink">Gia cố &amp; Phòng thủ Chiều sâu</div>
+            <p className="mt-0.5 text-secondary">{member.defense_scope}</p>
           </div>
         </div>
       </section>
 
-      {/* Dynamic Variable Configurator */}
-      <section className="rounded-2xl border border-slate-800 bg-[#0b1120] p-4 sm:p-5">
+      {/* Environment Parameter Bar (Postman/Runbook Style) */}
+      <section className="rounded-lg border border-hairline bg-surface p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="flex items-center gap-2 text-sm font-bold text-white sm:text-base">
-              <Sliders className="h-4 w-4 text-cyan-400" />
-              Tham số Thực hành Động (Tự điền vào mọi câu lệnh bên dưới)
+            <h2 className="text-sm font-bold text-ink">
+              Biến Môi trường Thực hành (Tự động điền vào mọi câu lệnh)
             </h2>
-            <p className="text-xs text-slate-400">
-              Nhập Container / PHPSESSID / user_token thật từ máy của bạn — mọi câu lệnh phía dưới sẽ tự động cập nhật để copy 1 chạm.
+            <p className="text-xs text-muted">
+              Cập nhật Container ID, PHPSESSID hoặc user_token thật trên máy bạn để copy lệnh chính xác.
             </p>
           </div>
           <button
             type="button"
             onClick={handleSaveVars}
             disabled={savingMember === memberNumber}
-            className="flex items-center gap-1.5 rounded-lg bg-cyan-500 px-3.5 py-2 text-xs font-bold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-60"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-60"
           >
-            <Save className="h-3.5 w-3.5" />
+            <Save className="h-3.5 w-3.5" aria-hidden="true" />
             {savingMember === memberNumber
               ? "Đang lưu..."
               : snapshot.supabaseConfigured
@@ -248,76 +232,79 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
 
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-300">
-              Container ID / Name
+            <label htmlFor="env-container" className="mb-1 block font-mono text-[11px] font-medium text-muted">
+              CONTAINER_REF
             </label>
             <input
+              id="env-container"
               type="text"
               value={containerInput}
               onChange={(e) => setContainerInput(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-cyan-200 focus:border-cyan-400 focus:outline-none"
+              className="w-full rounded-md border border-hairline bg-canvas px-3 py-1.5 font-mono text-xs text-ink focus:border-accent focus:outline-none"
               placeholder="215d3a734374 hoặc dvwa"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-300">
-              PHPSESSID (Cookie phiên)
+            <label htmlFor="env-phpsessid" className="mb-1 block font-mono text-[11px] font-medium text-muted">
+              PHPSESSID
             </label>
             <input
+              id="env-phpsessid"
               type="text"
               value={phpsessidInput}
               onChange={(e) => setPhpsessidInput(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-amber-200 focus:border-cyan-400 focus:outline-none"
+              className="w-full rounded-md border border-hairline bg-canvas px-3 py-1.5 font-mono text-xs text-ink focus:border-accent focus:outline-none"
               placeholder="7nst0hrqrfmv744a5ouj7663b0"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-300">
-              user_token (Cho PoC 5 tinh chỉnh)
+            <label htmlFor="env-usertoken" className="mb-1 block font-mono text-[11px] font-medium text-muted">
+              USER_TOKEN
             </label>
             <input
+              id="env-usertoken"
               type="text"
               value={userTokenInput}
               onChange={(e) => setUserTokenInput(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-violet-200 focus:border-cyan-400 focus:outline-none"
+              className="w-full rounded-md border border-hairline bg-canvas px-3 py-1.5 font-mono text-xs text-ink focus:border-accent focus:outline-none"
               placeholder="d41d8cd98f00b204e9800998ecf8427e"
             />
           </div>
         </div>
       </section>
 
-      {/* Step Filter & Walkthrough Header */}
-      <section className="space-y-5">
+      {/* Step-by-Step Runbook */}
+      <section className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-bold text-white">
-              Kịch bản Thực hành Từng bước Chi tiết
+            <h2 className="text-xl font-bold tracking-tight text-ink">
+              Kịch bản Thực hành Từng bước
             </h2>
-            <p className="text-xs text-slate-400 sm:text-sm">
-              Làm tuần tự từ Bước 1 đến hết; tick xác nhận sau khi chạy thành công trên máy của bạn.
+            <p className="text-xs text-muted sm:text-sm">
+              Thực hiện lần lượt từ Bước 1 và đánh dấu sau khi kiểm chứng thành công trên máy thật.
             </p>
           </div>
 
-          <div className="flex rounded-xl border border-slate-800 bg-slate-950 p-1 text-xs">
+          <div className="inline-flex rounded-md border border-hairline bg-subtle p-0.5 text-xs">
             {[
               { id: "all" as const, label: `Tất cả (${memberSteps.length})` },
               {
                 id: "main" as const,
-                label: `Khai thác & Kiểm toán (${memberSteps.filter((s) => !s.is_defense).length})`,
+                label: `Khai thác (${memberSteps.filter((s) => !s.is_defense).length})`,
               },
               {
                 id: "defense" as const,
-                label: `Gia cố & Phòng thủ (${memberSteps.filter((s) => s.is_defense).length})`,
+                label: `Gia cố (${memberSteps.filter((s) => s.is_defense).length})`,
               },
             ].map((f) => (
               <button
                 key={f.id}
                 type="button"
                 onClick={() => setFilterMode(f.id)}
-                className={`rounded-lg px-3 py-1.5 font-medium transition ${
+                className={`cursor-pointer rounded px-3 py-1 font-medium transition-colors ${
                   filterMode === f.id
-                    ? "bg-slate-800 text-white"
-                    : "text-slate-400 hover:text-slate-200"
+                    ? "bg-surface text-ink font-semibold shadow-sm"
+                    : "text-muted hover:text-ink"
                 }`}
               >
                 {f.label}
@@ -326,41 +313,29 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
           </div>
         </div>
 
-        {/* Step-by-Step Cards */}
-        <div className="space-y-6">
+        <div className="space-y-8">
           {filteredSteps.map((step) => {
             const isDone = currentState.completed_step_ids.includes(step.id);
 
             return (
               <article
                 key={step.id}
-                className={`rounded-2xl border bg-[#0b1120] p-5 shadow-lg transition sm:p-6 ${
-                  isDone
-                    ? "border-emerald-500/45"
-                    : step.is_defense
-                    ? "border-violet-500/35"
-                    : "border-slate-800"
+                className={`rounded-lg border bg-surface p-5 sm:p-6 ${
+                  isDone ? "border-emerald-600/60" : "border-hairline"
                 }`}
               >
-                {/* Step Header */}
-                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800/80 pb-4">
-                  <div className="space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-md bg-slate-800 px-2.5 py-0.5 font-mono text-xs font-bold text-white">
-                        BƯỚC {step.step_order}
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-hairline pb-4">
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+                      <span className="font-bold text-accent">
+                        BƯỚC 0{step.step_order}
                       </span>
-                      <span
-                        className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${
-                          step.is_defense
-                            ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                            : "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
-                        }`}
-                      >
-                        {step.phase_tag}
-                      </span>
-                      <span className="text-xs text-slate-400">{step.poc_ref}</span>
+                      <span className="text-muted">·</span>
+                      <span className="text-muted">{step.phase_tag}</span>
+                      <span className="text-muted">·</span>
+                      <span className="text-muted">{step.poc_ref}</span>
                     </div>
-                    <h3 className="text-lg font-bold text-white sm:text-xl">
+                    <h3 className="text-lg font-bold text-ink sm:text-xl">
                       {step.title}
                     </h3>
                   </div>
@@ -370,56 +345,52 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                       <button
                         type="button"
                         onClick={() => handleJumpToSimulator(step.simulator_key)}
-                        className="flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-hairline bg-subtle px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-canvas"
                       >
-                        <Play className="h-3.5 w-3.5" />
-                        Chạy thử trên Mô phỏng
+                        <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                        Mở Simulator
                       </button>
                     )}
 
                     <button
                       type="button"
                       onClick={() => toggleStepCompletion(memberNumber, step.id)}
-                      className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+                      className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
                         isDone
-                          ? "border-emerald-400 bg-emerald-500/20 text-emerald-200"
-                          : "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500"
+                          ? "border-emerald-600 bg-emerald-600 text-white"
+                          : "border-hairline bg-surface text-secondary hover:bg-subtle hover:text-ink"
                       }`}
                     >
                       {isDone ? (
                         <>
-                          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                          <span>Đã xong bước này</span>
+                          <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          <span>Đã hoàn thành</span>
                         </>
                       ) : (
                         <>
-                          <Circle className="h-4 w-4 text-slate-400" />
-                          <span>Đánh dấu hoàn thành</span>
+                          <Circle className="h-3.5 w-3.5" aria-hidden="true" />
+                          <span>Đánh dấu xong</span>
                         </>
                       )}
                     </button>
                   </div>
                 </div>
 
-                {/* Goal + Detailed Numbered Actions */}
-                <div className="mt-4 space-y-4">
-                  <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-3.5 text-sm text-slate-200">
-                    <span className="font-bold text-cyan-300">Mục tiêu: </span>
+                <div className="mt-4 space-y-5">
+                  <p className="border-l-2 border-accent pl-3 text-sm text-secondary">
+                    <strong className="text-ink">Mục tiêu: </strong>
                     {step.goal}
-                  </div>
+                  </p>
 
                   <div>
-                    <h4 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
-                      Các thao tác chi tiết cần làm:
+                    <h4 className="mb-2.5 font-mono text-xs font-semibold uppercase tracking-wider text-muted">
+                      Trình tự thao tác chi tiết
                     </h4>
-                    <ol className="space-y-2">
+                    <ol className="space-y-2 text-sm leading-relaxed text-secondary">
                       {step.action_steps.map((act, idx) => (
-                        <li
-                          key={idx}
-                          className="flex items-start gap-2.5 text-sm leading-relaxed text-slate-200"
-                        >
-                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-800 font-mono text-[11px] font-bold text-cyan-300">
-                            {idx + 1}
+                        <li key={idx} className="flex items-start gap-3">
+                          <span className="mt-0.5 font-mono text-xs font-bold text-muted">
+                            {idx + 1}.
                           </span>
                           <span>{act}</span>
                         </li>
@@ -427,7 +398,6 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                     </ol>
                   </div>
 
-                  {/* Commands */}
                   {step.commands.length > 0 && (
                     <div className="space-y-3">
                       {step.commands.map((cmd, idx) => (
@@ -443,34 +413,30 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                     </div>
                   )}
 
-                  {/* Expected Output */}
                   <div>
-                    <div className="mb-1.5 text-xs font-bold uppercase tracking-wider text-emerald-400">
-                      Kết quả Thực tế Kỳ vọng (Dùng làm bằng chứng PoC):
+                    <div className="mb-1.5 font-mono text-xs font-semibold uppercase tracking-wider text-muted">
+                      Kết quả Thực tế Kỳ vọng
                     </div>
-                    <pre className="overflow-x-auto rounded-xl border border-emerald-500/25 bg-[#050811] p-3.5 font-mono text-xs leading-relaxed text-emerald-200">
+                    <pre className="overflow-x-auto rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs leading-relaxed text-emerald-300">
                       <code>{step.expected_output}</code>
                     </pre>
                   </div>
 
-                  {/* Presenter Script + Academic Explanation */}
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-xl border border-amber-500/25 bg-amber-950/15 p-3.5">
-                      <div className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-300">
-                        <MessageSquareQuote className="h-3.5 w-3.5" />
-                        Tóm tắt Diễn giải Bước Thực hành
+                  <div className="grid gap-4 border-t border-hairline pt-4 md:grid-cols-2">
+                    <div className="border-l-2 border-hairline pl-3">
+                      <div className="text-xs font-bold text-ink">
+                        Diễn giải Thực hành
                       </div>
-                      <p className="text-xs leading-relaxed text-slate-200 sm:text-sm">
+                      <p className="mt-1 text-xs leading-relaxed text-secondary sm:text-sm">
                         {step.presenter_script}
                       </p>
                     </div>
 
-                    <div className="rounded-xl border border-violet-500/25 bg-violet-950/15 p-3.5">
-                      <div className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-violet-300">
-                        <BookOpen className="h-3.5 w-3.5" />
-                        Phân tích Kỹ thuật &amp; Cơ chế Bảo mật
+                    <div className="border-l-2 border-hairline pl-3">
+                      <div className="text-xs font-bold text-ink">
+                        Cơ chế Bảo mật Liên quan
                       </div>
-                      <p className="text-xs leading-relaxed text-slate-200 sm:text-sm">
+                      <p className="mt-1 text-xs leading-relaxed text-secondary sm:text-sm">
                         {step.academic_explanation}
                       </p>
                     </div>
@@ -497,37 +463,37 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
       </section>
 
       {/* Member Notes */}
-      <section className="rounded-2xl border border-slate-800 bg-[#0b1120] p-5">
+      <section className="rounded-lg border border-hairline bg-surface p-5">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-base font-bold text-white">
+          <h2 className="text-sm font-bold text-ink sm:text-base">
             Ghi chú Thực nghiệm Cá nhân
           </h2>
           <button
             type="button"
             onClick={handleSaveVars}
-            className="flex items-center gap-1 rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/25"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-hairline bg-subtle px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-canvas"
           >
-            <Save className="h-3.5 w-3.5" /> Lưu ghi chú
+            <Save className="h-3.5 w-3.5" aria-hidden="true" /> Lưu ghi chú
           </button>
         </div>
         <textarea
           rows={4}
           value={notesInput}
           onChange={(e) => setNotesInput(e.target.value)}
-          className="w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-xs leading-relaxed text-slate-200 focus:border-cyan-400 focus:outline-none sm:text-sm"
+          className="w-full rounded-md border border-hairline bg-canvas p-3 text-xs leading-relaxed text-ink focus:border-accent focus:outline-none sm:text-sm"
           placeholder="Ghi lại IP máy ảo, ảnh chụp PoC hoặc lưu ý riêng khi thực hành..."
         />
       </section>
 
-      {/* Next / Prev Member Footer Navigation */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-6">
+      {/* Footer Pagination */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-6">
         {memberNumber > 1 ? (
           <Link
             href={`/thanh-vien/${memberNumber - 1}`}
-            className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:border-cyan-400"
+            className="inline-flex items-center gap-2 rounded-md border border-hairline bg-surface px-4 py-2 text-xs font-semibold text-ink transition-colors hover:bg-subtle"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Xem Thành viên {memberNumber - 1}
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Thành viên {memberNumber - 1}
           </Link>
         ) : (
           <div />
@@ -536,18 +502,18 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
         {memberNumber < 4 ? (
           <Link
             href={`/thanh-vien/${memberNumber + 1}`}
-            className="flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-cyan-400"
+            className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
           >
-            Chuyển tiếp sang Thành viên {memberNumber + 1}
-            <ArrowRight className="h-4 w-4" />
+            Chuyển sang Thành viên {memberNumber + 1}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         ) : (
           <Link
             href="/"
-            className="flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-emerald-400"
+            className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
           >
-            Về Trang tổng quan (Hoàn tất 4 phần)
-            <ArrowRight className="h-4 w-4" />
+            Về Trang tổng quan
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         )}
       </div>

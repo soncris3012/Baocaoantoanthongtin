@@ -6,9 +6,6 @@ import {
   Database,
   Download,
   RefreshCw,
-  Server,
-  Terminal,
-  Wrench,
 } from "lucide-react";
 import { CodeBlock } from "@/components/CodeBlock";
 import { useWorkspace } from "@/components/WorkspaceProvider";
@@ -31,40 +28,38 @@ export function LabSetupClient() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       {/* Header */}
-      <section className="rounded-3xl border border-slate-800 bg-gradient-to-br from-[#0d152a] to-[#080d1b] p-6 sm:p-8">
-        <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300">
-          <Wrench className="h-3.5 w-3.5" />
-          Hạ tầng Đồng bộ 4 Máy (1 MacBook + 3 Laptop Windows Ubuntu VM)
+      <section className="border-b border-hairline pb-6">
+        <div className="font-mono text-xs font-medium uppercase tracking-wider text-muted">
+          Hạ tầng Lab &amp; Cơ sở dữ liệu
         </div>
-        <h1 className="mt-3 text-2xl font-extrabold text-white sm:text-3xl">
-          Thiết lập Nền tảng Lab DVWA & Đồng bộ Dữ liệu Supabase
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+          Thiết lập Môi trường DVWA &amp; Đồng bộ Supabase
         </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-300">
-          Cả 4 máy có thể dựng môi trường độc lập 100% vì macOS và Ubuntu đều dùng chung hệ sinh thái dòng lệnh Unix/Linux, còn container mục tiêu DVWA chạy trên nhân Debian Linux (Apache/2.4.25).
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-secondary">
+          Cả macOS và Ubuntu VM dùng chung hệ sinh thái dòng lệnh Unix/Linux, còn container mục tiêu DVWA chạy trên nhân Debian Linux (Apache/2.4.25).
         </p>
       </section>
 
       {/* 1-Click Ubuntu Script & Shared Setup */}
-      <section className="rounded-2xl border border-slate-800 bg-[#0b1120] p-5 sm:p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <section className="rounded-lg border border-hairline bg-surface p-5 sm:p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
           <div>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-white">
-              <Terminal className="h-5 w-5 text-emerald-400" />
-              1. Cài đặt Nền tảng Chung cho 3 Máy ảo Ubuntu (Lap Win 1, 2, 3)
+            <h2 className="text-lg font-bold text-ink">
+              1. Cài đặt Nền tảng Chung cho Ubuntu VM
             </h2>
-            <p className="mt-1 text-xs text-slate-400 sm:text-sm">
-              Tải script tự động <code className="text-cyan-300">setup_dvwa_ubuntu.sh</code> hoặc copy cụm lệnh dưới đây chạy trên Terminal Ubuntu.
+            <p className="mt-1 text-xs text-muted sm:text-sm">
+              Tải script <code className="font-mono text-ink">setup_dvwa_ubuntu.sh</code> hoặc copy cụm lệnh dưới đây chạy trên Terminal Ubuntu.
             </p>
           </div>
           <a
             href="/setup_dvwa_ubuntu.sh"
             download="setup_dvwa_ubuntu.sh"
-            className="flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400"
+            className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
           >
-            <Download className="h-4 w-4" />
-            Tải Script 1-Click (.sh)
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Tải Script (.sh)
           </a>
         </div>
 
@@ -73,47 +68,44 @@ export function LabSetupClient() {
             label="Cụm lệnh khởi tạo Docker + DVWA trên Ubuntu VM"
             shell="zsh / bash"
             code={UBUNTU_SETUP_COMMANDS}
-            explanation="Đặt cờ --name dvwa giúp cả 3 bạn Windows gõ chữ 'dvwa' thay cho mã ID 215d3a734374 của máy Mac trong mọi lệnh docker exec."
+            explanation="Đặt cờ --name dvwa giúp gõ chữ 'dvwa' thay cho mã ID 215d3a734374 trong mọi lệnh docker exec."
           />
 
           <CodeBlock
-            label="Hoặc chạy tự động hoàn toàn bằng file setup_dvwa_ubuntu.sh vừa tải"
+            label="Hoặc chạy tự động bằng file setup_dvwa_ubuntu.sh"
             shell="zsh / bash"
             code={`chmod +x setup_dvwa_ubuntu.sh && ./setup_dvwa_ubuntu.sh && newgrp docker`}
-            explanation="Script tự cài docker.io, curl, grep, sqlmap, kéo image vulnerables/web-dvwa và khởi chạy sẵn container tên 'dvwa' ở cổng 8080."
+            explanation="Script tự cài docker.io, curl, grep, sqlmap, kéo image vulnerables/web-dvwa và khởi chạy sẵn container 'dvwa' ở cổng 8080."
           />
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-xs leading-relaxed text-slate-300">
-              <div className="font-bold text-cyan-300">
-                Bước Khởi tạo CSDL lần đầu (Bắt buộc trên cả 4 máy):
+          <div className="grid gap-4 pt-2 md:grid-cols-2">
+            <div className="rounded-md border border-hairline bg-subtle p-4 text-xs leading-relaxed text-secondary">
+              <div className="font-bold text-ink">
+                Khởi tạo CSDL lần đầu trên trình duyệt:
               </div>
               <ol className="mt-2 list-inside list-decimal space-y-1">
                 <li>
-                  Mở trình duyệt truy cập{" "}
-                  <code className="text-amber-200">http://127.0.0.1:8080/setup.php</code>
+                  Truy cập <code className="font-mono text-ink">http://127.0.0.1:8080/setup.php</code>
                 </li>
                 <li>
-                  Bấm nút <strong>Create / Reset Database</strong>.
+                  Bấm <strong>Create / Reset Database</strong>.
                 </li>
                 <li>
-                  Đăng nhập với tài khoản <code className="text-emerald-300">admin</code> và mật khẩu{" "}
-                  <code className="text-emerald-300">password</code>.
+                  Đăng nhập tài khoản <code className="font-mono text-ink">admin</code> / mật khẩu{" "}
+                  <code className="font-mono text-ink">password</code>.
                 </li>
               </ol>
             </div>
 
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-xs leading-relaxed text-slate-300">
-              <div className="font-bold text-amber-300">
-                Mẹo Đồng bộ Lệnh giữa MacBook & 3 Máy Ubuntu:
+            <div className="rounded-md border border-hairline bg-subtle p-4 text-xs leading-relaxed text-secondary">
+              <div className="font-bold text-ink">
+                Quy ước đồng bộ Container ID / Name:
               </div>
               <p className="mt-2">
-                Trên máy Mac trong báo cáo, Container ID là{" "}
-                <code className="text-cyan-300">215d3a734374</code>. Trên Ubuntu, nhờ cờ{" "}
-                <code className="text-emerald-300">--name dvwa</code>, bạn thay{" "}
-                <code className="text-cyan-300">215d3a734374</code> bằng chữ{" "}
-                <code className="text-emerald-300">dvwa</code> (hoặc lấy ID thật qua{" "}
-                <code>docker ps</code>).
+                Container ID trên máy chính là <code className="font-mono text-ink">215d3a734374</code>.
+                Trên các máy Ubuntu dùng cờ <code className="font-mono text-ink">--name dvwa</code>, bạn thay{" "}
+                <code className="font-mono text-ink">215d3a734374</code> bằng chữ{" "}
+                <code className="font-mono text-ink">dvwa</code> (hoặc lấy ID thật qua <code>docker ps</code>).
               </p>
             </div>
           </div>
@@ -123,66 +115,59 @@ export function LabSetupClient() {
       {/* Supabase Cloud Sync Panel */}
       <section
         id="supabase"
-        className="rounded-2xl border border-slate-800 bg-[#0b1120] p-5 sm:p-6"
+        className="rounded-lg border border-hairline bg-surface p-5 sm:p-6"
       >
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
           <div>
-            <h2 className="flex items-center gap-2 text-lg font-bold text-white">
-              <Database className="h-5 w-5 text-cyan-400" />
-              2. Trạng thái Cơ sở dữ liệu Supabase & Triển khai Vercel
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <Database className="h-4 w-4 text-muted" aria-hidden="true" />
+              2. Kết nối Cơ sở dữ liệu Supabase &amp; Vercel
             </h2>
-            <p className="mt-1 text-xs text-slate-400 sm:text-sm">
-              Đồng bộ dữ liệu kịch bản 4 thành viên, bảng CWE/CVSS và tiến độ thực hành giữa 4 máy qua Supabase Cloud.
+            <p className="mt-1 text-xs text-muted sm:text-sm">
+              Đồng bộ kịch bản, bảng CWE/CVSS và trạng thái hoàn thành của cả 4 thành viên lên Supabase PostgreSQL.
             </p>
           </div>
 
-          <div
-            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold ${
-              snapshot.source === "supabase"
-                ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                : "border-amber-500/40 bg-amber-500/15 text-amber-300"
-            }`}
-          >
-            <Server className="h-3.5 w-3.5" />
+          <span className="rounded-md border border-hairline bg-subtle px-3 py-1 font-mono text-xs font-medium text-ink">
             {snapshot.source === "supabase"
-              ? "Đã kết nối & Đang đọc từ Supabase"
+              ? "Trạng thái: Supabase Live"
               : snapshot.supabaseConfigured
-              ? "Đã có Env Supabase — Cần Seed bảng dữ liệu"
-              : "Chế độ Local Seed (Chưa gắn Supabase Env)"}
-          </div>
+              ? "Trạng thái: Đã có Env — Cần Seed"
+              : "Trạng thái: Local Seed"}
+          </span>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-xs leading-relaxed text-slate-300">
-            <div className="font-bold text-white">Các bước gắn Supabase (2 phút):</div>
+        <div className="grid gap-5 md:grid-cols-2">
+          <div className="rounded-md border border-hairline bg-subtle p-4 text-xs leading-relaxed text-secondary">
+            <div className="font-bold text-ink">Hướng dẫn gắn Supabase:</div>
             <ol className="mt-2 list-inside list-decimal space-y-1.5">
               <li>
-                Tạo Project mới tại <strong>supabase.com</strong> (chọn region Singapore).
+                Tạo Project mới tại <strong>supabase.com</strong> (region Singapore).
               </li>
               <li>
-                Mở <strong>SQL Editor</strong>, dán toàn bộ nội dung file{" "}
-                <code className="text-cyan-300">supabase/schema.sql</code> trong repo và bấm <strong>Run</strong>.
+                Mở <strong>SQL Editor</strong>, dán và chạy file{" "}
+                <code className="font-mono text-ink">supabase/schema.sql</code>.
               </li>
               <li>
                 Vào <strong>Project Settings → API</strong> lấy <code>Project URL</code> và{" "}
                 <code>anon public key</code>.
               </li>
               <li>
-                Thêm 2 biến môi trường trên Vercel Project:{" "}
-                <code className="text-emerald-300">NEXT_PUBLIC_SUPABASE_URL</code> và{" "}
-                <code className="text-emerald-300">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> rồi Redeploy.
+                Thêm 2 biến môi trường trên Vercel:{" "}
+                <code className="font-mono text-ink">NEXT_PUBLIC_SUPABASE_URL</code> và{" "}
+                <code className="font-mono text-ink">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> rồi Redeploy.
               </li>
             </ol>
           </div>
 
-          <div className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+          <div className="flex flex-col justify-between rounded-md border border-hairline bg-subtle p-4">
             <div>
-              <div className="text-xs font-bold text-white">
-                Nạp / Khởi tạo Dữ liệu Kịch bản lên Supabase (1-Click Seed)
+              <div className="text-xs font-bold text-ink">
+                Nạp dữ liệu mẫu lên Supabase
               </div>
-              <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
-                Sau khi chạy <code>supabase/schema.sql</code> và gắn biến môi trường, bấm nút dưới đây để tự động đẩy toàn bộ 4 thành viên, các bước thực hành, bảng CWE/CVSS và Q&amp;A lên PostgreSQL của Supabase (hoặc chạy trực tiếp file{" "}
-                <code className="text-cyan-300">supabase/seed.sql</code>).
+              <p className="mt-1.5 text-xs leading-relaxed text-muted">
+                Sau khi chạy <code>supabase/schema.sql</code> và cấu hình biến môi trường, bấm nút bên dưới để đẩy dữ liệu kịch bản lên Supabase (hoặc chạy trực tiếp file{" "}
+                <code className="font-mono text-ink">supabase/seed.sql</code>).
               </p>
             </div>
 
@@ -191,21 +176,24 @@ export function LabSetupClient() {
                 type="button"
                 onClick={handleSeed}
                 disabled={seeding}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-xs font-bold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-60"
+                className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-ink px-4 py-2 text-xs font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-60"
               >
-                <RefreshCw className={`h-4 w-4 ${seeding ? "animate-spin" : ""}`} />
-                {seeding ? "Đang đồng bộ lên Supabase..." : "Seed / Đồng bộ dữ liệu lên Supabase"}
+                <RefreshCw
+                  className={`h-3.5 w-3.5 ${seeding ? "animate-spin" : ""}`}
+                  aria-hidden="true"
+                />
+                {seeding ? "Đang đồng bộ..." : "Đồng bộ dữ liệu lên Supabase"}
               </button>
 
               {seedFeedback && (
                 <div
-                  className={`flex items-start gap-2 rounded-lg border p-2.5 text-xs ${
+                  className={`flex items-start gap-2 rounded-md border p-2.5 text-xs ${
                     seedFeedback.ok
-                      ? "border-emerald-500/40 bg-emerald-950/30 text-emerald-200"
-                      : "border-rose-500/40 bg-rose-950/30 text-rose-200"
+                      ? "border-emerald-600/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                      : "border-rose-600/40 bg-rose-500/10 text-rose-700 dark:text-rose-300"
                   }`}
                 >
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                   <span>{seedFeedback.message}</span>
                 </div>
               )}

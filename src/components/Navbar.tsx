@@ -2,60 +2,46 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Database,
-  MonitorPlay,
-  ShieldCheck,
-  Terminal,
-  Wrench,
-} from "lucide-react";
+import { Moon, Shield, Sun, Type } from "lucide-react";
 import { useWorkspace } from "@/components/WorkspaceProvider";
-
-const MEMBER_DOT_COLORS: Record<number, string> = {
-  1: "bg-cyan-400",
-  2: "bg-amber-400",
-  3: "bg-emerald-400",
-  4: "bg-violet-400",
-};
 
 export function Navbar() {
   const pathname = usePathname();
-  const { snapshot, presentationMode, setPresentationMode } = useWorkspace();
+  const { snapshot, theme, toggleTheme, presentationMode, setPresentationMode } =
+    useWorkspace();
 
   const isSupabaseLive = snapshot.source === "supabase";
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-[#070b16]/90 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-3 group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 transition group-hover:border-cyan-400/60">
-            <ShieldCheck className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold tracking-tight text-slate-100 sm:text-base">
-                DVWA Security Audit
-              </span>
-              <span className="hidden rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-medium text-cyan-300 sm:inline-block">
-                OWASP A03:2021
-              </span>
+    <header className="sticky top-0 z-40 border-b border-hairline bg-surface/95 backdrop-blur-sm">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-md border border-hairline bg-subtle text-ink">
+            <Shield className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div className="leading-tight">
+            <div className="font-mono text-sm font-bold tracking-tight text-ink">
+              DVWA-AUDIT
             </div>
-            <p className="text-[11px] text-slate-400">
-              BTL An Toàn Thông Tin • Mô phỏng Kịch bản 4 Thành viên
-            </p>
+            <div className="text-[11px] text-muted">
+              BTL An toàn Thông tin
+            </div>
           </div>
         </Link>
 
-        <nav className="flex flex-wrap items-center gap-1.5">
+        <nav aria-label="Điều hướng chính" className="flex flex-wrap items-center gap-1">
           <Link
             href="/"
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition sm:text-sm ${
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
               pathname === "/"
-                ? "bg-slate-800 text-white shadow-inner ring-1 ring-slate-700"
-                : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
+                ? "bg-ink text-canvas font-semibold"
+                : "text-secondary hover:bg-subtle hover:text-ink"
             }`}
           >
-            Tổng quan BTL
+            Tổng quan
           </Link>
 
           {snapshot.members.map((m) => {
@@ -71,18 +57,19 @@ export function Navbar() {
               <Link
                 key={m.member_number}
                 href={href}
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition sm:text-sm ${
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
                   active
-                    ? "bg-slate-800 text-white ring-1 ring-slate-600"
-                    : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
+                    ? "bg-ink text-canvas font-semibold"
+                    : "text-secondary hover:bg-subtle hover:text-ink"
                 }`}
               >
-                <span
-                  className={`h-2 w-2 rounded-full ${MEMBER_DOT_COLORS[m.member_number]}`}
-                />
                 <span>Người {m.member_number}</span>
-                <span className="hidden text-[11px] text-slate-400 md:inline">
-                  ({completedCount}/{totalCount})
+                <span
+                  className={`font-mono text-[11px] ${
+                    active ? "opacity-80" : "text-muted"
+                  }`}
+                >
+                  {completedCount}/{totalCount}
                 </span>
               </Link>
             );
@@ -90,55 +77,62 @@ export function Navbar() {
 
           <Link
             href="/lab-setup"
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition sm:text-sm ${
+            className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
               pathname === "/lab-setup"
-                ? "bg-slate-800 text-white ring-1 ring-slate-600"
-                : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
+                ? "bg-ink text-canvas font-semibold"
+                : "text-secondary hover:bg-subtle hover:text-ink"
             }`}
           >
-            <Wrench className="h-3.5 w-3.5" />
-            <span>Setup Lab & DB</span>
+            Lab &amp; DB
           </Link>
         </nav>
 
         <div className="flex items-center gap-2">
           <Link
             href="/lab-setup#supabase"
+            className="hidden items-center gap-1.5 rounded-md border border-hairline bg-subtle px-2.5 py-1 font-mono text-[11px] font-medium text-secondary transition-colors hover:text-ink sm:flex"
             title={
               isSupabaseLive
                 ? "Đang đồng bộ trực tiếp với Supabase"
-                : "Đang chạy chế độ dữ liệu chuẩn (bấm để xem cấu hình Supabase)"
+                : "Chạy dữ liệu chuẩn cục bộ — bấm để xem cấu hình Supabase"
             }
-            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
-              isSupabaseLive
-                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                : "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:border-amber-400/50"
-            }`}
           >
-            <Database className="h-3 w-3" />
-            <span className="hidden sm:inline">
-              {isSupabaseLive ? "Supabase Live" : "Local Seed"}
-            </span>
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                isSupabaseLive ? "bg-emerald-600" : "bg-amber-500"
+              }`}
+              aria-hidden="true"
+            />
+            <span>{isSupabaseLive ? "Supabase" : "Local"}</span>
           </Link>
 
           <button
             type="button"
             onClick={() => setPresentationMode(!presentationMode)}
-            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
+            aria-label="Phóng to cỡ chữ"
+            title="Phóng to cỡ chữ và khối lệnh"
+            className={`flex h-8 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors ${
               presentationMode
-                ? "border-cyan-400/60 bg-cyan-500/20 text-cyan-200"
-                : "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-600"
+                ? "border-accent bg-accent text-white"
+                : "border-hairline bg-surface text-secondary hover:bg-subtle hover:text-ink"
             }`}
-            title="Phóng to cỡ chữ và khối lệnh để trình chiếu"
           >
-            {presentationMode ? (
-              <MonitorPlay className="h-3.5 w-3.5 text-cyan-300" />
+            <Type className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="hidden md:inline">Cỡ chữ</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === "light" ? "Chuyển sang giao diện tối" : "Chuyển sang giao diện sáng"}
+            title={theme === "light" ? "Giao diện tối" : "Giao diện sáng"}
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-hairline bg-surface text-secondary transition-colors hover:bg-subtle hover:text-ink"
+          >
+            {theme === "light" ? (
+              <Moon className="h-3.5 w-3.5" aria-hidden="true" />
             ) : (
-              <Terminal className="h-3.5 w-3.5" />
+              <Sun className="h-3.5 w-3.5" aria-hidden="true" />
             )}
-            <span className="hidden lg:inline">
-              {presentationMode ? "Đang phóng to" : "Phóng to chữ"}
-            </span>
           </button>
         </div>
       </div>
