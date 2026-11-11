@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Circle,
   Edit3,
-  HelpCircle,
   Laptop,
   MessageSquareQuote,
   Play,
@@ -40,7 +39,6 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
   const memberSteps = snapshot.steps
     .filter((s) => s.member_number === memberNumber)
     .sort((a, b) => a.step_order - b.step_order);
-  const memberQa = snapshot.qaItems.filter((q) => q.member_number === memberNumber);
   const currentState = snapshot.workspaceStates[memberNumber];
 
   const [filterMode, setFilterMode] = useState<"all" | "main" | "defense">("all");
@@ -52,7 +50,6 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(member.display_name);
   const [focusedSimKey, setFocusedSimKey] = useState<string | undefined>(undefined);
-  const [openQaIds, setOpenQaIds] = useState<string[]>([]);
 
   useEffect(() => {
     setContainerInput(currentState.container_ref);
@@ -98,12 +95,6 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  };
-
-  const toggleQa = (id: string) => {
-    setOpenQaIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
   };
 
   const liveVars = {
@@ -505,63 +496,27 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
         />
       </section>
 
-      {/* Member Notes + Q&A Defense Bank */}
-      <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-800 bg-[#0b1120] p-5">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="text-base font-bold text-white">
-              Ghi chú Thực nghiệm Cá nhân
-            </h2>
-            <button
-              type="button"
-              onClick={handleSaveVars}
-              className="flex items-center gap-1 rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/25"
-            >
-              <Save className="h-3.5 w-3.5" /> Lưu ghi chú
-            </button>
-          </div>
-          <textarea
-            rows={5}
-            value={notesInput}
-            onChange={(e) => setNotesInput(e.target.value)}
-            className="w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-xs leading-relaxed text-slate-200 focus:border-cyan-400 focus:outline-none sm:text-sm"
-            placeholder="Ghi lại IP máy ảo, ảnh chụp PoC hoặc lưu ý riêng khi thực hành..."
-          />
-        </div>
-
-        <div className="rounded-2xl border border-slate-800 bg-[#0b1120] p-5">
-          <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-white">
-            <HelpCircle className="h-5 w-5 text-violet-400" />
-            Câu hỏi Kỹ thuật Trọng tâm (Phần Người {memberNumber})
+      {/* Member Notes */}
+      <section className="rounded-2xl border border-slate-800 bg-[#0b1120] p-5">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-base font-bold text-white">
+            Ghi chú Thực nghiệm Cá nhân
           </h2>
-          <div className="space-y-2.5">
-            {memberQa.map((qa) => {
-              const isOpen = openQaIds.includes(qa.id);
-              return (
-                <div
-                  key={qa.id}
-                  className="rounded-xl border border-slate-800 bg-slate-950/70 p-3.5"
-                >
-                  <button
-                    type="button"
-                    onClick={() => toggleQa(qa.id)}
-                    className="flex w-full items-start justify-between gap-2 text-left text-xs font-semibold text-slate-100 sm:text-sm"
-                  >
-                    <span>{qa.question}</span>
-                    <span className="shrink-0 rounded bg-slate-800 px-2 py-0.5 text-[11px] text-cyan-300">
-                      {isOpen ? "Ẩn đáp án" : "Xem đáp án"}
-                    </span>
-                  </button>
-                  {isOpen && (
-                    <p className="mt-2.5 border-t border-slate-800 pt-2.5 text-xs leading-relaxed text-emerald-200 sm:text-sm">
-                      {qa.answer_summary}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <button
+            type="button"
+            onClick={handleSaveVars}
+            className="flex items-center gap-1 rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/25"
+          >
+            <Save className="h-3.5 w-3.5" /> Lưu ghi chú
+          </button>
         </div>
+        <textarea
+          rows={4}
+          value={notesInput}
+          onChange={(e) => setNotesInput(e.target.value)}
+          className="w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-xs leading-relaxed text-slate-200 focus:border-cyan-400 focus:outline-none sm:text-sm"
+          placeholder="Ghi lại IP máy ảo, ảnh chụp PoC hoặc lưu ý riêng khi thực hành..."
+        />
       </section>
 
       {/* Next / Prev Member Footer Navigation */}
