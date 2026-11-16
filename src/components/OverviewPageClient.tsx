@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Wrench } from "lucide-react";
+import { ArrowRight, Play, Terminal, Wrench } from "lucide-react";
 import { useWorkspace } from "@/components/WorkspaceProvider";
 import {
   ATTACK_FLOW_STAGES,
@@ -96,12 +96,44 @@ export function OverviewPageClient() {
               Chọn đúng phần của từng thành viên để xem thao tác từng bước, lấy lệnh động và chạy trình mô phỏng.
             </p>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/mo-phong"
+              className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3.5 py-2 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
+            >
+              <Terminal className="h-3.5 w-3.5" aria-hidden="true" />
+              Mở Phòng Lab Mô phỏng
+            </Link>
+            <Link
+              href="/lab-setup"
+              className="inline-flex items-center gap-2 rounded-md border border-hairline bg-surface px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-subtle"
+            >
+              <Wrench className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+              Setup Lab &amp; .sh
+            </Link>
+          </div>
+        </div>
+
+        {/* Live Simulator Callout */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-hairline bg-surface p-4 sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-subtle text-accent border border-hairline">
+              <Play className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-ink">
+                Phòng Lab Mô phỏng Trực tuyến (Interactive Web Simulator)
+              </div>
+              <p className="mt-0.5 text-xs text-muted max-w-2xl">
+                Không cần cài máy ảo, bạn có thể chạy thử trực tiếp chuỗi lệnh Docker/Nmap của <strong>Sơn</strong>, bắt gói tin Burp của <strong>Hùng</strong>, chạy SQLMap của <strong>Quyết</strong> và kiểm thử WAF của <strong>Khánh</strong>.
+              </p>
+            </div>
+          </div>
           <Link
-            href="/lab-setup"
-            className="inline-flex items-center gap-2 rounded-md border border-hairline bg-surface px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-subtle"
+            href="/mo-phong"
+            className="inline-flex items-center gap-2 rounded-md border border-hairline bg-subtle px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-canvas"
           >
-            <Wrench className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
-            Hướng dẫn Setup Lab &amp; Script .sh
+            Trải nghiệm Console ↗
           </Link>
         </div>
 
@@ -172,13 +204,22 @@ export function OverviewPageClient() {
                     ({pct}%)
                   </div>
 
-                  <Link
-                    href={`/thanh-vien/${member.member_number}`}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3.5 py-2 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
-                  >
-                    <span>Vào kịch bản</span>
-                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/mo-phong?member=${member.member_number}`}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-subtle px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-canvas"
+                    >
+                      <Play className="h-3 w-3" aria-hidden="true" />
+                      Mô phỏng
+                    </Link>
+                    <Link
+                      href={`/thanh-vien/${member.member_number}`}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
+                    >
+                      <span>Vào kịch bản</span>
+                      <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                    </Link>
+                  </div>
                 </div>
               </div>
             );

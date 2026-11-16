@@ -217,7 +217,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
   {
     member_number: 1,
     slug: "1",
-    display_name: "Thành viên 1 (Người 1)",
+    display_name: "Sơn",
     role_title: "Hạ tầng Lab, Trinh sát Bề mặt (PoC 1) & Gia cố Apache",
     device: "MacBook (macOS Apple Silicon)",
     os_env: "macOS Terminal (zsh) + Docker Desktop",
@@ -232,7 +232,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
   {
     member_number: 2,
     slug: "2",
-    display_name: "Thành viên 2 (Người 2)",
+    display_name: "Hùng",
     role_title: "Đánh chặn Gói tin, Khai thác Thủ công (PoC 2) & Điều tra Log",
     device: "Laptop Windows 1 (Ubuntu VM)",
     os_env: "Ubuntu Terminal + Burp Suite Community",
@@ -247,7 +247,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
   {
     member_number: 3,
     slug: "3",
-    display_name: "Thành viên 3 (Người 3)",
+    display_name: "Quyết",
     role_title: "Khai thác Tự động SQLMap, Kiểm toán CSDL (PoC 3) & Vá Mật mã học",
     device: "Laptop Windows 2 (Ubuntu VM)",
     os_env: "Ubuntu Terminal + SQLMap + Container MariaDB & PHP CLI",
@@ -262,7 +262,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
   {
     member_number: 4,
     slug: "4",
-    display_name: "Thành viên 4 (Người 4)",
+    display_name: "Khánh",
     role_title: "Kiểm toán Code PHP 4 Cấp độ (PoC 4), Kiểm chứng Bản vá (PoC 5) & WAF",
     device: "Laptop Windows 3 (Ubuntu VM)",
     os_env: "Ubuntu Terminal + Burp Suite Repeater + ModSecurity CRS",
@@ -911,7 +911,7 @@ export const QA_ITEMS: QaItem[] = [
     member_number: 1,
     question: "Tại sao trong PoC 1 chỉ cần ẩn phiên bản Apache (ServerTokens Prod) mà không sửa code PHP ngay?",
     answer_summary:
-      "Ẩn banner Apache khắc phục trực tiếp lỗ hổng CWE-200 (CVSS 5.3) ở tầng cấu hình máy chủ web: kẻ tấn công không biết chính xác bản 2.4.25 (Debian) để tra cứu CVE khai thác tự động. Đây là bước hạ tầng (Layer 1) trong mô hình Defense-in-Depth, bổ trợ cho phần vá code PHP của Thành viên 4.",
+      "Ẩn banner Apache khắc phục trực tiếp lỗ hổng CWE-200 (CVSS 5.3) ở tầng cấu hình máy chủ web: kẻ tấn công không biết chính xác bản 2.4.25 (Debian) để tra cứu CVE khai thác tự động. Đây là bước hạ tầng (Layer 1) trong mô hình Defense-in-Depth, bổ trợ cho phần vá code PHP của Khánh.",
     is_defense: true,
   },
   {

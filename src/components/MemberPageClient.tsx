@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { CodeBlock } from "@/components/CodeBlock";
 import { RoleSimulator } from "@/components/RoleSimulator";
+import { StepInlineRunner } from "@/components/StepInlineRunner";
 import { useWorkspace } from "@/components/WorkspaceProvider";
 
 interface MemberPageClientProps {
@@ -31,6 +32,8 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
   const member =
     snapshot.members.find((m) => m.member_number === memberNumber) ??
     snapshot.members[0];
+  const prevMember = snapshot.members.find((m) => m.member_number === memberNumber - 1);
+  const nextMember = snapshot.members.find((m) => m.member_number === memberNumber + 1);
   const memberSteps = snapshot.steps
     .filter((s) => s.member_number === memberNumber)
     .sort((a, b) => a.step_order - b.step_order);
@@ -111,17 +114,17 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
         </Link>
 
         <div className="inline-flex rounded-md border border-hairline bg-subtle p-0.5">
-          {[1, 2, 3, 4].map((num) => (
+          {snapshot.members.map((m) => (
             <Link
-              key={num}
-              href={`/thanh-vien/${num}`}
+              key={m.member_number}
+              href={`/thanh-vien/${m.member_number}`}
               className={`rounded px-3 py-1 font-mono text-xs font-medium transition-colors ${
-                num === memberNumber
+                m.member_number === memberNumber
                   ? "bg-surface text-ink font-bold shadow-sm"
                   : "text-muted hover:text-ink"
               }`}
             >
-              0{num} · Người {num}
+              0{m.member_number} · {m.display_name}
             </Link>
           ))}
         </div>
@@ -422,6 +425,15 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                     </pre>
                   </div>
 
+                  <StepInlineRunner
+                    step={step}
+                    memberNumber={memberNumber}
+                    variables={liveVars}
+                    isCompleted={isDone}
+                    onToggleComplete={() => toggleStepCompletion(memberNumber, step.id)}
+                    onOpenAdvancedSim={handleJumpToSimulator}
+                  />
+
                   <div className="grid gap-4 border-t border-hairline pt-4 md:grid-cols-2">
                     <div className="border-l-2 border-hairline pl-3">
                       <div className="text-xs font-bold text-ink">
@@ -487,24 +499,24 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
 
       {/* Footer Pagination */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-6">
-        {memberNumber > 1 ? (
+        {memberNumber > 1 && prevMember ? (
           <Link
             href={`/thanh-vien/${memberNumber - 1}`}
             className="inline-flex items-center gap-2 rounded-md border border-hairline bg-surface px-4 py-2 text-xs font-semibold text-ink transition-colors hover:bg-subtle"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Thành viên {memberNumber - 1}
+            {prevMember.display_name}
           </Link>
         ) : (
           <div />
         )}
 
-        {memberNumber < 4 ? (
+        {memberNumber < 4 && nextMember ? (
           <Link
             href={`/thanh-vien/${memberNumber + 1}`}
             className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
           >
-            Chuyển sang Thành viên {memberNumber + 1}
+            Chuyển sang {nextMember.display_name}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         ) : (

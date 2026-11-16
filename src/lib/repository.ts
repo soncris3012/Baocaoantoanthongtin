@@ -111,7 +111,7 @@ export async function seedSupabaseDatabase(): Promise<{
 
     return {
       ok: true,
-      message: "Đã đồng bộ toàn bộ kịch bản 4 thành viên, bảng CWE/CVSS và câu hỏi phản biện lên Supabase.",
+      message: "Đã đồng bộ toàn bộ kịch bản 4 thành viên (Sơn, Hùng, Quyết, Khánh) và bảng CWE/CVSS lên Supabase.",
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Lỗi không xác định khi seed Supabase";

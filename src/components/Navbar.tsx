@@ -63,7 +63,7 @@ export function Navbar() {
                     : "text-secondary hover:bg-subtle hover:text-ink"
                 }`}
               >
-                <span>Người {m.member_number}</span>
+                <span>{m.display_name}</span>
                 <span
                   className={`font-mono text-[11px] ${
                     active ? "opacity-80" : "text-muted"
@@ -74,6 +74,17 @@ export function Navbar() {
               </Link>
             );
           })}
+
+          <Link
+            href="/mo-phong"
+            className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
+              pathname === "/mo-phong"
+                ? "bg-ink text-canvas font-semibold"
+                : "text-secondary hover:bg-subtle hover:text-ink"
+            }`}
+          >
+            Mô phỏng Lab
+          </Link>
 
           <Link
             href="/lab-setup"
