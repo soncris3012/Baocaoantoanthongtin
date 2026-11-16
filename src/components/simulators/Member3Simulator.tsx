@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Database, KeyRound, Play, RotateCcw, ShieldCheck } from "lucide-react";
+import { WindowControls } from "@/components/WindowBar";
 
 interface Props {
   containerRef: string;
@@ -134,7 +135,8 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
 
           <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-4 font-mono text-xs leading-relaxed text-zinc-200">
             <div className="mb-2 text-zinc-400 border-b border-zinc-800 pb-2 flex items-center justify-between">
-              <div>
+              <div className="flex items-center gap-2.5">
+                <WindowControls />
                 <span className="text-zinc-500">quyet@ubuntu-vm:~$</span>{" "}
                 <span className="text-emerald-300 font-semibold">
                   sqlmap -u &quot;http://127.0.0.1:8080/vulnerabilities/sqli/?id=1&amp;Submit=Submit&quot; --cookie=&quot;security=low; PHPSESSID={session.slice(0, 8)}...&quot;{" "}
@@ -242,8 +244,14 @@ Table: users
 
           {/* Interactive MariaDB Table View */}
           <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5">
-            <div className="mb-2 font-mono text-xs text-zinc-400">
-              root@{container}:/# mysql -u root -e &quot;USE dvwa; SELECT user_id, user, password FROM users;&quot;
+            <div className="mb-2 flex items-center justify-between border-b border-zinc-800/80 pb-2">
+              <div className="flex items-center gap-2.5">
+                <WindowControls />
+                <span className="font-mono text-xs text-zinc-300">
+                  root@{container}:/# mysql -u root -e &quot;USE dvwa; SELECT user_id, user, password FROM users;&quot;
+                </span>
+              </div>
+              <span className="text-[10px] text-zinc-500 font-mono">MariaDB 10.x</span>
             </div>
             <table className="w-full text-left font-mono text-xs">
               <thead>
@@ -306,8 +314,13 @@ Table: users
 
           {leastPrivApplied && (
             <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs text-emerald-300">
-              <div className="mb-1 font-sans text-xs font-bold text-zinc-200">
-                SHOW GRANTS FOR &apos;dvwa_svc&apos;@&apos;%&apos;:
+              <div className="mb-2 flex items-center justify-between border-b border-zinc-800/80 pb-2">
+                <div className="flex items-center gap-2.5">
+                  <WindowControls />
+                  <span className="font-sans text-xs font-bold text-zinc-200">
+                    SHOW GRANTS FOR &apos;dvwa_svc&apos;@&apos;%&apos;:
+                  </span>
+                </div>
               </div>
               <pre className="overflow-x-auto">
 {`+--------------------------------------------------------------------------------+

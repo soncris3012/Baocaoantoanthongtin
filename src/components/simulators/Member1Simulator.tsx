@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CheckCircle2, Play, RotateCcw, ShieldAlert, ShieldCheck, Terminal } from "lucide-react";
+import { WindowControls } from "@/components/WindowBar";
 
 interface Props {
   containerRef: string;
@@ -125,7 +126,8 @@ export function Member1Simulator({ containerRef, activeTab }: Props) {
           {/* Terminal Box */}
           <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-4 font-mono text-xs leading-relaxed text-zinc-200">
             <div className="mb-2 text-zinc-400 flex items-center justify-between border-b border-zinc-800 pb-2">
-              <div>
+              <div className="flex items-center gap-2.5">
+                <WindowControls />
                 <span className="text-zinc-500">soncris@MacBook-Pro ~ %</span>{" "}
                 <span className="text-emerald-300 font-semibold">
                   {selectedCmd === "docker" && "docker ps"}
@@ -282,8 +284,13 @@ Service detection performed. 1 service recognized.`}
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs">
-              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-rose-400">
-                Trước khi vá (Mặc định DVWA)
+              <div className="mb-2 flex items-center justify-between border-b border-zinc-800/80 pb-2">
+                <div className="flex items-center gap-2">
+                  <WindowControls />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-rose-400">
+                    Trước khi vá (Mặc định DVWA)
+                  </span>
+                </div>
               </div>
               <div className="text-zinc-400">
                 $ curl -Is http://127.0.0.1:8080/login.php | grep -i &quot;Server:&quot;
@@ -297,8 +304,13 @@ Service detection performed. 1 service recognized.`}
             </div>
 
             <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs">
-              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-emerald-400">
-                Sau khi vá (ServerTokens Prod + ServerSignature Off)
+              <div className="mb-2 flex items-center justify-between border-b border-zinc-800/80 pb-2">
+                <div className="flex items-center gap-2">
+                  <WindowControls />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                    Sau khi vá (ServerTokens Prod)
+                  </span>
+                </div>
               </div>
               <div className="text-zinc-400">
                 $ docker exec -it {containerName} bash -c &quot;... service apache2 reload&quot;

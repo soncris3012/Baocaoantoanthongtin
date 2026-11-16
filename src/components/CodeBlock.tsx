@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Check, Copy, Terminal } from "lucide-react";
+import { WindowControls } from "@/components/WindowBar";
 
 interface CodeBlockProps {
   label?: string;
@@ -56,7 +57,8 @@ export function CodeBlock({
   return (
     <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#0d1117]">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 bg-[#161b22] px-3.5 py-2">
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-2.5 text-xs">
+          <WindowControls />
           <Terminal className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
           <span className="font-medium text-zinc-200">{label || "Lệnh thực thi"}</span>
           <span className="font-mono text-[11px] text-zinc-400">({shell})</span>

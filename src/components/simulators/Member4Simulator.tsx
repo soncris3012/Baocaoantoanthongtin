@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Code2, Flame, Play, ShieldAlert, ShieldCheck } from "lucide-react";
+import { WindowControls } from "@/components/WindowBar";
 import { PHP_LEVEL_SOURCES } from "@/data/scenarioData";
 
 interface Props {
@@ -164,9 +165,20 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
               </span>
             </div>
             <p className="mb-3 text-xs leading-relaxed text-secondary">{currentPhp.summary}</p>
-            <pre className="overflow-x-auto rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs leading-relaxed text-zinc-100">
-              <code>{currentPhp.code}</code>
-            </pre>
+            <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#0d1117]">
+              <div className="flex items-center justify-between border-b border-zinc-800 bg-[#161b22] px-3.5 py-2">
+                <div className="flex items-center gap-2.5">
+                  <WindowControls />
+                  <span className="font-mono text-xs font-semibold text-zinc-200">
+                    /var/www/html/vulnerabilities/sqli/source/{selectedPhp}.php
+                  </span>
+                </div>
+                <span className="font-mono text-[11px] text-zinc-400">PHP 7.0</span>
+              </div>
+              <pre className="overflow-x-auto p-3.5 font-mono text-xs leading-relaxed text-zinc-100">
+                <code>{currentPhp.code}</code>
+              </pre>
+            </div>
             <div className="mt-3 rounded-md border border-hairline bg-surface px-3 py-2 font-mono text-xs text-ink">
               <strong>Phân tích cơ chế: </strong>
               {currentPhp.bypassDemo}
@@ -267,8 +279,12 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
 
           <div className="grid gap-3 lg:grid-cols-2">
             <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs">
-              <div className="mb-2 border-b border-zinc-800 pb-1.5 font-bold text-zinc-200">
-                KHUNG REQUEST (Burp Repeater)
+              <div className="mb-2 flex items-center justify-between border-b border-zinc-800 pb-2">
+                <div className="flex items-center gap-2.5">
+                  <WindowControls />
+                  <span className="font-bold text-zinc-200">KHUNG REQUEST (Burp Repeater)</span>
+                </div>
+                <span className="text-[11px] text-zinc-400">localtest.me:8080</span>
               </div>
               <pre className="overflow-x-auto text-zinc-200 leading-relaxed">
 {`GET /vulnerabilities/sqli/?id=${poc5Payload}&Submit=Submit${
@@ -281,8 +297,11 @@ User-Agent: Mozilla/5.0 (Burp Repeater)`}
             </div>
 
             <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs">
-              <div className="mb-2 flex items-center justify-between border-b border-zinc-800 pb-1.5">
-                <span className="font-bold text-zinc-200">PHẢN HỒI MÁY CHỦ</span>
+              <div className="mb-2 flex items-center justify-between border-b border-zinc-800 pb-2">
+                <div className="flex items-center gap-2.5">
+                  <WindowControls />
+                  <span className="font-bold text-zinc-200">PHẢN HỒI MÁY CHỦ</span>
+                </div>
                 <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${poc5Res.badgeClass}`}>
                   {poc5Res.badge}
                 </span>
@@ -304,8 +323,9 @@ User-Agent: Mozilla/5.0 (Burp Repeater)`}
       {tab === "waf" && (
         <div className="space-y-4">
           <div className="rounded-lg border border-hairline bg-subtle p-3.5">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="mb-2 flex items-center justify-between border-b border-hairline/80 pb-2">
+              <div className="flex items-center gap-2.5">
+                <WindowControls />
                 <Flame className="h-4 w-4 text-accent" aria-hidden="true" />
                 <span className="text-xs font-bold text-ink">
                   Mô phỏng Bộ lọc WAF ModSecurity CRS (OWASP A03:2021)

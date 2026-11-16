@@ -14,6 +14,7 @@ import {
 import { CodeBlock } from "@/components/CodeBlock";
 import { RoleSimulator } from "@/components/RoleSimulator";
 import { StepInlineRunner } from "@/components/StepInlineRunner";
+import { WindowControls } from "@/components/WindowBar";
 import { useWorkspace } from "@/components/WorkspaceProvider";
 
 interface MemberPageClientProps {
@@ -416,11 +417,19 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                     </div>
                   )}
 
-                  <div>
-                    <div className="mb-1.5 font-mono text-xs font-semibold uppercase tracking-wider text-muted">
-                      Kết quả Thực tế Kỳ vọng
+                  <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#0d1117]">
+                    <div className="flex items-center justify-between border-b border-zinc-800 bg-[#161b22] px-3.5 py-2">
+                      <div className="flex items-center gap-2.5">
+                        <WindowControls />
+                        <span className="font-mono text-xs font-semibold text-zinc-300">
+                          stdout · Kết quả Thực tế Kỳ vọng
+                        </span>
+                      </div>
+                      <span className="font-mono text-[11px] text-emerald-400">
+                        {step.poc_ref}
+                      </span>
                     </div>
-                    <pre className="overflow-x-auto rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs leading-relaxed text-emerald-300">
+                    <pre className="overflow-x-auto p-3.5 font-mono text-xs leading-relaxed text-emerald-300">
                       <code>{step.expected_output}</code>
                     </pre>
                   </div>

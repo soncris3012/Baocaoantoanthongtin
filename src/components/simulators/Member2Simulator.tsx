@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Bug, FileSearch, Play, Send } from "lucide-react";
+import { WindowControls } from "@/components/WindowBar";
 
 interface Props {
   containerRef: string;
@@ -170,7 +171,10 @@ export function Member2Simulator({ containerRef, phpsessid, activeTab }: Props) 
             {/* Request Pane */}
             <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs">
               <div className="mb-2 flex items-center justify-between border-b border-zinc-800 pb-2">
-                <span className="font-bold text-zinc-200">RAW HTTP REQUEST (Burp Repeater)</span>
+                <div className="flex items-center gap-2.5">
+                  <WindowControls />
+                  <span className="font-bold text-zinc-200">RAW HTTP REQUEST (Burp Repeater)</span>
+                </div>
                 <span className="text-[11px] text-zinc-400">localtest.me:8080</span>
               </div>
               <pre className="overflow-x-auto leading-relaxed text-zinc-200">
@@ -186,7 +190,10 @@ Connection: close`}
             {/* Response Pane */}
             <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs">
               <div className="mb-2 flex items-center justify-between border-b border-zinc-800 pb-2">
-                <span className="font-bold text-zinc-200">HTTP RESPONSE (18ms · 200 OK)</span>
+                <div className="flex items-center gap-2.5">
+                  <WindowControls />
+                  <span className="font-bold text-zinc-200">HTTP RESPONSE (18ms · 200 OK)</span>
+                </div>
                 <span
                   className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
                     isOrTrue || isUnion
@@ -263,10 +270,13 @@ Surname: admin`}
         <div className="space-y-4">
           {/* cURL + grep section */}
           <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-zinc-200">
-                PoC 2 (Phần 2): Tự động bóc tách dữ liệu bằng cURL + grep regex
-              </span>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/80 pb-2">
+              <div className="flex items-center gap-2.5">
+                <WindowControls />
+                <span className="text-xs font-semibold text-zinc-200">
+                  PoC 2 (Phần 2): Tự động bóc tách dữ liệu bằng cURL + grep regex
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => setCurlExecuted(true)}
@@ -299,11 +309,14 @@ Surname: admin`}
 
           {/* access.log Forensics section */}
           <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-zinc-200">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/80 pb-2">
+              <div className="flex items-center gap-2.5">
+                <WindowControls />
                 <FileSearch className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
-                Blue Team Log Forensics (/var/log/apache2/access.log · {container})
-              </span>
+                <span className="text-xs font-semibold text-zinc-200">
+                  Blue Team Log Forensics (/var/log/apache2/access.log · {container})
+                </span>
+              </div>
               <div className="flex items-center gap-2">
                 <input
                   type="text"

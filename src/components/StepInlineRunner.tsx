@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CheckCircle2, ChevronDown, ChevronUp, Play, RotateCcw, ShieldAlert, ShieldCheck, Terminal } from "lucide-react";
+import { WindowControls } from "@/components/WindowBar";
 import { ScenarioStep } from "@/types/scenario";
 
 interface StepInlineRunnerProps {
@@ -181,11 +182,9 @@ Parameter: id (GET)\n    Type: boolean-based blind\n    Title: AND boolean-based
         <div className="p-3.5 space-y-3 bg-[#0a0d12] border-t border-hairline text-zinc-200 font-mono text-xs">
           {/* Terminal Window Header */}
           <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-rose-500/80 inline-block" />
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-500/80 inline-block" />
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80 inline-block" />
-              <span className="ml-2 text-[11px] text-zinc-400 font-sans">
+            <div className="flex items-center gap-2.5">
+              <WindowControls />
+              <span className="text-[11px] text-zinc-300 font-mono">
                 {hostPrompt}
               </span>
             </div>
