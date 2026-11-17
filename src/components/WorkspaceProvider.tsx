@@ -135,10 +135,13 @@ export function WorkspaceProvider({
         body: JSON.stringify(nextState),
       });
       const data = await res.json();
+      const memberName =
+        snapshot.members.find((m) => m.member_number === memberNumber)?.display_name ??
+        `Thành viên ${memberNumber}`;
       if (data.persistedTo === "supabase") {
-        showToast(`Đã lưu tiến độ Thành viên ${memberNumber} lên Supabase.`);
+        showToast(`Đã lưu tiến độ của ${memberName} lên Supabase.`);
       } else {
-        showToast(`Đã lưu tạm trên trình duyệt cho Thành viên ${memberNumber}.`);
+        showToast(`Đã lưu tạm trên trình duyệt cho ${memberName}.`);
       }
     } catch {
       showToast("Đã lưu cục bộ trên trình duyệt.");
@@ -179,9 +182,9 @@ export function WorkspaceProvider({
       });
       const data = await res.json();
       if (data.persistedTo === "supabase") {
-        showToast(`Đã cập nhật tên Thành viên ${memberNumber} trên Supabase.`);
+        showToast(`Đã cập nhật tên "${trimmed}" lên Supabase.`);
       } else {
-        showToast(`Đã đổi tên Thành viên ${memberNumber} trong phiên hiện tại.`);
+        showToast(`Đã đổi tên thành "${trimmed}" trong phiên hiện tại.`);
       }
     } catch {
       showToast("Không thể kết nối máy chủ để đổi tên.");

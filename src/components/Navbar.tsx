@@ -1,14 +1,28 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Moon, Shield, Sun, Type } from "lucide-react";
+import { Moon, Search, Shield, Sun, Type } from "lucide-react";
+import { QuickSearchModal } from "@/components/QuickSearchModal";
 import { useWorkspace } from "@/components/WorkspaceProvider";
 
 export function Navbar() {
   const pathname = usePathname();
   const { snapshot, theme, toggleTheme, presentationMode, setPresentationMode } =
     useWorkspace();
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const isSupabaseLive = snapshot.source === "supabase";
 
@@ -99,6 +113,20 @@ export function Navbar() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Tìm kiếm nhanh (Cmd+K)"
+            title="Tìm kiếm lệnh, CWE, kịch bản (Ctrl+K / Cmd+K)"
+            className="flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-hairline bg-surface px-2.5 text-xs font-medium text-secondary transition-colors hover:bg-subtle hover:text-ink"
+          >
+            <Search className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="hidden lg:inline">Tìm nhanh</span>
+            <kbd className="hidden rounded border border-hairline bg-subtle px-1 font-mono text-[10px] text-muted sm:inline">
+              ⌘K
+            </kbd>
+          </button>
+
           <Link
             href="/lab-setup#supabase"
             className="hidden items-center gap-1.5 rounded-md border border-hairline bg-subtle px-2.5 py-1 font-mono text-[11px] font-medium text-secondary transition-colors hover:text-ink sm:flex"
@@ -122,7 +150,7 @@ export function Navbar() {
             onClick={() => setPresentationMode(!presentationMode)}
             aria-label="Phóng to cỡ chữ"
             title="Phóng to cỡ chữ và khối lệnh"
-            className={`flex h-8 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors ${
+            className={`flex h-8 cursor-pointer items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors ${
               presentationMode
                 ? "border-accent bg-accent text-white"
                 : "border-hairline bg-surface text-secondary hover:bg-subtle hover:text-ink"
@@ -137,7 +165,7 @@ export function Navbar() {
             onClick={toggleTheme}
             aria-label={theme === "light" ? "Chuyển sang giao diện tối" : "Chuyển sang giao diện sáng"}
             title={theme === "light" ? "Giao diện tối" : "Giao diện sáng"}
-            className="flex h-8 w-8 items-center justify-center rounded-md border border-hairline bg-surface text-secondary transition-colors hover:bg-subtle hover:text-ink"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-hairline bg-surface text-secondary transition-colors hover:bg-subtle hover:text-ink"
           >
             {theme === "light" ? (
               <Moon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -147,6 +175,7 @@ export function Navbar() {
           </button>
         </div>
       </div>
+      <QuickSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
   );
 }

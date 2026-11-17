@@ -3,19 +3,29 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Circle,
+  Copy,
+  Download,
   Edit3,
+  ListChecks,
   Play,
+  RotateCcw,
   Save,
+  X,
 } from "lucide-react";
-import { CodeBlock } from "@/components/CodeBlock";
+import { CodeBlock, interpolateCommand } from "@/components/CodeBlock";
 import { RoleSimulator } from "@/components/RoleSimulator";
 import { StepInlineRunner } from "@/components/StepInlineRunner";
 import { WindowControls } from "@/components/WindowBar";
 import { useWorkspace } from "@/components/WorkspaceProvider";
+import { STEP_ENRICHMENTS } from "@/data/scenarioData";
 
 interface MemberPageClientProps {
   memberNumber: 1 | 2 | 3 | 4;
@@ -49,6 +59,14 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(member.display_name);
   const [focusedSimKey, setFocusedSimKey] = useState<string | undefined>(undefined);
+  const [copiedAllCmds, setCopiedAllCmds] = useState(false);
+  const [openPitfalls, setOpenPitfalls] = useState<Record<string, boolean>>({});
+  const [minimizedOutputs, setMinimizedOutputs] = useState<Record<string, boolean>>({});
+  const [maximizedOutput, setMaximizedOutput] = useState<{
+    title: string;
+    output: string;
+    pocRef: string;
+  } | null>(null);
 
   useEffect(() => {
     setContainerInput(currentState.container_ref);
@@ -67,6 +85,15 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
     setNameDraft(member.display_name);
   }, [member.display_name]);
 
+  useEffect(() => {
+    if (!maximizedOutput) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMaximizedOutput(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [maximizedOutput]);
+
   const filteredSteps = memberSteps.filter((s) => {
     if (filterMode === "main") return !s.is_defense;
     if (filterMode === "defense") return s.is_defense;
@@ -77,6 +104,12 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
     currentState.completed_step_ids.includes(s.id)
   ).length;
 
+  const liveVars = {
+    container: containerInput,
+    phpsessid: phpsessidInput,
+    userToken: userTokenInput,
+  };
+
   const handleSaveVars = async () => {
     await updateMemberState(memberNumber, {
       container_ref: containerInput,
@@ -84,6 +117,75 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
       user_token: userTokenInput,
       notes: notesInput,
     });
+  };
+
+  const handleResetProgress = async () => {
+    await updateMemberState(memberNumber, {
+      completed_step_ids: [],
+    });
+  };
+
+  const handleCopyAllCommands = async () => {
+    const blocks: string[] = [];
+    for (const s of memberSteps) {
+      if (s.commands.length === 0) continue;
+      blocks.push(`# === BƯỚC 0${s.step_order}: ${s.title} ===`);
+      for (const cmd of s.commands) {
+        blocks.push(`# ${cmd.label}`);
+        blocks.push(interpolateCommand(cmd.template, liveVars));
+      }
+      blocks.push("");
+    }
+    try {
+      await navigator.clipboard.writeText(blocks.join("\n"));
+      setCopiedAllCmds(true);
+      setTimeout(() => setCopiedAllCmds(false), 1800);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleDownloadRunbook = () => {
+    const lines: string[] = [
+      `# Runbook Thực hành DVWA — ${member.display_name} (${member.device})`,
+      `- **Vai trò**: ${member.role_title}`,
+      `- **Môi trường**: ${member.os_env}`,
+      `- **Biến phiên**: CONTAINER=${containerInput || "dvwa"} | PHPSESSID=${phpsessidInput} | USER_TOKEN=${userTokenInput}`,
+      "",
+    ];
+
+    for (const s of memberSteps) {
+      const enrichment = STEP_ENRICHMENTS[s.id];
+      lines.push(`## Bước 0${s.step_order}: ${s.title} (${s.poc_ref})`);
+      lines.push(`**Mục tiêu:** ${s.goal}`);
+      lines.push("");
+      lines.push("### Thao tác");
+      s.action_steps.forEach((act, i) => lines.push(`${i + 1}. ${act}`));
+      lines.push("");
+      if (s.commands.length > 0) {
+        lines.push("### Câu lệnh");
+        for (const cmd of s.commands) {
+          lines.push(`**${cmd.label}**`);
+          lines.push("```" + (cmd.shell === "http" ? "http" : "bash"));
+          lines.push(interpolateCommand(cmd.template, liveVars));
+          lines.push("```");
+        }
+        lines.push("");
+      }
+      if (enrichment?.verification_checks?.length) {
+        lines.push("### Checklist Kiểm chứng");
+        enrichment.verification_checks.forEach((chk) => lines.push(`- [ ] ${chk}`));
+        lines.push("");
+      }
+    }
+
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `runbook-${member.member_number}-${member.display_name.toLowerCase()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleJumpToSimulator = (simKey?: string) => {
@@ -96,10 +198,11 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
     }
   };
 
-  const liveVars = {
-    container: containerInput,
-    phpsessid: phpsessidInput,
-    userToken: userTokenInput,
+  const handleScrollToStep = (stepId: string) => {
+    const el = document.getElementById(`step-${stepId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   return (
@@ -307,7 +410,7 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                 onClick={() => setFilterMode(f.id)}
                 className={`cursor-pointer rounded px-3 py-1 font-medium transition-colors ${
                   filterMode === f.id
-                    ? "bg-surface text-ink font-semibold shadow-sm"
+                    ? "bg-surface font-semibold text-ink shadow-sm"
                     : "text-muted hover:text-ink"
                 }`}
               >
@@ -317,14 +420,90 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
           </div>
         </div>
 
+        {/* Quick Step Navigation & Runbook Export Toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-surface p-3.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
+              Mục lục bước:
+            </span>
+            {memberSteps.map((s) => {
+              const stepDone = currentState.completed_step_ids.includes(s.id);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => handleScrollToStep(s.id)}
+                  className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2.5 py-1 font-mono text-xs transition-colors ${
+                    stepDone
+                      ? "border-emerald-600/40 bg-emerald-500/10 font-semibold text-emerald-700 dark:text-emerald-300"
+                      : "border-hairline bg-subtle text-secondary hover:text-ink"
+                  }`}
+                >
+                  {stepDone ? (
+                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                  ) : (
+                    <Circle className="h-3 w-3 opacity-60" aria-hidden="true" />
+                  )}
+                  <span>Bước 0{s.step_order}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopyAllCommands}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-hairline bg-subtle px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-canvas"
+            >
+              {copiedAllCmds ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                  <span>Đã copy toàn bộ lệnh</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+                  <span>Copy toàn bộ lệnh</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadRunbook}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-hairline bg-subtle px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-canvas"
+            >
+              <Download className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+              <span>Tải Runbook (.md)</span>
+            </button>
+
+            {completedCount > 0 && (
+              <button
+                type="button"
+                onClick={handleResetProgress}
+                className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-xs text-secondary transition-colors hover:text-ink"
+                title="Xóa toàn bộ trạng thái đã đánh dấu của thành viên này"
+              >
+                <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                <span>Đặt lại tiến độ</span>
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="space-y-8">
           {filteredSteps.map((step) => {
             const isDone = currentState.completed_step_ids.includes(step.id);
+            const enrichment = STEP_ENRICHMENTS[step.id];
+            const isPitfallOpen = Boolean(openPitfalls[step.id]);
+            const isOutputMinimized = Boolean(minimizedOutputs[step.id]);
 
             return (
               <article
+                id={`step-${step.id}`}
                 key={step.id}
-                className={`rounded-lg border bg-surface p-5 sm:p-6 ${
+                className={`scroll-mt-24 rounded-lg border bg-surface p-5 sm:p-6 ${
                   isDone ? "border-emerald-600/60" : "border-hairline"
                 }`}
               >
@@ -420,7 +599,29 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                   <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#0d1117]">
                     <div className="flex items-center justify-between border-b border-zinc-800 bg-[#161b22] px-3.5 py-2">
                       <div className="flex items-center gap-2.5">
-                        <WindowControls />
+                        <WindowControls
+                          onClose={() =>
+                            setMinimizedOutputs((prev) => ({
+                              ...prev,
+                              [step.id]: !prev[step.id],
+                            }))
+                          }
+                          closeTitle={isOutputMinimized ? "Mở lại stdout" : "Thu gọn stdout"}
+                          onMinimize={() =>
+                            setMinimizedOutputs((prev) => ({
+                              ...prev,
+                              [step.id]: !prev[step.id],
+                            }))
+                          }
+                          isMinimized={isOutputMinimized}
+                          onMaximize={() =>
+                            setMaximizedOutput({
+                              title: `Bước 0${step.step_order} · ${step.title}`,
+                              output: step.expected_output,
+                              pocRef: step.poc_ref,
+                            })
+                          }
+                        />
                         <span className="font-mono text-xs font-semibold text-zinc-300">
                           stdout · Kết quả Thực tế Kỳ vọng
                         </span>
@@ -429,9 +630,11 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                         {step.poc_ref}
                       </span>
                     </div>
-                    <pre className="overflow-x-auto p-3.5 font-mono text-xs leading-relaxed text-emerald-300">
-                      <code>{step.expected_output}</code>
-                    </pre>
+                    {!isOutputMinimized && (
+                      <pre className="overflow-x-auto p-3.5 font-mono text-xs leading-relaxed text-emerald-300">
+                        <code>{step.expected_output}</code>
+                      </pre>
+                    )}
                   </div>
 
                   <StepInlineRunner
@@ -462,6 +665,78 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                       </p>
                     </div>
                   </div>
+
+                  {/* Step Enrichment: Verification Checklist & Troubleshooting */}
+                  {enrichment && (
+                    <div className="space-y-3 border-t border-hairline pt-4">
+                      {enrichment.verification_checks.length > 0 && (
+                        <div className="rounded-md border border-hairline bg-subtle p-3.5">
+                          <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-ink">
+                            <ListChecks className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                            <span>Checklist Kiểm chứng Kết quả trên Máy thật</span>
+                          </div>
+                          <ul className="space-y-1 text-xs text-secondary">
+                            {enrichment.verification_checks.map((chk, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="mt-0.5 font-mono text-[11px] font-bold text-emerald-600">
+                                  ✓
+                                </span>
+                                <span>{chk}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {enrichment.pitfalls.length > 0 && (
+                        <div className="overflow-hidden rounded-md border border-hairline bg-canvas">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOpenPitfalls((prev) => ({
+                                ...prev,
+                                [step.id]: !prev[step.id],
+                              }))
+                            }
+                            className="flex w-full cursor-pointer items-center justify-between gap-2 px-3.5 py-2.5 text-left text-xs font-semibold text-ink transition-colors hover:bg-subtle"
+                          >
+                            <span className="inline-flex items-center gap-1.5">
+                              <AlertTriangle className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+                              <span>
+                                Sự cố thường gặp &amp; Cách khắc phục nhanh ({enrichment.pitfalls.length})
+                              </span>
+                            </span>
+                            {isPitfallOpen ? (
+                              <ChevronUp className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+                            ) : (
+                              <ChevronDown className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+                            )}
+                          </button>
+
+                          {isPitfallOpen && (
+                            <div className="divide-y divide-hairline border-t border-hairline bg-surface">
+                              {enrichment.pitfalls.map((p, idx) => (
+                                <div key={idx} className="space-y-1 p-3.5 text-xs">
+                                  <div className="font-semibold text-rose-700 dark:text-rose-300">
+                                    Lỗi: {p.symptom}
+                                  </div>
+                                  <div className="text-muted">
+                                    <strong>Nguyên nhân:</strong> {p.cause}
+                                  </div>
+                                  <div className="text-secondary">
+                                    <strong className="text-emerald-700 dark:text-emerald-300">
+                                      Khắc phục:
+                                    </strong>{" "}
+                                    {p.fix}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </article>
             );
@@ -538,6 +813,48 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
           </Link>
         )}
       </div>
+
+      {maximizedOutput && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setMaximizedOutput(null);
+          }}
+        >
+          <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-zinc-800 bg-[#0d1117] shadow-2xl">
+            <div className="flex items-center justify-between gap-2 border-b border-zinc-800 bg-[#161b22] px-3.5 py-2.5">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <WindowControls
+                  onClose={() => setMaximizedOutput(null)}
+                  closeTitle="Đóng phóng to (Esc)"
+                  onMinimize={() => setMaximizedOutput(null)}
+                  onMaximize={() => setMaximizedOutput(null)}
+                  isMaximized
+                />
+                <span className="truncate font-mono text-xs font-semibold text-zinc-200">
+                  stdout · {maximizedOutput.title}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[11px] text-emerald-400">
+                  {maximizedOutput.pocRef}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMaximizedOutput(null)}
+                  aria-label="Đóng cửa sổ kết quả"
+                  className="flex cursor-pointer items-center justify-center rounded border border-zinc-700 bg-zinc-800 p-1 text-zinc-300 hover:bg-zinc-700"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+            <pre className="flex-1 overflow-auto p-5 font-mono text-sm leading-relaxed text-emerald-300">
+              <code>{maximizedOutput.output}</code>
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

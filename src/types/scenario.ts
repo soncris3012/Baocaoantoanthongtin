@@ -91,3 +91,48 @@ export interface WorkspaceSnapshot {
   qaItems: QaItem[];
   workspaceStates: Record<number, LabWorkspaceState>;
 }
+
+export interface StepTroubleshootingItem {
+  symptom: string;
+  cause: string;
+  fix: string;
+}
+
+export interface StepEnrichment {
+  verification_checks: string[];
+  pitfalls: StepTroubleshootingItem[];
+}
+
+export interface DefenseLayerItem {
+  layer_number: number;
+  layer_name: string;
+  target_component: string;
+  owner_member: 1 | 2 | 3 | 4;
+  before_state: string;
+  after_state: string;
+  standard_ref: string;
+  verification_cmd: string;
+}
+
+export interface CodeComparison4Row {
+  criterion: string;
+  low: string;
+  medium: string;
+  high: string;
+  impossible: string;
+}
+
+export interface LabMaintenanceCmd {
+  id: string;
+  title: string;
+  command: string;
+  explanation: string;
+}
+
+export interface CvssMetricDetail {
+  code: string;
+  name: string;
+  valueCode: string;
+  valueLabel: string;
+  impactLevel: "bad" | "warn" | "good" | "neutral";
+}

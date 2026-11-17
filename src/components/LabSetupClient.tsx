@@ -5,11 +5,14 @@ import {
   CheckCircle2,
   Database,
   Download,
+  KeyRound,
   RefreshCw,
+  Wrench,
 } from "lucide-react";
 import { CodeBlock } from "@/components/CodeBlock";
+import { WindowControls } from "@/components/WindowBar";
 import { useWorkspace } from "@/components/WorkspaceProvider";
-import { UBUNTU_SETUP_COMMANDS } from "@/data/scenarioData";
+import { LAB_MAINTENANCE_COMMANDS, UBUNTU_SETUP_COMMANDS } from "@/data/scenarioData";
 
 export function LabSetupClient() {
   const { snapshot, seedSupabase } = useWorkspace();
@@ -199,6 +202,102 @@ export function LabSetupClient() {
               )}
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* 3. Cryptography Hash Anatomy */}
+      <section className="rounded-lg border border-hairline bg-surface p-5 sm:p-6">
+        <div className="mb-4 border-b border-hairline pb-4">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+            <KeyRound className="h-4 w-4 text-accent" aria-hidden="true" />
+            3. Giải phẫu Chuỗi băm Mật khẩu: MD5 Không Salt vs Bcrypt (cost = 12)
+          </h2>
+          <p className="mt-1 text-xs text-muted sm:text-sm">
+            Cơ sở học thuật giải thích vì sao tài khoản <code className="font-mono text-ink">admin</code> và{" "}
+            <code className="font-mono text-ink">smithy</code> bị lộ đồng loạt trong PoC 3 và cách Bcrypt khắc phục triệt để.
+          </p>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#0d1117] font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-zinc-800 bg-[#161b22] px-3.5 py-2">
+              <div className="flex items-center gap-2.5">
+                <WindowControls />
+                <span className="font-bold text-rose-300">MD5 Không Salt (DVWA Mặc định · CWE-759)</span>
+              </div>
+              <span className="text-[11px] text-zinc-400">32 ký tự hex (128-bit)</span>
+            </div>
+            <div className="space-y-2 p-4 text-zinc-200">
+              <div>
+                <span className="text-zinc-500">admin  (&quot;password&quot;) -&gt;</span>{" "}
+                <span className="font-bold text-rose-300">5f4dcc3b5aa765d61d8327deb882cf99</span>
+              </div>
+              <div>
+                <span className="text-zinc-500">smithy (&quot;password&quot;) -&gt;</span>{" "}
+                <span className="font-bold text-rose-300">5f4dcc3b5aa765d61d8327deb882cf99</span>
+              </div>
+              <p className="pt-2 font-sans text-xs leading-relaxed text-zinc-400">
+                Hai mật khẩu giống nhau luôn cho ra cùng 1 chuỗi MD5 cố định. Tin tặc tra bảng cầu vồng (Rainbow Table) một lần duy nhất sẽ mở khóa hàng loạt tài khoản dùng mật khẩu phổ biến.
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#0d1117] font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-zinc-800 bg-[#161b22] px-3.5 py-2">
+              <div className="flex items-center gap-2.5">
+                <WindowControls />
+                <span className="font-bold text-emerald-300">Bcrypt Có Salt (Bản vá PoC 3 · cost = 12)</span>
+              </div>
+              <span className="text-[11px] text-zinc-400">60 ký tự chuẩn Modular Crypt</span>
+            </div>
+            <div className="space-y-2.5 p-4 text-zinc-200">
+              <div className="break-all rounded border border-zinc-800 bg-[#05070a] p-2.5">
+                <span className="font-bold text-sky-400">$2y$</span>
+                <span className="font-bold text-amber-300">12$</span>
+                <span className="font-bold text-emerald-300">K9p8Q3vT2xL7wR4mN6zA1e</span>
+                <span className="text-zinc-200">H8cB5vD0fG2jK4lM6nP8qR0sT2uV4wX</span>
+              </div>
+              <ul className="space-y-1 font-sans text-xs text-zinc-300">
+                <li>
+                  • <code className="font-mono font-bold text-sky-400">$2y$</code>: Định danh thuật toán Bcrypt an toàn trên PHP.
+                </li>
+                <li>
+                  • <code className="font-mono font-bold text-amber-300">12$</code>: Cost Factor (<span className="font-mono">2^12 = 4,096</span> vòng lặp băm) làm chậm GPU dò mật khẩu.
+                </li>
+                <li>
+                  • <code className="font-mono font-bold text-emerald-300">22 ký tự tiếp theo</code>: Salt ngẫu nhiên 128-bit riêng cho từng bản ghi.
+                </li>
+                <li>
+                  • <code className="font-mono text-zinc-200">31 ký tự cuối</code>: Mã băm thực tế sau khi trộn mật khẩu + Salt.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 4. Maintenance & Diagnostic Commands */}
+      <section className="rounded-lg border border-hairline bg-surface p-5 sm:p-6">
+        <div className="mb-4 border-b border-hairline pb-4">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+            <Wrench className="h-4 w-4 text-muted" aria-hidden="true" />
+            4. Cẩm nang Lệnh Vận hành, Chẩn đoán &amp; Khôi phục Nhanh Lab DVWA
+          </h2>
+          <p className="mt-1 text-xs text-muted sm:text-sm">
+            Các lệnh xử lý nhanh sự cố cổng mạng, theo dõi log realtime hoặc reset sạch container trước khi thực hành lại.
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          {LAB_MAINTENANCE_COMMANDS.map((item) => (
+            <CodeBlock
+              key={item.id}
+              label={item.title}
+              shell="zsh / bash"
+              code={item.command}
+              explanation={item.explanation}
+            />
+          ))}
         </div>
       </section>
     </div>

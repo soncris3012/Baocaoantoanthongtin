@@ -1,8 +1,13 @@
 import {
   AttackStage,
+  CodeComparison4Row,
+  CvssMetricDetail,
+  DefenseLayerItem,
+  LabMaintenanceCmd,
   LabWorkspaceState,
   QaItem,
   ScenarioStep,
+  StepEnrichment,
   TeamMember,
   VulnerabilityItem,
 } from "@/types/scenario";
@@ -871,6 +876,17 @@ export const VULNERABILITIES: VulnerabilityItem[] = [
     remediation: "Sử dụng PDO Prepared Statements ($db->prepare + bindParam PDO::PARAM_INT) kết hợp kiểm tra kiểu is_numeric() và chặn biên bằng WAF ModSecurity.",
   },
   {
+    id: "vuln-cwe-250",
+    cwe_id: "CWE-250",
+    title: "Vận hành kết nối CSDL bằng tài khoản root đặc quyền tối cao (Excessive Privileges)",
+    cvss_vector: "CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:H",
+    cvss_score: 7.2,
+    severity: "High",
+    poc_ref: "PoC 3 & Vá lỗi 2 (mysql -u root -> dvwa_svc)",
+    owner_member: 3,
+    remediation: "Khởi tạo tài khoản dịch vụ riêng 'dvwa_svc'@'localhost' chỉ cấp quyền SELECT, INSERT, UPDATE trên bảng dvwa.users và thu hồi quyền quản trị toàn cục.",
+  },
+  {
     id: "vuln-cwe-200",
     cwe_id: "CWE-200",
     title: "Lộ thông tin phiên bản máy chủ (Server Banner Disclosure)",
@@ -880,6 +896,17 @@ export const VULNERABILITIES: VulnerabilityItem[] = [
     poc_ref: "PoC 1 (Server: Apache/2.4.25 (Debian))",
     owner_member: 1,
     remediation: "Cấu hình ServerTokens Prod và ServerSignature Off trong /etc/apache2/conf-available/security.conf rồi reload Apache.",
+  },
+  {
+    id: "vuln-cwe-209",
+    cwe_id: "CWE-209",
+    title: "Xuất trực tiếp thông báo lỗi hệ quản trị CSDL ra HTTP Response (Error Message Exposure)",
+    cvss_vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+    cvss_score: 5.3,
+    severity: "Medium",
+    poc_ref: "PoC 2 & PoC 4 (low.php dòng 9: die(mysqli_error()))",
+    owner_member: 2,
+    remediation: "Loại bỏ hàm mysqli_error() xuất ra phản hồi HTTP; ghi lỗi chi tiết vào nhật ký nội bộ máy chủ và chỉ trả thông báo chung an toàn cho người dùng.",
   },
   {
     id: "vuln-cwe-759",
@@ -1015,3 +1042,434 @@ sudo usermod -aG docker $USER && newgrp docker
 
 # 3. Kéo image DVWA và khởi chạy container đặt tên là "dvwa" ở cổng 8080
 docker run --name dvwa -d -p 8080:80 vulnerables/web-dvwa`;
+
+export const OWASP_BY_CWE: Record<string, string> = {
+  "CWE-89": "A03:2021 - Injection",
+  "CWE-250": "A04:2021 - Insecure Design",
+  "CWE-200": "A05:2021 - Security Misconfiguration",
+  "CWE-209": "A05:2021 - Security Misconfiguration",
+  "CWE-759": "A02:2021 - Cryptographic Failures",
+  "CWE-614": "A05:2021 - Security Misconfiguration",
+};
+
+const CVSS_METRIC_MAP: Record<
+  string,
+  { name: string; values: Record<string, { label: string; impact: "bad" | "warn" | "good" | "neutral" }> }
+> = {
+  AV: {
+    name: "Vector tấn công",
+    values: {
+      N: { label: "Mạng (Network) — Khai thác từ xa qua HTTP", impact: "bad" },
+      A: { label: "Mạng kề cận (Adjacent)", impact: "warn" },
+      L: { label: "Cục bộ (Local)", impact: "good" },
+      P: { label: "Vật lý (Physical)", impact: "good" },
+    },
+  },
+  AC: {
+    name: "Độ phức tạp tấn công",
+    values: {
+      L: { label: "Thấp (Low) — Không cần điều kiện đặc biệt", impact: "bad" },
+      H: { label: "Cao (High) — Cần điều kiện phụ trợ", impact: "warn" },
+    },
+  },
+  PR: {
+    name: "Đặc quyền yêu cầu",
+    values: {
+      N: { label: "Không cần (None)", impact: "bad" },
+      L: { label: "Thấp (Low) — Tài khoản user DVWA", impact: "warn" },
+      H: { label: "Cao (High) — Quyền quản trị", impact: "good" },
+    },
+  },
+  UI: {
+    name: "Tương tác người dùng",
+    values: {
+      N: { label: "Không cần (None) — Tự động hóa được", impact: "bad" },
+      R: { label: "Cần (Required) — Nạn nhân phải bấm/mở", impact: "warn" },
+    },
+  },
+  S: {
+    name: "Phạm vi ảnh hưởng",
+    values: {
+      U: { label: "Không đổi (Unchanged) — Trong phạm vi ứng dụng", impact: "neutral" },
+      C: { label: "Thay đổi (Changed) — Lan sang thành phần khác", impact: "bad" },
+    },
+  },
+  C: {
+    name: "Ảnh hưởng Bảo mật (Confidentiality)",
+    values: {
+      H: { label: "Cao (High) — Đọc toàn bộ bảng users/DB", impact: "bad" },
+      L: { label: "Thấp (Low) — Rò rỉ một phần thông tin", impact: "warn" },
+      N: { label: "Không (None)", impact: "good" },
+    },
+  },
+  I: {
+    name: "Ảnh hưởng Toàn vẹn (Integrity)",
+    values: {
+      H: { label: "Cao (High) — Có thể sửa/xóa dữ liệu DB", impact: "bad" },
+      L: { label: "Thấp (Low) — Sửa đổi hạn chế", impact: "warn" },
+      N: { label: "Không (None)", impact: "good" },
+    },
+  },
+  A: {
+    name: "Ảnh hưởng Sẵn sàng (Availability)",
+    values: {
+      H: { label: "Cao (High) — Có thể làm sập/xóa bảng dịch vụ", impact: "bad" },
+      L: { label: "Thấp (Low) — Giảm hiệu năng", impact: "warn" },
+      N: { label: "Không (None)", impact: "good" },
+    },
+  },
+};
+
+export function parseCvssVector(vector: string): CvssMetricDetail[] {
+  const parts = vector.replace(/^CVSS:[^/]+\//, "").split("/");
+  const details: CvssMetricDetail[] = [];
+
+  for (const part of parts) {
+    const [code, valCode] = part.split(":");
+    const meta = CVSS_METRIC_MAP[code];
+    if (!meta || !valCode) continue;
+    const valMeta = meta.values[valCode];
+    details.push({
+      code,
+      name: meta.name,
+      valueCode: valCode,
+      valueLabel: valMeta ? valMeta.label : valCode,
+      impactLevel: valMeta ? valMeta.impact : "neutral",
+    });
+  }
+
+  return details;
+}
+
+export const CODE_COMPARISON_4_LEVELS: CodeComparison4Row[] = [
+  {
+    criterion: "Nguồn nhận tham số HTTP",
+    low: "$_REQUEST['id'] (chấp nhận cả GET/POST/Cookie)",
+    medium: "$_POST['id'] (đổi giao diện sang select dropdown)",
+    high: "$_SESSION['id'] (tách nhập liệu sang trang popup riêng)",
+    impossible: "$_GET['id'] kèm xác thực Anti-CSRF trước khi đọc",
+  },
+  {
+    criterion: "Thư viện kết nối CSDL",
+    low: "mysqli (thủ tục truyền thống)",
+    medium: "mysqli (thủ tục truyền thống)",
+    high: "mysqli (thủ tục truyền thống)",
+    impossible: "PDO (PHP Data Objects hướng đối tượng)",
+  },
+  {
+    criterion: "Cơ chế lọc dữ liệu $id",
+    low: "Không kiểm tra bất kỳ ký tự nào",
+    medium: "mysqli_real_escape_string($id) (chỉ thoát dấu nháy)",
+    high: "Giới hạn độ dài giao diện + LIMIT 1 ở cuối SQL",
+    impossible: "Kiểm tra kép is_numeric($id) (Dòng 11) + ép PDO::PARAM_INT",
+  },
+  {
+    criterion: "Cấu trúc câu lệnh SQL",
+    low: "Nối chuỗi: WHERE user_id = '$id'",
+    medium: "Nối số: WHERE user_id = $id (không có nháy đơn)",
+    high: "Nối chuỗi: WHERE user_id = '$id' LIMIT 1",
+    impossible: "Tham số hóa: $db->prepare('...WHERE user_id = (:id) LIMIT 1')",
+  },
+  {
+    criterion: "Bảo vệ Anti-CSRF",
+    low: "Không có",
+    medium: "Không có",
+    high: "Không có",
+    impossible: "checkToken() (Dòng 5) — trả 302 Found nếu thiếu token",
+  },
+  {
+    criterion: "Xử lý lỗi hệ thống",
+    low: "In thẳng mysqli_error() ra trình duyệt",
+    medium: "In thẳng mysqli_error() ra trình duyệt",
+    high: "In thẳng mysqli_error() ra trình duyệt",
+    impossible: "Ẩn hoàn toàn lỗi hệ quản trị CSDL",
+  },
+  {
+    criterion: "Khả năng chống SQLi / Bypass",
+    low: "0% · Bị phá bởi ' hoặc ' OR '1'='1",
+    medium: "Bị bypass bằng payload số học: 1 OR 1=1",
+    high: "Bị bypass bằng chú thích # hoặc -- để cắt LIMIT 1",
+    impossible: "100% An toàn · Tách biệt hoàn toàn Lệnh & Dữ liệu",
+  },
+];
+
+export const DEFENSE_IN_DEPTH_LAYERS: DefenseLayerItem[] = [
+  {
+    layer_number: 1,
+    layer_name: "Tầng 1 · Biên mạng & Reverse Proxy",
+    target_component: "WAF ModSecurity CRS (SecRule 100001)",
+    owner_member: 4,
+    before_state: "Cho phép mọi chuỗi ký tự độc hại (', UNION, SELECT) đi thẳng tới PHP",
+    after_state: "Ngắt kết nối ngay tại pha 2 với HTTP 403 Forbidden và ghi audit log CRITICAL",
+    standard_ref: "OWASP A03:2021 · CRS 942100",
+    verification_cmd: "Kiểm thử payload 1' OR 1=1 -> trả về HTTP/1.1 403 Forbidden",
+  },
+  {
+    layer_number: 2,
+    layer_name: "Tầng 2 · Máy chủ Web, Cookie & Giám sát Log",
+    target_component: "Apache security.conf, Set-Cookie & access.log",
+    owner_member: 1,
+    before_state: "Lộ Server: Apache/2.4.25 (Debian), PHPSESSID thiếu HttpOnly/SameSite",
+    after_state: "ServerTokens Prod chỉ trả 'Server: Apache'; truy vết IoC %27/UNION qua access.log",
+    standard_ref: "CWE-200 · CWE-614 · Blue Team Forensics",
+    verification_cmd: "curl -Is http://127.0.0.1:8080/login.php | grep -i Server:",
+  },
+  {
+    layer_number: 3,
+    layer_name: "Tầng 3 · Logic Ứng dụng PHP (impossible.php)",
+    target_component: "checkToken() + is_numeric() + PDO Prepared Statements",
+    owner_member: 4,
+    before_state: "Ghép chuỗi trực tiếp vào mysqli_query() và in thẳng mysqli_error()",
+    after_state: "Tách biệt pha biên dịch SQL và pha truyền tham số PDO::PARAM_INT",
+    standard_ref: "CWE-89 · CWE-209 · OWASP A03:2021",
+    verification_cmd: "Gửi PoC 5 tinh chỉnh (đủ user_token + id=1') -> 200 OK rỗng không lỗi SQL",
+  },
+  {
+    layer_number: 4,
+    layer_name: "Tầng 4 · Cơ sở dữ liệu & Mật mã học",
+    target_component: "MariaDB (dvwa.users & tài khoản dịch vụ dvwa_svc)",
+    owner_member: 3,
+    before_state: "Lưu mật khẩu MD5 32-hex không Salt (admin & smithy trùng hash) + dùng root",
+    after_state: "Băm thích ứng Bcrypt (cost=12) có Salt tự động + phân quyền tối thiểu dvwa_svc",
+    standard_ref: "CWE-759 · CWE-250 · Least Privilege",
+    verification_cmd: "SHOW GRANTS FOR 'dvwa_svc'@'localhost';",
+  },
+];
+
+export const STEP_ENRICHMENTS: Record<string, StepEnrichment> = {
+  "m1-s1": {
+    verification_checks: [
+      "Lệnh docker ps hiển thị trạng thái 'Up' và cột PORTS có ánh xạ 0.0.0.0:8080->80/tcp.",
+      "Lệnh nmap -sV báo trạng thái '8080/tcp open http Apache httpd 2.4.25 ((Debian))'.",
+    ],
+    pitfalls: [
+      {
+        symptom: "docker ps báo lỗi 'Cannot connect to the Docker daemon'",
+        cause: "Docker Desktop (trên macOS) chưa khởi động xong hoặc service docker trên Ubuntu đang tắt.",
+        fix: "Mở Docker Desktop trên Mac hoặc chạy 'sudo systemctl start docker' trên Ubuntu.",
+      },
+      {
+        symptom: "nmap báo '8080/tcp closed' dù container đã tạo",
+        cause: "Container đang ở trạng thái Exited hoặc bị dừng sau khi khởi động lại máy.",
+        fix: "Chạy 'docker start dvwa' (hoặc 'docker start 215d3a734374') rồi quét lại.",
+      },
+    ],
+  },
+  "m1-s2": {
+    verification_checks: [
+      "HTTP Header trả về mã 'HTTP/1.1 200 OK' cùng dòng 'Server: Apache/2.4.25 (Debian)'.",
+      "Thấy đủ 2 dòng Set-Cookie cho PHPSESSID và security=low đều thiếu HttpOnly và SameSite=Strict.",
+    ],
+    pitfalls: [
+      {
+        symptom: "curl không in ra gì hoặc trả 302 chuyển sang setup.php",
+        cause: "CSDL DVWA bên trong container vừa khởi tạo chưa bấm nút tạo bảng lần đầu.",
+        fix: "Mở http://127.0.0.1:8080/setup.php trên trình duyệt và bấm Create / Reset Database.",
+      },
+    ],
+  },
+  "m1-s3": {
+    verification_checks: [
+      "Lệnh a2enconf security && service apache2 reload báo 'Reloading Apache httpd web server: apache2'.",
+      "Lệnh curl -Is kiểm tra lại chỉ còn duy nhất 'Server: Apache', không còn '2.4.25 (Debian)'.",
+    ],
+    pitfalls: [
+      {
+        symptom: "Lệnh docker exec báo 'No such container'",
+        cause: "Tên/ID container trên máy Ubuntu khác với máy Mac (215d3a734374 vs dvwa).",
+        fix: "Cập nhật biến CONTAINER_REF phía trên thành 'dvwa' hoặc ID thật lấy từ lệnh docker ps.",
+      },
+    ],
+  },
+  "m2-s1": {
+    verification_checks: [
+      "Tab Proxy Listeners của Burp Suite có dấu tick Running tại 127.0.0.1:8081 (không còn 8080).",
+      "Mở http://localtest.me:8080 trong Burp Browser thấy gói tin xuất hiện ở Proxy -> HTTP history.",
+    ],
+    pitfalls: [
+      {
+        symptom: "Burp Proxy Listeners báo dấu chấm than đỏ ở cổng 8080",
+        cause: "Xung đột cổng (Port Conflict) vì Docker DVWA đã lắng nghe cổng 8080.",
+        fix: "Edit Proxy Listener trong Burp từ 8080 sang 8081 và mở lại Burp Chromium.",
+      },
+      {
+        symptom: "Proxy Intercept không bắt được gói tin nào khi gửi form",
+        cause: "Truy cập nhầm http://127.0.0.1:8080 hoặc localhost:8080 nên bị Chromium Loopback Bypass.",
+        fix: "Đổi URL thanh địa chỉ trình duyệt sang http://localtest.me:8080/vulnerabilities/sqli/.",
+      },
+    ],
+  },
+  "m2-s2": {
+    verification_checks: [
+      "Gửi id=1' trên Repeater nhận lại đúng chuỗi '<pre>You have an error in your SQL syntax... near '''1''' at line 1</pre>'.",
+      "Gửi id=' OR '1'='1 trả về đủ danh sách 5 người dùng (admin, Gordon, Hack, Pablo, Bob).",
+    ],
+    pitfalls: [
+      {
+        symptom: "Trình duyệt treo quay mãi khi dùng xong Intercept",
+        cause: "Quên tắt 'Intercept is on' sau khi đã gửi gói tin sang Repeater bằng Ctrl+R.",
+        fix: "Quay lại tab Proxy -> Intercept và bấm nút chuyển về 'Intercept is off'.",
+      },
+      {
+        symptom: "Response trên Repeater trả về trang login.php (302 Found)",
+        cause: "Giá trị Cookie security=low; PHPSESSID=... bị thiếu hoặc phiên cũ đã hết hạn.",
+        fix: "Đăng nhập lại DVWA ở mức Low, copy PHPSESSID mới nhất dán vào khung Repeater và ô biến môi trường.",
+      },
+    ],
+  },
+  "m2-s3": {
+    verification_checks: [
+      "Lệnh cURL + grep trả về gọn 1 dòng 'First name: admin' mà không lẫn thẻ HTML.",
+    ],
+    pitfalls: [
+      {
+        symptom: "cURL chạy xong nhưng không in ra dòng nào (exit code 1)",
+        cause: "PHPSESSID truyền vào -b chưa đăng nhập DVWA hoặc thiếu chuỗi 'security=low; ' đi kèm.",
+        fix: "Đảm bảo tham số -b có đủ cả hai cặp: -b \"security=low; PHPSESSID=<mã_mới>\".",
+      },
+    ],
+  },
+  "m2-s4": {
+    verification_checks: [
+      "Lọc access.log thấy rõ 2 nhóm request: User-Agent 'Mozilla/5.0...' (Burp) và 'curl/...' (CLI).",
+      "Quan sát được dấu hiệu IoC: ký tự %27, chuỗi OR+%271%27%3D%271 và chênh lệch kích thước bytes (1842 vs 2195).",
+    ],
+    pitfalls: [
+      {
+        symptom: "Lệnh grep trả về rỗng khi đọc /var/log/apache2/access.log",
+        cause: "Chưa thực hiện truy vấn chứa ', %27, UNION, SELECT trước đó hoặc gõ sai tên container.",
+        fix: "Chạy lại Bước 2 (gửi id=1' trên Repeater) rồi thực thi lại lệnh đọc access.log.",
+      },
+    ],
+  },
+  "m3-s1": {
+    verification_checks: [
+      "Lệnh 1 (--dbs) tìm ra đúng 2 database: dvwa và information_schema.",
+      "Lệnh 2 (--tables) liệt kê được 2 bảng: guestbook và users.",
+      "Lệnh 3 (--dump) xuất đủ 5 bản ghi users kèm mật khẩu rõ (admin -> password, gordonb -> abc123...).",
+    ],
+    pitfalls: [
+      {
+        symptom: "SQLMap báo không tìm thấy điểm tiêm ở tham số id và bỏ qua với --batch",
+        cause: "Cookie PHPSESSID đã hết hạn hoặc đang để DVWA ở mức High/Impossible thay vì Low.",
+        fix: "Kiểm tra lại mức DVWA Security đang là 'low' và lấy PHPSESSID mới nhất đưa vào --cookie.",
+      },
+      {
+        symptom: "Lần chạy thứ 2 SQLMap không chạy lại dictionary crack",
+        cause: "SQLMap lưu kết quả crack vào cache cục bộ (~/.local/share/sqlmap/output).",
+        fix: "Thêm cờ --flush-session nếu muốn SQLMap thực hiện quét mới lại từ đầu.",
+      },
+    ],
+  },
+  "m3-s2": {
+    verification_checks: [
+      "Bảng users in ra 5 dòng; bản ghi 1 (admin) và bản ghi 5 (smithy) có cùng chuỗi 5f4dcc3b5aa765d61d8327deb882cf99.",
+      "Độ dài mỗi chuỗi băm đúng 32 ký tự hex (128-bit MD5 không Salt).",
+    ],
+    pitfalls: [
+      {
+        symptom: "mysql -u root báo 'ERROR 1049 (42000): Unknown database dvwa'",
+        cause: "Chưa chạy Create / Reset Database trên web /setup.php.",
+        fix: "Truy cập http://127.0.0.1:8080/setup.php để khởi tạo CSDL DVWA.",
+      },
+    ],
+  },
+  "m3-s3": {
+    verification_checks: [
+      "PHP CLI sinh ra chuỗi 60 ký tự bắt đầu bằng '$2y$12$...'.",
+      "Truy vấn SELECT sau khi UPDATE hiển thị mật khẩu mới của admin đã chuyển sang chuẩn Bcrypt.",
+    ],
+    pitfalls: [
+      {
+        symptom: "Giá trị cột password bị mất phần '$2y$12' chỉ còn dấu chấm sau khi UPDATE",
+        cause: "Shell zsh/bash diễn giải chuỗi $2, $12 như biến môi trường bên trong dấu nháy kép.",
+        fix: "Bắt buộc thêm dấu gạch chéo ngược \\ trước mọi dấu $ (viết \\$2y\\$12\\$...) khi chạy trong nháy kép bash.",
+      },
+    ],
+  },
+  "m3-s4": {
+    verification_checks: [
+      "Lệnh SHOW GRANTS xác nhận dvwa_svc@localhost CHỈ có quyền SELECT, INSERT, UPDATE trên dvwa.users.",
+      "Không xuất hiện quyền ALL PRIVILEGES, DROP, ALTER hay FILE.",
+    ],
+    pitfalls: [
+      {
+        symptom: "Lệnh CREATE USER báo lỗi nếu chạy lặp lại lần thứ 2",
+        cause: "Người dùng dvwa_svc đã được tạo ở lần chạy trước đó.",
+        fix: "Dùng cú pháp an toàn CREATE USER IF NOT EXISTS như mẫu ở trên.",
+      },
+    ],
+  },
+  "m4-s1": {
+    verification_checks: [
+      "Đối chiếu đủ 4 file: low.php (dòng 5, 8, 9), medium.php (không có nháy quanh $id), high.php (session + LIMIT 1), impossible.php (dòng 5, 11, 13–15).",
+    ],
+    pitfalls: [
+      {
+        symptom: "Số dòng hiển thị lệch nếu mở nhầm file ngoài thư mục /vulnerabilities/sqli/source/",
+        cause: "DVWA có nhiều module khác nhau (sqli_blind, xss_r...).",
+        fix: "Kiểm tra đúng đường dẫn /var/www/html/vulnerabilities/sqli/source/{low,medium,high,impossible}.php.",
+      },
+    ],
+  },
+  "m4-s2": {
+    verification_checks: [
+      "Request gửi đi KHÔNG có user_token với Cookie security=impossible.",
+      "Response trả về chính xác mã 'HTTP/1.1 302 Found', 'Location: index.php' và 'Content-Length: 0'.",
+    ],
+    pitfalls: [
+      {
+        symptom: "Response vẫn trả về 200 OK và dính lỗi SQL",
+        cause: "Quên đổi dòng Cookie từ security=low thành security=impossible trong Burp Repeater.",
+        fix: "Sửa header Cookie thành 'Cookie: security=impossible; PHPSESSID=...' rồi bấm Send lại.",
+      },
+    ],
+  },
+  "m4-s3": {
+    verification_checks: [
+      "Response trả về 'HTTP/1.1 200 OK' với trang HTML hợp lệ (không bị redirect 302 về index.php).",
+      "Không xuất hiện bản ghi nào từ bảng users và TUYỆT ĐỐI không có thông báo lỗi MariaDB.",
+    ],
+    pitfalls: [
+      {
+        symptom: "Bấm Send lần đầu ra 200 OK, bấm Send lần hai lại bị 302 Found",
+        cause: "DVWA ở mức impossible xoay vòng (rotate) user_token chỉ dùng một lần sau mỗi request.",
+        fix: "Lấy chuỗi user_token mới nhất sinh ra trong body HTML của phản hồi trước để dán vào request tiếp theo.",
+      },
+    ],
+  },
+  "m4-s4": {
+    verification_checks: [
+      "Nắm rõ 5 thành phần của SecRule 100001: ARGS:id, @rx regex, phase:2, deny + status:403, log severity CRITICAL.",
+      "Kiểm thử trên trình mô phỏng WAF với '1' OR 1=1' trả về 403 Forbidden và chuỗi '100' đi qua 200 OK.",
+    ],
+    pitfalls: [
+      {
+        symptom: "Biểu thức regex WAF chặn nhầm chuỗi hợp lệ",
+        cause: "Viết luật quá rộng không giới hạn đúng biến ARGS:id.",
+        fix: "Giữ chặt danh sách ký tự/từ khóa SQLi trong @rx và kiểm chứng bằng cả input hợp lệ lẫn input tấn công.",
+      },
+    ],
+  },
+};
+
+export const LAB_MAINTENANCE_COMMANDS: LabMaintenanceCmd[] = [
+  {
+    id: "check-ports",
+    title: "Kiểm tra tiến trình đang chiếm cổng 8080 / 8081",
+    command: `lsof -i :8080 -i :8081 || ss -tulpn | grep -E "8080|8081"`,
+    explanation: "Giúp chẩn đoán nhanh khi Docker hoặc Burp Suite báo lỗi cổng đã được sử dụng.",
+  },
+  {
+    id: "tail-logs",
+    title: "Theo dõi Apache access.log theo thời gian thực (Blue Team Live Monitor)",
+    command: `docker exec -it dvwa tail -f /var/log/apache2/access.log`,
+    explanation: "Quan sát ngay lập tức từng gói tin từ Burp Suite, cURL và SQLMap đổ vào máy chủ web.",
+  },
+  {
+    id: "reset-dvwa",
+    title: "Khôi phục sạch container DVWA về trạng thái ban đầu trước buổi demo",
+    command: `docker rm -f dvwa && docker run --name dvwa -d -p 8080:80 vulnerables/web-dvwa`,
+    explanation: "Xóa sạch các bản vá Apache/Bcrypt cũ nếu cần chạy demo lại từ bước 1 trên container mới tinh.",
+  },
+];

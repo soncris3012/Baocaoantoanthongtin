@@ -168,7 +168,17 @@ ON CONFLICT (id) DO UPDATE SET
   cwe_id = EXCLUDED.cwe_id, title = EXCLUDED.title, cvss_vector = EXCLUDED.cvss_vector, cvss_score = EXCLUDED.cvss_score, severity = EXCLUDED.severity, poc_ref = EXCLUDED.poc_ref, owner_member = EXCLUDED.owner_member, remediation = EXCLUDED.remediation;
 
 INSERT INTO public.vulnerabilities (id, cwe_id, title, cvss_vector, cvss_score, severity, poc_ref, owner_member, remediation)
+VALUES ('vuln-cwe-250', 'CWE-250', 'Vận hành kết nối CSDL bằng tài khoản root đặc quyền tối cao (Excessive Privileges)', 'CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:H/A:H', 7.2, 'High', 'PoC 3 & Vá lỗi 2 (mysql -u root -> dvwa_svc)', 3, 'Khởi tạo tài khoản dịch vụ riêng ''dvwa_svc''@''localhost'' chỉ cấp quyền SELECT, INSERT, UPDATE trên bảng dvwa.users và thu hồi quyền quản trị toàn cục.')
+ON CONFLICT (id) DO UPDATE SET
+  cwe_id = EXCLUDED.cwe_id, title = EXCLUDED.title, cvss_vector = EXCLUDED.cvss_vector, cvss_score = EXCLUDED.cvss_score, severity = EXCLUDED.severity, poc_ref = EXCLUDED.poc_ref, owner_member = EXCLUDED.owner_member, remediation = EXCLUDED.remediation;
+
+INSERT INTO public.vulnerabilities (id, cwe_id, title, cvss_vector, cvss_score, severity, poc_ref, owner_member, remediation)
 VALUES ('vuln-cwe-200', 'CWE-200', 'Lộ thông tin phiên bản máy chủ (Server Banner Disclosure)', 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N', 5.3, 'Medium', 'PoC 1 (Server: Apache/2.4.25 (Debian))', 1, 'Cấu hình ServerTokens Prod và ServerSignature Off trong /etc/apache2/conf-available/security.conf rồi reload Apache.')
+ON CONFLICT (id) DO UPDATE SET
+  cwe_id = EXCLUDED.cwe_id, title = EXCLUDED.title, cvss_vector = EXCLUDED.cvss_vector, cvss_score = EXCLUDED.cvss_score, severity = EXCLUDED.severity, poc_ref = EXCLUDED.poc_ref, owner_member = EXCLUDED.owner_member, remediation = EXCLUDED.remediation;
+
+INSERT INTO public.vulnerabilities (id, cwe_id, title, cvss_vector, cvss_score, severity, poc_ref, owner_member, remediation)
+VALUES ('vuln-cwe-209', 'CWE-209', 'Xuất trực tiếp thông báo lỗi hệ quản trị CSDL ra HTTP Response (Error Message Exposure)', 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N', 5.3, 'Medium', 'PoC 2 & PoC 4 (low.php dòng 9: die(mysqli_error()))', 2, 'Loại bỏ hàm mysqli_error() xuất ra phản hồi HTTP; ghi lỗi chi tiết vào nhật ký nội bộ máy chủ và chỉ trả thông báo chung an toàn cho người dùng.')
 ON CONFLICT (id) DO UPDATE SET
   cwe_id = EXCLUDED.cwe_id, title = EXCLUDED.title, cvss_vector = EXCLUDED.cvss_vector, cvss_score = EXCLUDED.cvss_score, severity = EXCLUDED.severity, poc_ref = EXCLUDED.poc_ref, owner_member = EXCLUDED.owner_member, remediation = EXCLUDED.remediation;
 

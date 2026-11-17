@@ -1,17 +1,34 @@
 "use client";
 
+import { Fragment, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Play, Terminal, Wrench } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, Layers, Play, ShieldCheck, Terminal, Wrench } from "lucide-react";
 import { useWorkspace } from "@/components/WorkspaceProvider";
 import {
   ATTACK_FLOW_STAGES,
-  CODE_COMPARISON_TABLE,
+  CODE_COMPARISON_4_LEVELS,
+  DEFENSE_IN_DEPTH_LAYERS,
   INFRA_CHALLENGES,
+  OWASP_BY_CWE,
   PROJECT_OVERVIEW,
+  VULNERABILITIES,
+  parseCvssVector,
 } from "@/data/scenarioData";
 
 export function OverviewPageClient() {
   const { snapshot } = useWorkspace();
+  const [expandedCweId, setExpandedCweId] = useState<string | null>("vuln-cwe-89");
+
+  const memberNameMap: Record<number, string> = {};
+  for (const m of snapshot.members) {
+    memberNameMap[m.member_number] = m.display_name;
+  }
+
+  const existingVulnIds = new Set(snapshot.vulnerabilities.map((v) => v.id));
+  const mergedVulns = [
+    ...snapshot.vulnerabilities,
+    ...VULNERABILITIES.filter((v) => !existingVulnIds.has(v.id)),
+  ].sort((a, b) => b.cvss_score - a.cvss_score);
 
   const totalSteps = snapshot.steps.length;
   const totalCompleted = snapshot.members.reduce((sum, m) => {
@@ -271,7 +288,7 @@ export function OverviewPageClient() {
                   href={`/thanh-vien/${stage.owner_member}`}
                   className="inline-flex items-center gap-1 rounded-md border border-hairline bg-subtle px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-canvas"
                 >
-                  <span>Người {stage.owner_member}</span>
+                  <span>{memberNameMap[stage.owner_member] ?? `Thành viên ${stage.owner_member}`}</span>
                   <ArrowRight className="h-3 w-3" aria-hidden="true" />
                 </Link>
               </div>
@@ -333,17 +350,28 @@ export function OverviewPageClient() {
         </div>
       </section>
 
-      {/* 5. BANG CWE / CVSS & DOI CHIEU MA NGUON */}
+      {/* 5. BANG CWE / CVSS & DOI CHIEU 4 CAP DO MA NGUON */}
       <section className="space-y-8">
-        <div>
-          <h2 className="mb-3 text-lg font-bold text-ink">
-            Bảng Định lượng Rủi ro Chuẩn Quốc tế (CWE &amp; CVSS v3.1)
-          </h2>
+        <div id="cwe-matrix" className="scroll-mt-24">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-bold text-ink">
+                Bảng Định lượng Rủi ro Chuẩn Quốc tế (CWE, OWASP Top 10 &amp; CVSS v3.1)
+              </h2>
+              <p className="text-xs text-muted">
+                Bấm vào từng dòng để phân rã chi tiết 8 chỉ số Vector CVSS v3.1 (AV, AC, PR, UI, S, C, I, A).
+              </p>
+            </div>
+            <span className="font-mono text-xs text-muted">
+              Tổng cộng: {mergedVulns.length} lỗ hổng
+            </span>
+          </div>
+
           <div className="overflow-x-auto rounded-lg border border-hairline bg-surface">
             <table className="w-full text-left text-xs sm:text-sm">
               <thead>
                 <tr className="border-b border-hairline bg-subtle text-muted">
-                  <th className="px-4 py-2.5 font-semibold">Mã CWE</th>
+                  <th className="px-4 py-2.5 font-semibold">Mã CWE &amp; OWASP</th>
                   <th className="px-4 py-2.5 font-semibold">Lỗ hổng / Điểm yếu</th>
                   <th className="px-4 py-2.5 font-semibold">CVSS v3.1</th>
                   <th className="px-4 py-2.5 font-semibold">Mức độ</th>
@@ -351,70 +379,208 @@ export function OverviewPageClient() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline">
-                {snapshot.vulnerabilities.map((v) => (
-                  <tr key={v.id}>
-                    <td className="px-4 py-3 font-mono font-bold text-ink">
-                      {v.cwe_id}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-ink">{v.title}</div>
-                      <div className="mt-0.5 font-mono text-[11px] text-muted">
-                        {v.poc_ref}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted">
-                      <div className="font-bold text-ink">{v.cvss_score}</div>
-                      <div className="text-[11px]">{v.cvss_vector}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-block rounded px-2 py-0.5 font-mono text-xs font-semibold ${
-                          v.severity === "High" || v.severity === "Critical"
-                            ? "bg-rose-500/15 text-rose-700 dark:text-rose-300"
-                            : "bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                {mergedVulns.map((v) => {
+                  const isExpanded = expandedCweId === v.id;
+                  const metrics = isExpanded ? parseCvssVector(v.cvss_vector) : [];
+                  const ownerName = memberNameMap[v.owner_member] ?? `Thành viên ${v.owner_member}`;
+                  const owaspTag = OWASP_BY_CWE[v.cwe_id] ?? "OWASP Top 10:2021";
+
+                  return (
+                    <Fragment key={v.id}>
+                      <tr
+                        onClick={() => setExpandedCweId(isExpanded ? null : v.id)}
+                        className={`cursor-pointer transition-colors hover:bg-subtle/60 ${
+                          isExpanded ? "bg-subtle/50" : ""
                         }`}
                       >
-                        {v.severity}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs leading-relaxed text-secondary">
-                      {v.remediation}
-                    </td>
-                  </tr>
-                ))}
+                        <td className="px-4 py-3 align-top">
+                          <div className="flex items-center gap-1.5 font-mono font-bold text-ink">
+                            <span>{v.cwe_id}</span>
+                            {isExpanded ? (
+                              <ChevronUp className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+                            ) : (
+                              <ChevronDown className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+                            )}
+                          </div>
+                          <div className="mt-1 font-mono text-[10px] text-accent">
+                            {owaspTag}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <div className="font-medium text-ink">{v.title}</div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[11px] text-muted">
+                            <span>{v.poc_ref}</span>
+                            <span>·</span>
+                            <span className="text-ink">Phụ trách: {ownerName}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 align-top font-mono text-xs text-muted">
+                          <div className="font-bold text-ink">{v.cvss_score}</div>
+                          <div className="text-[11px]">{v.cvss_vector}</div>
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <span
+                            className={`inline-block rounded px-2 py-0.5 font-mono text-xs font-semibold ${
+                              v.severity === "High" || v.severity === "Critical"
+                                ? "bg-rose-500/15 text-rose-700 dark:text-rose-300"
+                                : "bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                            }`}
+                          >
+                            {v.severity}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 align-top text-xs leading-relaxed text-secondary">
+                          {v.remediation}
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr className="bg-canvas/70">
+                          <td colSpan={5} className="px-4 py-3.5">
+                            <div className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
+                              Giải nghĩa Chi tiết Vector {v.cvss_vector}
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                              {metrics.map((m) => (
+                                <div
+                                  key={m.code}
+                                  className="rounded border border-hairline bg-surface p-2.5 text-xs"
+                                >
+                                  <div className="flex items-center justify-between font-mono text-[11px]">
+                                    <span className="font-bold text-ink">{m.code}</span>
+                                    <span
+                                      className={`rounded px-1.5 py-0.5 font-bold ${
+                                        m.impactLevel === "bad"
+                                          ? "bg-rose-500/15 text-rose-700 dark:text-rose-300"
+                                          : m.impactLevel === "warn"
+                                          ? "bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                                          : m.impactLevel === "good"
+                                          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                                          : "bg-subtle text-muted"
+                                      }`}
+                                    >
+                                      {m.valueCode}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 font-medium text-ink">{m.name}</div>
+                                  <div className="mt-0.5 text-[11px] text-muted">{m.valueLabel}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
 
         <div>
-          <h2 className="mb-3 text-lg font-bold text-ink">
-            Đối chiếu Kỹ thuật: low.php vs impossible.php
+          <h2 className="mb-1 text-lg font-bold text-ink">
+            Đối chiếu Kỹ thuật Toàn diện 4 Cấp độ PHP (PoC 4)
           </h2>
+          <p className="mb-3 text-xs text-muted">
+            Phân tích sự tiến hóa kiến trúc qua 4 tệp mã nguồn thực tế trong DVWA (<code className="font-mono">/vulnerabilities/sqli/source/</code>).
+          </p>
           <div className="overflow-x-auto rounded-lg border border-hairline bg-surface">
-            <table className="w-full text-left text-xs sm:text-sm">
+            <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-hairline bg-subtle text-muted">
-                  <th className="px-4 py-2.5 font-semibold">Tiêu chí Đánh giá</th>
-                  <th className="px-4 py-2.5 font-semibold text-rose-700 dark:text-rose-300">
-                    Cấp độ Low (low.php)
+                  <th className="px-3.5 py-2.5 font-semibold">Tiêu chí Đánh giá</th>
+                  <th className="px-3.5 py-2.5 font-semibold text-rose-700 dark:text-rose-300">
+                    low.php
                   </th>
-                  <th className="px-4 py-2.5 font-semibold text-emerald-700 dark:text-emerald-300">
-                    Cấp độ Impossible (impossible.php)
+                  <th className="px-3.5 py-2.5 font-semibold text-amber-800 dark:text-amber-300">
+                    medium.php
+                  </th>
+                  <th className="px-3.5 py-2.5 font-semibold text-amber-800 dark:text-amber-300">
+                    high.php
+                  </th>
+                  <th className="px-3.5 py-2.5 font-semibold text-emerald-700 dark:text-emerald-300">
+                    impossible.php
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline">
-                {CODE_COMPARISON_TABLE.map((row) => (
+                {CODE_COMPARISON_4_LEVELS.map((row) => (
                   <tr key={row.criterion}>
-                    <td className="px-4 py-3 font-semibold text-ink">{row.criterion}</td>
-                    <td className="px-4 py-3 text-secondary">{row.low}</td>
-                    <td className="px-4 py-3 text-secondary">{row.impossible}</td>
+                    <td className="px-3.5 py-3 font-semibold text-ink">{row.criterion}</td>
+                    <td className="px-3.5 py-3 text-secondary">{row.low}</td>
+                    <td className="px-3.5 py-3 text-secondary">{row.medium}</td>
+                    <td className="px-3.5 py-3 text-secondary">{row.high}</td>
+                    <td className="px-3.5 py-3 font-medium text-ink">{row.impossible}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        </div>
+      </section>
+
+      {/* 6. KIEN TRUC PHONG THU CHIEU SAU 4 TANG (DEFENSE-IN-DEPTH) */}
+      <section>
+        <div className="mb-4 flex items-center gap-2">
+          <Layers className="h-5 w-5 text-accent" aria-hidden="true" />
+          <div>
+            <h2 className="text-lg font-bold tracking-tight text-ink">
+              Ma trận Kiến trúc Phòng thủ Chiều sâu 4 Tầng (Defense-in-Depth)
+            </h2>
+            <p className="text-xs text-muted">
+              Kết hợp gia cố đồng bộ từ tầng biên WAF, máy chủ web Apache, logic ứng dụng PHP đến tầng lưu trữ MariaDB.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {DEFENSE_IN_DEPTH_LAYERS.map((layer) => {
+            const ownerName = memberNameMap[layer.owner_member] ?? `Thành viên ${layer.owner_member}`;
+            return (
+              <div
+                key={layer.layer_number}
+                className="flex flex-col justify-between rounded-lg border border-hairline bg-surface p-4 text-xs"
+              >
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline pb-2.5">
+                    <span className="font-mono font-bold text-accent">{layer.layer_name}</span>
+                    <span className="rounded border border-hairline bg-subtle px-2 py-0.5 font-mono text-[11px] text-ink">
+                      {layer.standard_ref}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 font-semibold text-ink">{layer.target_component}</div>
+
+                  <div className="mt-2.5 space-y-2 leading-relaxed">
+                    <div className="border-l-2 border-rose-500/70 pl-2.5 text-muted">
+                      <strong className="text-rose-700 dark:text-rose-300">Trước gia cố:</strong>{" "}
+                      {layer.before_state}
+                    </div>
+                    <div className="border-l-2 border-emerald-600 pl-2.5 text-secondary">
+                      <strong className="text-emerald-700 dark:text-emerald-300">
+                        Sau gia cố:
+                      </strong>{" "}
+                      {layer.after_state}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-2.5">
+                  <span className="inline-flex items-center gap-1 font-mono text-[11px] text-muted">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                    Kiểm chứng: <code className="text-ink">{layer.verification_cmd}</code>
+                  </span>
+                  <Link
+                    href={`/thanh-vien/${layer.owner_member}`}
+                    className="font-semibold text-accent hover:underline"
+                  >
+                    {ownerName} ↗
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
     </div>

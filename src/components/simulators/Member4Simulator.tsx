@@ -1,7 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Code2, Flame, Play, ShieldAlert, ShieldCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  Code2,
+  Columns2,
+  Flame,
+  Play,
+  RotateCcw,
+  ShieldAlert,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 import { WindowControls } from "@/components/WindowBar";
 import { PHP_LEVEL_SOURCES } from "@/data/scenarioData";
 
@@ -11,41 +21,184 @@ interface Props {
   activeTab?: string;
 }
 
+interface WafAuditItem {
+  id: string;
+  time: string;
+  payload: string;
+  blocked: boolean;
+  matchedRuleToken: string;
+}
+
 const WAF_REGEX = /('|--|#|\/\*|UNION|SELECT|OR\s+\d+=\d+)/i;
+
+function renderHighlightedCode(
+  code: string,
+  highlightLines: number[],
+  tone: "vuln" | "safe"
+) {
+  const lines = code.split("\n");
+  return lines.map((line, idx) => {
+    const trimmedMatch = line.match(/^\s*(\d+)\s/);
+    const lineNum = trimmedMatch ? Number(trimmedMatch[1]) : idx + 1;
+    const isHighlighted = highlightLines.includes(lineNum);
+
+    return (
+      <div
+        key={idx}
+        className={`px-2 ${
+          isHighlighted
+            ? tone === "safe"
+              ? "border-l-2 border-emerald-400 bg-emerald-500/15 text-emerald-200"
+              : "border-l-2 border-rose-400 bg-rose-500/15 text-rose-200"
+            : "text-zinc-200"
+        }`}
+      >
+        {line || " "}
+      </div>
+    );
+  });
+}
 
 export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
   const [tab, setTab] = useState<"php" | "poc5" | "waf">(
     activeTab === "m4-poc5-waf" ? "poc5" : "php"
   );
-  const [selectedPhp, setSelectedPhp] = useState<"low" | "medium" | "high" | "impossible">("impossible");
+  const [selectedPhp, setSelectedPhp] = useState<
+    "low" | "medium" | "high" | "impossible"
+  >("low");
+  const [sideBySide, setSideBySide] = useState(false);
 
   const [cookieSecurity, setCookieSecurity] = useState<"low" | "impossible">("impossible");
   const [includeToken, setIncludeToken] = useState<"missing" | "valid">("valid");
   const [poc5Payload, setPoc5Payload] = useState<"1" | "1'">("1'");
+  const [activeToken, setActiveToken] = useState(
+    userToken.trim() || "d41d8cd98f00b204e9800998ecf8427e"
+  );
   const [isSendingPoc5, setIsSendingPoc5] = useState(false);
 
   const [wafInput, setWafInput] = useState("1' OR 1=1");
   const [isTestingWaf, setIsTestingWaf] = useState(false);
+  const [wafAuditLogs, setWafAuditLogs] = useState<WafAuditItem[]>([
+    {
+      id: "waf-seed-1",
+      time: "02:18:10",
+      payload: "1' OR 1=1",
+      blocked: true,
+      matchedRuleToken: "'",
+    },
+  ]);
 
   const session = phpsessid.trim() || "7nst0hrqrfmv744a5ouj7663b0";
-  const token = userToken.trim() || "d41d8cd98f00b204e9800998ecf8427e";
-  const currentPhp = PHP_LEVEL_SOURCES.find((p) => p.level === selectedPhp) ?? PHP_LEVEL_SOURCES[3];
+  const currentPhp =
+    PHP_LEVEL_SOURCES.find((p) => p.level === selectedPhp) ?? PHP_LEVEL_SOURCES[0];
+  const compareTarget =
+    selectedPhp === "impossible"
+      ? PHP_LEVEL_SOURCES[0]
+      : PHP_LEVEL_SOURCES.find((p) => p.level === selectedPhp) ?? PHP_LEVEL_SOURCES[0];
+  const impossiblePhp = PHP_LEVEL_SOURCES[3];
 
   const wafMatch = wafInput.match(WAF_REGEX);
   const isWafBlocked = Boolean(wafMatch);
+
+  const rotateToken = () => {
+    const chars = "0123456789abcdef";
+    let next = "";
+    for (let i = 0; i < 32; i++) {
+      next += chars[Math.floor(Math.random() * chars.length)];
+    }
+    setActiveToken(next);
+  };
 
   const handleSendPoc5 = () => {
     setIsSendingPoc5(true);
     setTimeout(() => {
       setIsSendingPoc5(false);
-    }, 350);
+    }, 320);
   };
 
-  const handleTestWaf = () => {
+  const recordWafAudit = (val: string) => {
+    const m = val.match(WAF_REGEX);
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+    setWafAuditLogs((prev) =>
+      [
+        {
+          id: `waf-${Date.now()}-${Math.random()}`,
+          time: timeStr,
+          payload: val || "(rỗng)",
+          blocked: Boolean(m),
+          matchedRuleToken: m ? m[0] : "—",
+        },
+        ...prev,
+      ].slice(0, 8)
+    );
+  };
+
+  const handleTestWaf = (overrideVal?: string) => {
+    const targetVal = overrideVal ?? wafInput;
     setIsTestingWaf(true);
     setTimeout(() => {
       setIsTestingWaf(false);
-    }, 300);
+      recordWafAudit(targetVal);
+    }, 240);
+  };
+
+  const getCheckpointStates = () => {
+    if (cookieSecurity === "low") {
+      return [
+        {
+          name: "1. checkToken() · Dòng 5",
+          status: "skipped" as const,
+          note: "Không tồn tại trong low.php",
+        },
+        {
+          name: "2. is_numeric($id) · Dòng 11",
+          status: "skipped" as const,
+          note: "Không kiểm tra kiểu dữ liệu",
+        },
+        {
+          name: "3. PDO::PARAM_INT · Dòng 13–15",
+          status: "failed" as const,
+          note: "Nối chuỗi mysqli trực tiếp -> Dính SQLi!",
+        },
+      ];
+    }
+
+    const tokenPassed = includeToken === "valid";
+    const isNumPassed = tokenPassed && poc5Payload === "1";
+
+    return [
+      {
+        name: "1. checkToken() · Dòng 5",
+        status: tokenPassed ? ("passed" as const) : ("blocked" as const),
+        note: tokenPassed
+          ? "user_token khớp phiên -> Cho đi tiếp"
+          : "Thiếu user_token -> Chặn ngay bằng 302 Found",
+      },
+      {
+        name: "2. is_numeric($id) · Dòng 11",
+        status: !tokenPassed
+          ? ("unreached" as const)
+          : isNumPassed
+          ? ("passed" as const)
+          : ("blocked" as const),
+        note: !tokenPassed
+          ? "Chưa chạy tới bước này"
+          : isNumPassed
+          ? "is_numeric('1') === true"
+          : "is_numeric(\"1'\") === false -> Hủy truy vấn!",
+      },
+      {
+        name: "3. PDO::PARAM_INT · Dòng 13–15",
+        status: !tokenPassed || !isNumPassed ? ("unreached" as const) : ("passed" as const),
+        note:
+          !tokenPassed || !isNumPassed
+            ? "An toàn — CSDL không bị chạm tới"
+            : "Biên dịch SQL tách biệt dữ liệu -> 200 OK an toàn",
+      },
+    ];
   };
 
   const renderPoc5Response = () => {
@@ -68,7 +221,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
       return {
         badge: "302 Found · CHẶN BỞI checkToken() (Dòng 5)",
         badgeClass: "bg-amber-500/20 text-amber-300",
-        body: `HTTP/1.1 302 Found\nDate: Mon, 16 Nov 2026 09:22:32 GMT\nServer: Apache/2.4.25 (Debian)\nLocation: index.php\nContent-Length: 0\nContent-Type: text/html; charset=UTF-8\n\n# Phân tích PoC 5 gốc: Thiếu user_token -> bị chặn ngay tại lớp Anti-CSRF (dòng 5).`,
+        body: `HTTP/1.1 302 Found\nDate: Wed, 04 Nov 2026 02:07:32 GMT\nServer: Apache/2.4.25 (Debian)\nLocation: index.php\nContent-Length: 0\nContent-Type: text/html; charset=UTF-8\n\n# Phân tích PoC 5 gốc: Thiếu user_token -> bị chặn ngay tại lớp Anti-CSRF (dòng 5).`,
       };
     }
 
@@ -87,6 +240,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
     };
   };
 
+  const checkpoints = getCheckpointStates();
   const poc5Res = renderPoc5Response();
 
   return (
@@ -98,7 +252,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
             Interactive Console — Khánh (Laptop Ubuntu VM 3 · Code 4 Cấp, PoC 5 &amp; WAF)
           </h3>
           <p className="text-xs text-muted">
-            Đối chiếu 4 file PHP, kiểm chứng PoC 5 gốc vs tinh chỉnh và thử nghiệm luật ModSecurity WAF.
+            Đối chiếu song song mã nguồn PHP 4 cấp độ, theo dõi 3 chốt kiểm soát PoC 5 và kiểm thử nhật ký WAF ModSecurity.
           </p>
         </div>
 
@@ -114,7 +268,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
               onClick={() => setTab(t.id)}
               className={`cursor-pointer rounded px-3 py-1 font-medium transition-colors ${
                 tab === t.id
-                  ? "bg-surface text-ink font-semibold shadow-sm"
+                  ? "bg-surface font-semibold text-ink shadow-sm"
                   : "text-muted hover:text-ink"
               }`}
             >
@@ -126,64 +280,139 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
 
       {tab === "php" && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {PHP_LEVEL_SOURCES.map((item) => {
-              const active = selectedPhp === item.level;
-              return (
-                <button
-                  key={item.level}
-                  type="button"
-                  onClick={() => setSelectedPhp(item.level as typeof selectedPhp)}
-                  className={`cursor-pointer rounded-md border px-3 py-2 text-left text-xs transition-colors ${
-                    active
-                      ? "border-ink bg-ink text-canvas font-bold"
-                      : "border-hairline bg-subtle text-secondary hover:text-ink"
-                  }`}
-                >
-                  <div className="font-mono font-bold uppercase">{item.level}.php</div>
-                  <div className={`mt-0.5 text-[11px] ${active ? "opacity-80" : "text-muted"}`}>
-                    {item.badge}
-                  </div>
-                </button>
-              );
-            })}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4">
+              {PHP_LEVEL_SOURCES.map((item) => {
+                const active = selectedPhp === item.level;
+                return (
+                  <button
+                    key={item.level}
+                    type="button"
+                    onClick={() => setSelectedPhp(item.level as typeof selectedPhp)}
+                    className={`cursor-pointer rounded-md border px-3 py-2 text-left text-xs transition-colors ${
+                      active
+                        ? "border-ink bg-ink font-bold text-canvas"
+                        : "border-hairline bg-subtle text-secondary hover:text-ink"
+                    }`}
+                  >
+                    <div className="font-mono font-bold uppercase">{item.level}.php</div>
+                    <div className={`mt-0.5 text-[11px] ${active ? "opacity-80" : "text-muted"}`}>
+                      {item.badge}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSideBySide((v) => !v)}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-semibold transition-colors ${
+                sideBySide
+                  ? "border-accent bg-accent text-white"
+                  : "border-hairline bg-subtle text-ink hover:bg-canvas"
+              }`}
+            >
+              <Columns2 className="h-3.5 w-3.5" aria-hidden="true" />
+              {sideBySide ? "Đang đối chiếu Song song" : "So sánh với impossible.php"}
+            </button>
           </div>
 
-          <div className="rounded-lg border border-hairline bg-subtle p-4">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm font-bold text-ink">{currentPhp.title}</div>
-              <span
-                className={`rounded px-2 py-0.5 font-mono text-[11px] font-semibold ${
-                  currentPhp.severity === "safe"
-                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                    : currentPhp.severity === "critical"
-                    ? "bg-rose-500/15 text-rose-700 dark:text-rose-300"
-                    : "bg-amber-500/15 text-amber-800 dark:text-amber-300"
-                }`}
-              >
-                {currentPhp.badge}
-              </span>
+          {!sideBySide ? (
+            <div className="rounded-lg border border-hairline bg-subtle p-4">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-bold text-ink">{currentPhp.title}</div>
+                <span
+                  className={`rounded px-2 py-0.5 font-mono text-[11px] font-semibold ${
+                    currentPhp.severity === "safe"
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                      : currentPhp.severity === "critical"
+                      ? "bg-rose-500/15 text-rose-700 dark:text-rose-300"
+                      : "bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                  }`}
+                >
+                  {currentPhp.badge}
+                </span>
+              </div>
+              <p className="mb-3 text-xs leading-relaxed text-secondary">{currentPhp.summary}</p>
+              <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#0d1117]">
+                <div className="flex items-center justify-between border-b border-zinc-800 bg-[#161b22] px-3.5 py-2">
+                  <div className="flex items-center gap-2.5">
+                    <WindowControls />
+                    <span className="font-mono text-xs font-semibold text-zinc-200">
+                      /var/www/html/vulnerabilities/sqli/source/{selectedPhp}.php
+                    </span>
+                  </div>
+                  <span className="font-mono text-[11px] text-zinc-400">PHP 7.0</span>
+                </div>
+                <pre className="overflow-x-auto py-3 font-mono text-xs leading-relaxed">
+                  <code>
+                    {renderHighlightedCode(
+                      currentPhp.code,
+                      currentPhp.highlightLines,
+                      currentPhp.severity === "safe" ? "safe" : "vuln"
+                    )}
+                  </code>
+                </pre>
+              </div>
+              <div className="mt-3 rounded-md border border-hairline bg-surface px-3 py-2 font-mono text-xs text-ink">
+                <strong>Phân tích cơ chế: </strong>
+                {currentPhp.bypassDemo}
+              </div>
             </div>
-            <p className="mb-3 text-xs leading-relaxed text-secondary">{currentPhp.summary}</p>
-            <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#0d1117]">
-              <div className="flex items-center justify-between border-b border-zinc-800 bg-[#161b22] px-3.5 py-2">
-                <div className="flex items-center gap-2.5">
-                  <WindowControls />
-                  <span className="font-mono text-xs font-semibold text-zinc-200">
-                    /var/www/html/vulnerabilities/sqli/source/{selectedPhp}.php
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#0d1117]">
+                <div className="flex items-center justify-between border-b border-zinc-800 bg-[#161b22] px-3.5 py-2">
+                  <div className="flex items-center gap-2.5">
+                    <WindowControls />
+                    <span className="font-mono text-xs font-semibold text-rose-300">
+                      Bị lỗi: {compareTarget.level}.php
+                    </span>
+                  </div>
+                  <span className="font-mono text-[10px] text-rose-400">{compareTarget.badge}</span>
+                </div>
+                <pre className="overflow-x-auto py-3 font-mono text-xs leading-relaxed">
+                  <code>
+                    {renderHighlightedCode(
+                      compareTarget.code,
+                      compareTarget.highlightLines,
+                      "vuln"
+                    )}
+                  </code>
+                </pre>
+                <div className="border-t border-zinc-800 bg-[#090d13] px-3 py-2 font-mono text-[11px] text-rose-300">
+                  {compareTarget.bypassDemo}
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#0d1117]">
+                <div className="flex items-center justify-between border-b border-zinc-800 bg-[#161b22] px-3.5 py-2">
+                  <div className="flex items-center gap-2.5">
+                    <WindowControls />
+                    <span className="font-mono text-xs font-semibold text-emerald-300">
+                      Bản vá chuẩn: impossible.php
+                    </span>
+                  </div>
+                  <span className="font-mono text-[10px] text-emerald-400">
+                    {impossiblePhp.badge}
                   </span>
                 </div>
-                <span className="font-mono text-[11px] text-zinc-400">PHP 7.0</span>
+                <pre className="overflow-x-auto py-3 font-mono text-xs leading-relaxed">
+                  <code>
+                    {renderHighlightedCode(
+                      impossiblePhp.code,
+                      impossiblePhp.highlightLines,
+                      "safe"
+                    )}
+                  </code>
+                </pre>
+                <div className="border-t border-zinc-800 bg-[#090d13] px-3 py-2 font-mono text-[11px] text-emerald-300">
+                  {impossiblePhp.bypassDemo}
+                </div>
               </div>
-              <pre className="overflow-x-auto p-3.5 font-mono text-xs leading-relaxed text-zinc-100">
-                <code>{currentPhp.code}</code>
-              </pre>
             </div>
-            <div className="mt-3 rounded-md border border-hairline bg-surface px-3 py-2 font-mono text-xs text-ink">
-              <strong>Phân tích cơ chế: </strong>
-              {currentPhp.bypassDemo}
-            </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -202,7 +431,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
                     onClick={() => setCookieSecurity(lvl)}
                     className={`flex-1 cursor-pointer rounded border px-2 py-1 font-mono text-xs ${
                       cookieSecurity === lvl
-                        ? "border-ink bg-ink text-canvas font-semibold"
+                        ? "border-ink bg-ink font-semibold text-canvas"
                         : "border-hairline bg-surface text-secondary"
                     }`}
                   >
@@ -213,8 +442,16 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
             </div>
 
             <div>
-              <div className="mb-1.5 font-mono text-[11px] font-semibold uppercase text-muted">
-                Anti-CSRF user_token
+              <div className="mb-1.5 flex items-center justify-between font-mono text-[11px] font-semibold uppercase text-muted">
+                <span>Anti-CSRF token</span>
+                <button
+                  type="button"
+                  onClick={rotateToken}
+                  title="Sinh token vòng mới giống DVWA impossible"
+                  className="inline-flex cursor-pointer items-center gap-0.5 text-[10px] font-normal text-accent hover:underline"
+                >
+                  <RotateCcw className="h-2.5 w-2.5" aria-hidden="true" /> Xoay token
+                </button>
               </div>
               <div className="flex gap-1.5">
                 <button
@@ -222,7 +459,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
                   onClick={() => setIncludeToken("missing")}
                   className={`flex-1 cursor-pointer rounded border px-2 py-1 text-xs ${
                     includeToken === "missing"
-                      ? "border-ink bg-ink text-canvas font-semibold"
+                      ? "border-ink bg-ink font-semibold text-canvas"
                       : "border-hairline bg-surface text-secondary"
                   }`}
                 >
@@ -233,7 +470,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
                   onClick={() => setIncludeToken("valid")}
                   className={`flex-1 cursor-pointer rounded border px-2 py-1 text-xs ${
                     includeToken === "valid"
-                      ? "border-ink bg-ink text-canvas font-semibold"
+                      ? "border-ink bg-ink font-semibold text-canvas"
                       : "border-hairline bg-surface text-secondary"
                   }`}
                 >
@@ -254,7 +491,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
                     onClick={() => setPoc5Payload(val)}
                     className={`flex-1 cursor-pointer rounded border px-2 py-1 font-mono text-xs ${
                       poc5Payload === val
-                        ? "border-ink bg-ink text-canvas font-semibold"
+                        ? "border-ink bg-ink font-semibold text-canvas"
                         : "border-hairline bg-surface text-secondary"
                     }`}
                   >
@@ -269,12 +506,44 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
                 type="button"
                 onClick={handleSendPoc5}
                 disabled={isSendingPoc5}
-                className="w-full cursor-pointer inline-flex items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
               >
-                <Play className="h-3.5 w-3.5" />
+                <Play className="h-3.5 w-3.5" aria-hidden="true" />
                 {isSendingPoc5 ? "Sending..." : "Gửi Request"}
               </button>
             </div>
+          </div>
+
+          {/* 3-Layer Checkpoint Pipeline Visualizer */}
+          <div className="grid gap-2.5 sm:grid-cols-3">
+            {checkpoints.map((cp) => (
+              <div
+                key={cp.name}
+                className={`rounded-md border p-3 text-xs ${
+                  cp.status === "passed"
+                    ? "border-emerald-600/40 bg-emerald-500/5"
+                    : cp.status === "blocked"
+                    ? "border-amber-600/40 bg-amber-500/10"
+                    : cp.status === "failed"
+                    ? "border-rose-600/50 bg-rose-500/10"
+                    : "border-hairline bg-subtle opacity-80"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 font-mono font-bold text-ink">
+                  <span>{cp.name}</span>
+                  {cp.status === "passed" && (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                  )}
+                  {cp.status === "blocked" && (
+                    <ShieldCheck className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+                  )}
+                  {cp.status === "failed" && (
+                    <XCircle className="h-3.5 w-3.5 text-rose-600" aria-hidden="true" />
+                  )}
+                </div>
+                <p className="mt-1 text-[11px] text-secondary">{cp.note}</p>
+              </div>
+            ))}
           </div>
 
           <div className="grid gap-3 lg:grid-cols-2">
@@ -286,9 +555,9 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
                 </div>
                 <span className="text-[11px] text-zinc-400">localtest.me:8080</span>
               </div>
-              <pre className="overflow-x-auto text-zinc-200 leading-relaxed">
+              <pre className="overflow-x-auto leading-relaxed text-zinc-200">
 {`GET /vulnerabilities/sqli/?id=${poc5Payload}&Submit=Submit${
-  includeToken === "valid" ? `&user_token=${token}` : ""
+  includeToken === "valid" ? `&user_token=${activeToken}` : ""
 } HTTP/1.1
 Host: localtest.me:8080
 Cookie: security=${cookieSecurity}; PHPSESSID=${session}
@@ -308,7 +577,7 @@ User-Agent: Mozilla/5.0 (Burp Repeater)`}
               </div>
               {isSendingPoc5 ? (
                 <div className="py-8 text-center text-amber-400">
-                  <span className="inline-block animate-spin mr-2">⚡</span> Đang gửi gói tin kiểm chứng...
+                  Đang gửi gói tin kiểm chứng...
                 </div>
               ) : (
                 <pre className="overflow-x-auto leading-relaxed text-zinc-300">
@@ -331,12 +600,12 @@ User-Agent: Mozilla/5.0 (Burp Repeater)`}
                   Mô phỏng Bộ lọc WAF ModSecurity CRS (OWASP A03:2021)
                 </span>
               </div>
-              <span className="font-mono text-[11px] text-muted">CRS-942100</span>
+              <span className="font-mono text-[11px] text-muted">SecRule 100001</span>
             </div>
 
             <pre className="overflow-x-auto rounded border border-zinc-800 bg-[#0d1117] p-2.5 font-mono text-[11px] text-zinc-300">
-{`SecRule ARGS "@rx ('|--|#|\\/\\*|UNION|SELECT|OR\\s+\\d+=\\d+)" \\
-  "id:1001,phase:2,deny,status:403,log,msg:'ModSecurity: SQL Injection Attack Detected'"`}
+{`SecRule ARGS:id "@rx ('|--|#|\\/\\*|UNION|SELECT|OR\\s+\\d+=\\d+)" \\
+  "id:100001,phase:2,deny,status:403,log,msg:'Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity',severity:'CRITICAL'"`}
             </pre>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -353,10 +622,11 @@ User-Agent: Mozilla/5.0 (Burp Repeater)`}
                   onClick={() => {
                     const clean = txt.replace(" (Hợp lệ)", "");
                     setWafInput(clean);
+                    handleTestWaf(clean);
                   }}
                   className={`cursor-pointer rounded border px-2 py-0.5 font-mono text-xs transition-colors ${
                     wafInput === txt.replace(" (Hợp lệ)", "")
-                      ? "border-ink bg-ink text-canvas font-semibold"
+                      ? "border-ink bg-ink font-semibold text-canvas"
                       : "border-hairline bg-surface text-secondary"
                   }`}
                 >
@@ -370,16 +640,19 @@ User-Agent: Mozilla/5.0 (Burp Repeater)`}
                 type="text"
                 value={wafInput}
                 onChange={(e) => setWafInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleTestWaf();
+                }}
                 placeholder="Nhập chuỗi kiểm tra..."
-                className="flex-1 min-w-[200px] rounded-md border border-hairline bg-surface px-3 py-1.5 font-mono text-xs text-ink focus:border-accent focus:outline-none"
+                className="min-w-[200px] flex-1 rounded-md border border-hairline bg-surface px-3 py-1.5 font-mono text-xs text-ink focus:border-accent focus:outline-none"
               />
               <button
                 type="button"
-                onClick={handleTestWaf}
+                onClick={() => handleTestWaf()}
                 disabled={isTestingWaf}
-                className="cursor-pointer inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-semibold text-canvas hover:opacity-90 disabled:opacity-50"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 text-xs font-semibold text-canvas hover:opacity-90 disabled:opacity-50"
               >
-                <Play className="h-3 w-3" />
+                <Play className="h-3 w-3" aria-hidden="true" />
                 {isTestingWaf ? "Checking..." : "Kiểm tra WAF"}
               </button>
             </div>
@@ -407,16 +680,75 @@ User-Agent: Mozilla/5.0 (Burp Repeater)`}
                 <div className="text-xs leading-relaxed opacity-90">
                   {isWafBlocked ? (
                     <>
-                      Phát hiện mẫu độc hại: <code className="font-mono font-bold">{wafMatch?.[0]}</code> trùng khớp luật SecRule CRS-942100. Gói tin bị ngắt kết nối ngay tại tầng Reverse Proxy, bảo vệ an toàn cho MariaDB phía sau.
+                      Phát hiện mẫu độc hại:{" "}
+                      <code className="font-mono font-bold">{wafMatch?.[0]}</code> trùng khớp luật
+                      SecRule 100001. Gói tin bị ngắt ngay tại pha 2 Reverse Proxy, bảo vệ MariaDB phía sau.
                     </>
                   ) : (
                     <>
-                      Chuỗi tham số hợp lệ, không chứa ký tự ngắt lệnh hoặc từ khóa SQLi. Gói tin được chuyển tiếp an toàn vào tầng PHP xử lý.
+                      Chuỗi tham số hợp lệ, không chứa ký tự ngắt lệnh hoặc từ khóa SQLi. Gói tin được chuyển tiếp an toàn vào PHP xử lý.
                     </>
                   )}
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* ModSecurity Audit Log Table */}
+          <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs text-zinc-200">
+            <div className="mb-2 flex items-center justify-between border-b border-zinc-800 pb-2">
+              <div className="flex items-center gap-2.5">
+                <WindowControls
+                  onClose={() => setWafAuditLogs([])}
+                  closeTitle="Xóa nhật ký WAF"
+                />
+                <span className="font-bold text-zinc-200">
+                  Nhật ký Chặn Tầng biên (/var/log/apache2/modsec_audit.log)
+                </span>
+              </div>
+              <span className="text-[11px] text-zinc-400">
+                {wafAuditLogs.length} sự kiện gần nhất
+              </span>
+            </div>
+
+            {wafAuditLogs.length === 0 ? (
+              <div className="py-4 text-center text-zinc-500">
+                Chưa có bản ghi kiểm tra nào. Bấm &quot;Kiểm tra WAF&quot; ở trên để ghi log.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-[11px]">
+                  <thead>
+                    <tr className="border-b border-zinc-800 text-zinc-400">
+                      <th className="pb-1.5 pr-3">THỜI GIAN</th>
+                      <th className="pb-1.5 pr-3">THAM SỐ ARGS:id</th>
+                      <th className="pb-1.5 pr-3">TRẠNG THÁI</th>
+                      <th className="pb-1.5">MẪU REGEX KHỚP</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/60">
+                    {wafAuditLogs.map((row) => (
+                      <tr key={row.id}>
+                        <td className="py-1.5 pr-3 text-zinc-400">{row.time}</td>
+                        <td className="py-1.5 pr-3 font-semibold text-zinc-200">{row.payload}</td>
+                        <td className="py-1.5 pr-3">
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              row.blocked
+                                ? "bg-rose-500/20 text-rose-300"
+                                : "bg-emerald-500/20 text-emerald-300"
+                            }`}
+                          >
+                            {row.blocked ? "403 BLOCKED" : "200 PASSED"}
+                          </span>
+                        </td>
+                        <td className="py-1.5 text-amber-300">{row.matchedRuleToken}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
