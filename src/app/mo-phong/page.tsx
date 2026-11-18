@@ -15,6 +15,7 @@ function MoPhongContent() {
   const router = useRouter();
 
   const isDvwaParam = searchParams.get("view") === "dvwa";
+  const tabParam = searchParams.get("tab");
   const initialParam = Number(searchParams.get("member"));
   const validInitial: 1 | 2 | 3 | 4 =
     initialParam >= 1 && initialParam <= 4 ? (initialParam as 1 | 2 | 3 | 4) : 1;
@@ -279,8 +280,11 @@ function MoPhongContent() {
         </section>
       ) : (
         <RoleSimulator
-          key={`sim-page-${selectedMember}`}
+          key={`sim-page-${selectedMember}-${tabParam ?? "default"}`}
           memberNumber={selectedMember}
+          focusedSimulatorKey={
+            tabParam === "eng" ? `m${selectedMember}-eng` : undefined
+          }
           workspaceState={{
             ...currentState,
             container_ref: containerInput,

@@ -2,12 +2,13 @@
 
 import { Fragment, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronDown, ChevronUp, Layers, Play, ShieldCheck, Terminal, Wrench } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, Download, Layers, Play, ShieldCheck, Terminal, Wrench } from "lucide-react";
 import { useWorkspace } from "@/components/WorkspaceProvider";
 import {
   ATTACK_FLOW_STAGES,
   CODE_COMPARISON_4_LEVELS,
   DEFENSE_IN_DEPTH_LAYERS,
+  ENGINEERING_MINDSET_MATRIX,
   INFRA_CHALLENGES,
   OWASP_BY_CWE,
   PROJECT_OVERVIEW,
@@ -291,6 +292,79 @@ export function OverviewPageClient() {
                   <span>{memberNameMap[stage.owner_member] ?? `Thành viên ${stage.owner_member}`}</span>
                   <ArrowRight className="h-3 w-3" aria-hidden="true" />
                 </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 3B. BUOC CHUYEN TU DUY KY SU (ENGINEERING UPGRADE MATRIX) */}
+      <section>
+        <div className="mb-4">
+          <h2 className="text-lg font-bold tracking-tight text-ink sm:text-xl">
+            Bước chuyển Tư duy: Từ Người dùng Công cụ sang Kỹ sư Bảo mật (Security Engineering R&amp;D)
+          </h2>
+          <p className="text-xs text-muted sm:text-sm">
+            Giải quyết triệt để hạn chế chạy lại công cụ có sẵn theo kịch bản dập khuôn: cả 4 thành viên đều tự thiết kế thuật toán, kiến trúc CSDL hoặc bộ phân tích từ vựng RASP chạy độc lập.
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {ENGINEERING_MINDSET_MATRIX.map((row) => (
+            <div
+              key={row.memberNumber}
+              className="flex flex-col justify-between rounded-lg border border-hairline bg-surface p-4 sm:p-5"
+            >
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline pb-2.5">
+                  <div>
+                    <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-accent">
+                      Thành viên 0{row.memberNumber} · {row.roleTitle}
+                    </div>
+                    <div className="text-base font-bold text-ink">
+                      {memberNameMap[row.memberNumber] ?? row.memberName}
+                    </div>
+                  </div>
+                  <span className="rounded border border-emerald-600/40 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                    {row.customArtifact}
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-xs leading-relaxed">
+                  <div className="rounded-md border border-hairline bg-subtle p-2.5 text-muted">
+                    <strong className="text-secondary">Mức cơ bản (Tool User):</strong>{" "}
+                    {row.toolUserBaseline}
+                  </div>
+                  <div className="rounded-md border border-emerald-600/30 bg-emerald-500/5 p-2.5 text-secondary">
+                    <strong className="text-emerald-700 dark:text-emerald-300">
+                      Nâng cấp Kỹ sư (Sáng tạo R&amp;D):
+                    </strong>{" "}
+                    {row.engineerUpgrade}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3 text-xs">
+                <span className="font-mono text-[11px] font-medium text-muted">
+                  {row.verifiedMetric}
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={row.artifactHref}
+                    download={row.customArtifact}
+                    className="inline-flex items-center gap-1 rounded border border-hairline bg-subtle px-2.5 py-1 font-mono text-[11px] font-semibold text-ink hover:bg-canvas"
+                  >
+                    <Download className="h-3 w-3" aria-hidden="true" />
+                    Tải Script
+                  </a>
+                  <Link
+                    href={row.workbenchHref}
+                    className="inline-flex items-center gap-1 rounded bg-accent px-2.5 py-1 font-semibold text-white hover:opacity-90"
+                  >
+                    <Play className="h-3 w-3" aria-hidden="true" />
+                    Mở Workbench
+                  </Link>
+                </div>
               </div>
             </div>
           ))}

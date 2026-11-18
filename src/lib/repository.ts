@@ -47,12 +47,26 @@ export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
       return buildFallbackSnapshot(true);
     }
 
-    const members = (membersRes.data ?? []) as TeamMember[];
+    const dbMembers = (membersRes.data ?? []) as TeamMember[];
     const dbSteps = (stepsRes.data ?? []) as ScenarioStep[];
 
-    if (members.length === 0 || dbSteps.length === 0) {
+    if (dbMembers.length === 0 || dbSteps.length === 0) {
       return buildFallbackSnapshot(true);
     }
+
+    const staticMemberByNumber = new Map(
+      TEAM_MEMBERS.map((member) => [member.member_number, member])
+    );
+    const members = dbMembers
+      .map((member) => {
+        const latest = staticMemberByNumber.get(member.member_number);
+        if (!latest) return member;
+        return {
+          ...latest,
+          display_name: member.display_name || latest.display_name,
+        };
+      })
+      .sort((a, b) => a.member_number - b.member_number);
 
     const dbStepIds = new Set(dbSteps.map((s) => s.id));
     const steps = [
@@ -63,6 +77,18 @@ export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
         ? a.member_number - b.member_number
         : a.step_order - b.step_order
     );
+
+    const dbVulns = (vulnsRes.data ?? []) as VulnerabilityItem[];
+    const dbVulnIds = new Set(dbVulns.map((v) => v.id));
+    const vulnerabilities = dbVulns.length
+      ? [...dbVulns, ...VULNERABILITIES.filter((v) => !dbVulnIds.has(v.id))]
+      : VULNERABILITIES;
+
+    const dbQa = (qaRes.data ?? []) as QaItem[];
+    const dbQaIds = new Set(dbQa.map((q) => q.id));
+    const qaItems = dbQa.length
+      ? [...dbQa, ...QA_ITEMS.filter((q) => !dbQaIds.has(q.id))]
+      : QA_ITEMS;
 
     const workspaceStates: Record<number, LabWorkspaceState> = { ...DEFAULT_WORKSPACE_STATES };
     for (const row of (stateRes.data ?? []) as LabWorkspaceState[]) {
@@ -75,12 +101,8 @@ export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
       needsSeed: false,
       members,
       steps,
-      vulnerabilities: ((vulnsRes.data ?? []) as VulnerabilityItem[]).length
-        ? ((vulnsRes.data ?? []) as VulnerabilityItem[])
-        : VULNERABILITIES,
-      qaItems: ((qaRes.data ?? []) as QaItem[]).length
-        ? ((qaRes.data ?? []) as QaItem[])
-        : QA_ITEMS,
+      vulnerabilities,
+      qaItems,
       workspaceStates,
     };
   } catch {

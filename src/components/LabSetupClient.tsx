@@ -410,6 +410,81 @@ export function LabSetupClient() {
           ))}
         </div>
       </section>
+
+      {/* 5. Security Engineering R&D Scripts */}
+      <section className="rounded-lg border border-hairline bg-surface p-5 sm:p-6">
+        <div className="mb-4 border-b border-hairline pb-4">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+            <Terminal className="h-4 w-4 text-accent" aria-hidden="true" />
+            5. Bộ Công cụ Kỹ sư Bảo mật Tự phát triển (Security Engineering R&amp;D)
+          </h2>
+          <p className="mt-1 text-xs text-muted sm:text-sm">
+            4 tệp mã nguồn Python 3 stdlib và MySQL Stored Procedure chạy độc lập phục vụ phần nâng cao cho cả 4 thành viên.
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {[
+            {
+              member: "Thành viên 1 — Sơn",
+              file: "son_sec_gate.py",
+              href: "/engineering/son_sec_gate.py",
+              summary:
+                "DevSecOps Security Gate kiểm tra 5 HTTP Headers + phương thức TRACE và 5 cờ Docker CIS Hardening, xuất báo cáo JSON và mã thoát Exit 0/1.",
+              cmd: "python3 public/engineering/son_sec_gate.py --demo hardened --threshold 85",
+            },
+            {
+              member: "Thành viên 2 — Hùng",
+              file: "hung_blind_bisect.py",
+              href: "/engineering/hung_blind_bisect.py",
+              summary:
+                "Khai thác Blind SQLi bằng Tìm kiếm Nhị phân O(log2 N) giảm ~85% số request và phát hiện bất thường Log qua Shannon Entropy H(X) + Z-Score.",
+              cmd: 'python3 public/engineering/hung_blind_bisect.py --demo --query "database()"',
+            },
+            {
+              member: "Thành viên 3 — Quyết",
+              file: "quyet_zero_downtime_migration.sql",
+              href: "/engineering/quyet_zero_downtime_migration.sql",
+              summary:
+                "Di trú Dual-Hash (MD5 -> Bcrypt) không gián đoạn qua Stored Procedure DEFINER, SQL View ẩn cột mật khẩu và Bẫy Canary tại user_id = 0.",
+              cmd: "docker exec -i dvwa mysql -u root < public/engineering/quyet_zero_downtime_migration.sql",
+            },
+            {
+              member: "Thành viên 4 — Khánh",
+              file: "khanh_sql_lexer_waf.py",
+              href: "/engineering/khanh_sql_lexer_waf.py",
+              summary:
+                "Bộ phân tích từ vựng SQL Lexical Tokenizer chuẩn libinjection vượt qua giới hạn Regex (chống /*!50000UNION*/ & 0% chặn nhầm O'Connor) + SafePDO.",
+              cmd: "python3 public/engineering/khanh_sql_lexer_waf.py --benchmark",
+            },
+          ].map((tool) => (
+            <div
+              key={tool.file}
+              className="flex flex-col justify-between rounded-lg border border-hairline bg-subtle p-4"
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-[11px] font-semibold text-accent">
+                    {tool.member}
+                  </span>
+                  <a
+                    href={tool.href}
+                    download={tool.file}
+                    className="inline-flex items-center gap-1 rounded border border-hairline bg-surface px-2.5 py-1 font-mono text-[11px] font-semibold text-ink hover:bg-canvas"
+                  >
+                    <Download className="h-3 w-3" aria-hidden="true" />
+                    {tool.file}
+                  </a>
+                </div>
+                <p className="text-xs leading-relaxed text-secondary">{tool.summary}</p>
+              </div>
+              <pre className="mt-3 overflow-x-auto rounded border border-zinc-800 bg-[#0d1117] px-3 py-2 font-mono text-[11px] text-emerald-300">
+                $ {tool.cmd}
+              </pre>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Code2,
   Columns2,
+  Download,
   Flame,
   Play,
   RotateCcw,
@@ -45,6 +46,149 @@ interface WafAuditItem {
 }
 
 const WAF_REGEX = /('|--|#|\/\*|UNION|SELECT|OR\s+\d+=\d+)/i;
+const LEXER_KEYWORDS = new Set([
+  "SELECT",
+  "UNION",
+  "FROM",
+  "WHERE",
+  "AND",
+  "OR",
+  "ORDER",
+  "BY",
+  "SLEEP",
+  "BENCHMARK",
+  "CONCAT",
+  "ASCII",
+  "SUBSTRING",
+  "INFORMATION_SCHEMA",
+  "OUTFILE",
+  "DUMPFILE",
+  "INTO",
+  "NULL",
+  "XOR",
+]);
+
+interface LexicalToken {
+  kind: "n" | "s" | "o" | "k" | "w" | "c";
+  lexeme: string;
+}
+
+function normalizeSqlWafInput(raw: string): string {
+  let curr = raw;
+  for (let pass = 0; pass < 3; pass++) {
+    try {
+      const next = decodeURIComponent(curr.replace(/\+/g, " "));
+      if (next === curr) break;
+      curr = next;
+    } catch {
+      break;
+    }
+  }
+  curr = curr.replace(/\/\*!\d*\s*([\s\S]*?)\s*\*\//g, " $1 ");
+  curr = curr.replace(/\/\*[\s\S]*?\*\//g, " ");
+  return curr.replace(/\s+/g, " ").trim();
+}
+
+function tokenizeSqlWafInput(text: string): LexicalToken[] {
+  const tokens: LexicalToken[] = [];
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (/\s/.test(ch)) {
+      i += 1;
+      continue;
+    }
+    if (ch === "#" || text.slice(i, i + 2) === "--") {
+      tokens.push({ kind: "c", lexeme: text.slice(i) });
+      break;
+    }
+    if (ch === "'" || ch === '"') {
+      let j = i + 1;
+      while (j < text.length && text[j] !== ch) j += 1;
+      if (j < text.length) {
+        tokens.push({ kind: "s", lexeme: text.slice(i, j + 1) });
+        i = j + 1;
+      } else {
+        tokens.push({ kind: "o", lexeme: ch });
+        i += 1;
+      }
+      continue;
+    }
+    const two = text.slice(i, i + 2);
+    if (two === "<=" || two === ">=" || two === "<>" || two === "!=" || two === "||" || two === "&&") {
+      tokens.push({ kind: "o", lexeme: two });
+      i += 2;
+      continue;
+    }
+    if ("=<>(),;+-*/".includes(ch)) {
+      tokens.push({ kind: "o", lexeme: ch });
+      i += 1;
+      continue;
+    }
+    const numMatch = text.slice(i).match(/^(?:0x[0-9a-fA-F]+|\d+(?:\.\d+)?)/);
+    if (numMatch) {
+      tokens.push({ kind: "n", lexeme: numMatch[0] });
+      i += numMatch[0].length;
+      continue;
+    }
+    const wordMatch = text.slice(i).match(/^[A-Za-z_@.][A-Za-z0-9_@.$]*/);
+    if (wordMatch) {
+      const lex = wordMatch[0];
+      tokens.push({
+        kind: LEXER_KEYWORDS.has(lex.toUpperCase()) ? "k" : "w",
+        lexeme: lex,
+      });
+      i += lex.length;
+      continue;
+    }
+    tokens.push({ kind: "o", lexeme: ch });
+    i += 1;
+  }
+  return tokens;
+}
+
+function evaluateAdversarialPayload(rawInput: string) {
+  const regexBlocked =
+    /(union\s+select|\b(or|and)\s+1\s*=\s*1|')/i.test(rawInput);
+  const normalized = normalizeSqlWafInput(rawInput);
+  const tokens = tokenizeSqlWafInput(normalized);
+  const fingerprint = tokens
+    .slice(0, 7)
+    .map((t) => t.kind)
+    .join("");
+  const kws = tokens.filter((t) => t.kind === "k").map((t) => t.lexeme.toUpperCase());
+  const hasComment = tokens.some((t) => t.kind === "c");
+  const hasQuote = tokens.some((t) => t.kind === "o" && (t.lexeme === "'" || t.lexeme === '"'));
+  const ops = tokens.map((t) => t.lexeme);
+
+  const unionGrammar = kws.includes("UNION") && kws.includes("SELECT");
+  const tautologyGrammar =
+    hasQuote && kws.some((k) => k === "OR" || k === "AND" || k === "XOR") && (ops.includes("=") || hasComment);
+  const blindOrFileGrammar =
+    kws.some((k) =>
+      ["SLEEP", "BENCHMARK", "INFORMATION_SCHEMA", "OUTFILE", "DUMPFILE"].includes(k)
+    ) && (ops.includes("(") || hasQuote || kws.includes("INTO"));
+
+  const lexerBlocked = unionGrammar || tautologyGrammar || blindOrFileGrammar;
+  let reason = "Cấu trúc từ vựng sạch (không chứa ngữ pháp SQL Injection).";
+  if (unionGrammar) {
+    reason = "Phát hiện cặp từ khóa UNION + SELECT sau bước giải mã URL và chuẩn hóa bình luận MySQL.";
+  } else if (tautologyGrammar) {
+    reason = "Phát hiện nháy đơn phá chuỗi kết hợp toán tử logic SQL OR/AND và ký hiệu kết thúc.";
+  } else if (blindOrFileGrammar) {
+    reason = "Phát hiện hàm định thời / lệnh ghi tệp OUTFILE trong ngữ cảnh thực thi SQL.";
+  }
+
+  return {
+    rawInput,
+    normalized,
+    tokens,
+    fingerprint,
+    regexBlocked,
+    lexerBlocked,
+    reason,
+  };
+}
 
 function renderHighlightedCode(
   code: string,
@@ -82,16 +226,23 @@ export function Member4Simulator({
   burpAutoplay,
   terminalAutoplay,
 }: Props) {
-  const [tab, setTab] = useState<"php" | "poc5" | "waf" | "terminal" | "dvwa">(
+  const [tab, setTab] = useState<"php" | "poc5" | "waf" | "terminal" | "dvwa" | "eng">(
     activeTab === "m4-poc5-waf"
       ? "poc5"
       : activeTab === "m4-terminal"
       ? "terminal"
+      : activeTab === "m4-eng"
+      ? "eng"
       : "php"
   );
   const [containerRunning, setContainerRunning] = useState(true);
   const [wafEnabledInDvwa, setWafEnabledInDvwa] = useState(false);
   const [terminalSubView, setTerminalSubView] = useState<"terminal" | "docker">("terminal");
+  const [lexerPayloadInput, setLexerPayloadInput] = useState("O'Connor");
+  const [lexerResult, setLexerResult] = useState<ReturnType<
+    typeof evaluateAdversarialPayload
+  > | null>(null);
+  const [showSafePdo, setShowSafePdo] = useState(false);
   const lastAutoplayIdRef = useRef(0);
   const lastTermAutoplayIdRef = useRef(0);
 
@@ -280,6 +431,7 @@ export function Member4Simulator({
             { id: "waf" as const, label: "3. WAF ModSecurity" },
             { id: "terminal" as const, label: "4. Terminal & Docker (dvwa)" },
             { id: "dvwa" as const, label: "5. DVWA Web (:8080)" },
+            { id: "eng" as const, label: "6. Kỹ sư RASP Lexer WAF" },
           ].map((t) => (
             <button
               key={t.id}
@@ -814,6 +966,18 @@ export function Member4Simulator({
                   commands:
                     buildStepTerminalCommands("m4-s4", { container, phpsessid: session }) ?? [],
                 },
+                {
+                  id: "m4-s5",
+                  label: "Bước 05: Adversarial Benchmark",
+                  commands:
+                    buildStepTerminalCommands("m4-s5", { container, phpsessid: session }) ?? [],
+                },
+                {
+                  id: "m4-s6",
+                  label: "Bước 06: SQL Lexer & SafePDO",
+                  commands:
+                    buildStepTerminalCommands("m4-s6", { container, phpsessid: session }) ?? [],
+                },
               ]}
               presets={[
                 {
@@ -869,6 +1033,205 @@ export function Member4Simulator({
           onWafEnabledChange={setWafEnabledInDvwa}
           onWafLogged={(val) => recordWafAudit(val)}
         />
+      )}
+
+      {tab === "eng" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-subtle p-4">
+            <div>
+              <div className="text-sm font-bold text-ink">
+                RASP Lexical Tokenizer WAF &amp; Kiến trúc SafePDO (khanh_sql_lexer_waf.py)
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                Đối chiếu Naive Regex (chặn nhầm họ tên &quot;O&apos;Connor&quot; &amp; bỏ lọt bình luận /*!50000UNION*/ / %2527) với Bộ phân tích từ vựng SQL Lexical Tokenizer chuẩn libinjection.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSafePdo((v) => !v)}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs font-semibold text-ink hover:bg-canvas"
+              >
+                <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
+                {showSafePdo ? "Ẩn mẫu SafePDO" : "Xem mã PHP SafePDO"}
+              </button>
+              <a
+                href="/engineering/khanh_sql_lexer_waf.py"
+                download="khanh_sql_lexer_waf.py"
+                className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface px-3 py-1.5 font-mono text-xs font-semibold text-ink hover:bg-canvas"
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                Tải khanh_sql_lexer_waf.py
+              </a>
+            </div>
+          </div>
+
+          {showSafePdo && (
+            <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-4 font-mono text-[11px] text-emerald-300">
+              <div className="mb-2 flex items-center gap-2 border-b border-zinc-800 pb-2 text-zinc-300">
+                <WindowControls onClose={() => setShowSafePdo(false)} closeTitle="Đóng SafePDO" />
+                <span>khanh_safe_pdo.php — FILTER_VALIDATE_INT + PDO::ATTR_EMULATE_PREPARES =&gt; false</span>
+              </div>
+              <pre className="overflow-x-auto">
+{`$id = filter_var($_GET['id'] ?? '', FILTER_VALIDATE_INT, [
+    'options' => ['min_range' => 1, 'max_range' => 999999]
+]);
+if ($id === false) { http_response_code(400); exit('Invalid ID'); }
+
+$pdo = new PDO($dsn, $dbUser, $dbPass, [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_EMULATE_PREPARES => false, // Native MySQL binary prepare protocol
+]);
+$stmt = $pdo->prepare('SELECT first_name, last_name FROM v_user_public_profile WHERE user_id = :id LIMIT 1');
+$stmt->bindValue(':id', $id, PDO::PARAM_INT);
+$stmt->execute();`}
+              </pre>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-4 font-mono text-xs text-zinc-200 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2">
+              <div className="flex items-center gap-2">
+                <WindowControls onClose={() => setLexerResult(null)} closeTitle="Xóa kết quả Tokenizer" />
+                <span className="font-semibold text-violet-300">
+                  Kiểm thử Đối nghịch: Naive Regex vs SQL Lexical Tokenizer
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                "1",
+                "O'Connor",
+                "1' /*!50000UNION*/ /*!50000SELECT*/ user,password FROM users#",
+                "1%2527%20OR%201%3D1--%20-",
+                "1' AND SLEEP(3)#",
+              ].map((sample) => (
+                <button
+                  key={sample}
+                  type="button"
+                  onClick={() => {
+                    setLexerPayloadInput(sample);
+                    setLexerResult(null);
+                  }}
+                  className="cursor-pointer rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                >
+                  {sample}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={lexerPayloadInput}
+                onChange={(e) => {
+                  setLexerPayloadInput(e.target.value);
+                  setLexerResult(null);
+                }}
+                aria-label="Chuỗi kiểm thử SQL Lexical Tokenizer"
+                className="min-w-[240px] flex-1 rounded border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-amber-200 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setLexerResult(evaluateAdversarialPayload(lexerPayloadInput))}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded bg-violet-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-violet-500"
+              >
+                <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                Phân tích Lexical &amp; Đối chiếu Regex
+              </button>
+            </div>
+
+            {!lexerResult ? (
+              <div className="rounded border border-zinc-800 bg-[#05070a] p-6 text-center text-zinc-500">
+                Chưa chạy bộ phân tích. Chọn một chuỗi ở trên hoặc nhập payload bất kỳ rồi bấm &quot;Phân tích Lexical &amp; Đối chiếu Regex&quot;.
+              </div>
+            ) : (
+              <div className="space-y-3 rounded border border-zinc-800 bg-[#05070a] p-3.5 text-[11px]">
+                <div className="space-y-1">
+                  <div>
+                    <span className="text-zinc-500">1. Raw Input  : </span>
+                    <span className="text-zinc-200">{lexerResult.rawInput}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-500">2. Normalized : </span>
+                    <span className="text-sky-300">{lexerResult.normalized}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-zinc-500">3. Tokens     :</span>
+                    {lexerResult.tokens.map((tok, idx) => (
+                      <span
+                        key={`${tok.kind}-${idx}`}
+                        className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${
+                          tok.kind === "k"
+                            ? "border-rose-500/40 bg-rose-500/15 text-rose-300"
+                            : tok.kind === "o"
+                            ? "border-amber-500/40 bg-amber-500/15 text-amber-300"
+                            : tok.kind === "c"
+                            ? "border-violet-500/40 bg-violet-500/15 text-violet-300"
+                            : "border-zinc-700 bg-zinc-900 text-zinc-300"
+                        }`}
+                      >
+                        {tok.kind}:{tok.lexeme}
+                      </span>
+                    ))}
+                    <span className="ml-2 text-zinc-400">
+                      Fingerprint: <strong className="text-emerald-300">{lexerResult.fingerprint || "(empty)"}</strong>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div
+                    className={`rounded border p-3 ${
+                      lexerResult.regexBlocked
+                        ? "border-amber-500/40 bg-amber-950/20"
+                        : "border-zinc-700 bg-zinc-900/50"
+                    }`}
+                  >
+                    <div className="font-sans text-xs font-bold text-zinc-300">
+                      Naive Regex WAF
+                    </div>
+                    <div
+                      className={`mt-1 font-bold ${
+                        lexerResult.regexBlocked ? "text-amber-300" : "text-rose-300"
+                      }`}
+                    >
+                      {lexerResult.regexBlocked ? "BLOCK (Regex khớp ký tự/mẫu tĩnh)" : "ALLOW"}
+                    </div>
+                    <div className="mt-1 font-sans text-zinc-400">
+                      {!lexerResult.regexBlocked && lexerResult.lexerBlocked
+                        ? "Âm tính giả (Bypass): Bị lách do mã hóa URL 2 tầng hoặc bình luận /*!50000...*/."
+                        : lexerResult.regexBlocked && !lexerResult.lexerBlocked
+                        ? "Dương tính giả (False Positive): Chặn nhầm dữ liệu người dùng hợp lệ!"
+                        : "Kiểm tra dựa trên khớp chuỗi cơ học."}
+                    </div>
+                  </div>
+
+                  <div
+                    className={`rounded border p-3 ${
+                      lexerResult.lexerBlocked
+                        ? "border-rose-500/40 bg-rose-950/25"
+                        : "border-emerald-500/40 bg-emerald-950/25"
+                    }`}
+                  >
+                    <div className="font-sans text-xs font-bold text-zinc-200">
+                      Context-Aware SQL Lexer (RASP)
+                    </div>
+                    <div
+                      className={`mt-1 font-bold ${
+                        lexerResult.lexerBlocked ? "text-rose-300" : "text-emerald-300"
+                      }`}
+                    >
+                      {lexerResult.lexerBlocked ? "BLOCK (403 · Ngữ pháp SQLi)" : "ALLOW (200 OK)"}
+                    </div>
+                    <div className="mt-1 font-sans text-zinc-300">{lexerResult.reason}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

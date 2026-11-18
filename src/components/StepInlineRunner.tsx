@@ -385,6 +385,101 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
 
 [✓] Hoàn thiện mô hình Phòng thủ Chiều sâu (Defense-in-Depth) theo OWASP A03:2021.`;
 
+      case "m1-s5":
+        return `[+] Triển khai Container Hardened với ReadonlyRootfs & --cap-drop=ALL:
+9e41c7b82f1a09d5e2c34810fa7c2b119d82f4e1a9b0731e4c9a2b88f4120c99
+[✓] Container '${container}-hardened' Up · --read-only --cap-drop=ALL --security-opt=no-new-privileges:true
+
+[+] Kiểm toán Kernel HostConfig & thử mô phỏng SQLi INTO OUTFILE:
+true | CapDrop=[ALL]
+sh: 1: cannot create /var/www/html/shell.php: Read-only file system
+[✓] Kernel Namespace chặn tuyệt đối bước ghi Webshell từ SQLi RCE.`;
+
+      case "m1-s6":
+        return `[+] Chạy python3 public/engineering/son_sec_gate.py --demo default:
+=== DevSecOps Security Gate | Target: http://127.0.0.1:8080/login.php ===
+[FAIL] (+10w) Server Tokens & Signature Hidden: Server: Apache/2.4.25 (Debian)
+[FAIL] (+18w) ReadonlyRootfs Enabled: ReadonlyRootfs=False
+--- SCORE: 0/100 (Threshold: 85) => VERDICT: FAIL (exit code 1) ---
+
+[+] Sau khi áp dụng Apache + Container Hardening (--demo hardened):
+[PASS] (+10w) Server Tokens & Signature Hidden: Server: Apache
+[PASS] (+18w) ReadonlyRootfs Enabled: ReadonlyRootfs=True
+[PASS] (+14w) Linux Capabilities Dropped: CapDrop=['ALL']
+--- SCORE: 100/100 (Threshold: 85) => VERDICT: PASS (exit code 0) ---`;
+
+      case "m2-s5":
+        return `[+] Thực thi hung_blind_bisect.py --demo --query "database()" --demo-secret "dvwa":
+=== Custom O(log2 N) Blind SQLi Binary-Search Tracer (database()) ===
+Step 01 [pos=1] range=[ 32..126] mid= 79 ('O') | TRUE  -> lower = mid+1
+Step 02 [pos=1] range=[ 80..126] mid=103 ('g') | FALSE -> upper = mid
+Step 03 [pos=1] range=[ 80..103] mid= 91 ('[') | TRUE  -> lower = mid+1
+...
+Extracted Value       : dvwa
+Binary Search Requests: 28 HTTP requests (~7 req/char)
+Linear Brute Baseline : ~192 HTTP requests (~48 avg req/char)
+Traffic Reduction     : 85.4% fewer IDS log footprints`;
+
+      case "m2-s6":
+        return `[+] Thực thi hung_blind_bisect.py --demo-entropy:
+=== IDS Mathematical Anomaly Detector (Shannon Entropy & Z-Score) ===
+Baseline Response Mean=2333.7 bytes, StdDev=1162.8 bytes
+
+[NORMAL            ] H=3.32 bits | Z=-0.42 | HTTP 200 1842B | /vulnerabilities/sqli/?id=1&Submit=Submit
+[ALERT [SQLi Probe]] H=4.43 bits | Z=-0.47 | HTTP 200 1791B | /vulnerabilities/sqli_blind/?id=1' AND ASCII(SUBSTRING(version(),1,1))>79#
+[ALERT [SQLi Probe]] H=4.26 bits | Z=+2.22 | HTTP 200 4920B | /vulnerabilities/sqli/?id=1' UNION SELECT user,password FROM users#`;
+
+      case "m3-s5":
+        return `[+] Nạp quyet_zero_downtime_migration.sql vào MariaDB container ${container}:
+Query OK (ALTER TABLE users ADD hash_algo, password_v2, migrated_at)
+Query OK (CREATE PROCEDURE sp_authenticate_and_upgrade SQL SECURITY DEFINER)
+
+[+] Thử đăng nhập gordonb với MD5 legacy để kích hoạt Lazy Upgrade:
++-------------------+-----------+
+| status            | hash_algo |
++-------------------+-----------+
+| UPGRADED_ON_LOGIN | bcrypt_2y |
++-------------------+-----------+
+[✓] Tài khoản nâng cấp âm thầm lên Bcrypt cost=12 với 0s downtime.`;
+
+      case "m3-s6":
+        return `[+] Kiểm tra cột trên SQL View v_user_public_profile:
++------------+-------------+
+| Field      | Type        |
++------------+-------------+
+| user_id    | int(6)      |
+| first_name | varchar(15) |
+| last_name  | varchar(15) |
+| username   | varchar(15) |
+| avatar     | varchar(70) |
++------------+-------------+
+[✓] Cột password và password_v2 đã bị loại bỏ hoàn toàn khỏi vùng nhìn Web App.
+
+[+] Kích hoạt thử nghiệm Bẫy Canary Honeypot (user_id = 0):
+| alert_id=1 | canary_user=svc_canary_admin | severity=CRITICAL | source_query='UNION SELECT user,password FROM users#' |`;
+
+      case "m4-s5":
+        return `[+] Thực thi python3 public/engineering/khanh_sql_lexer_waf.py --benchmark:
+[Benign numeric ID] Payload: 1
+  Fingerprint: n        | Naive Regex: ALLOW                | SQL Lexer: ALLOW
+[False-positive stress test (surname)] Payload: O'Connor
+  Fingerprint: w'w      | Naive Regex: BLOCK (regex match)  | SQL Lexer: ALLOW
+[Naive Regex bypass: MySQL /*!50000...*/] Payload: 1' /*!50000UNION*/ /*!50000SELECT*/ user,password FROM users#
+  Fingerprint: n'kkkk   | Naive Regex: ALLOW                | SQL Lexer: BLOCK
+[Naive Regex bypass: Double-URL encoding] Payload: 1%2527%20OR%201%3D1--%20-
+  Fingerprint: n'kn=nc  | Naive Regex: ALLOW                | SQL Lexer: BLOCK`;
+
+      case "m4-s6":
+        return `[+] Phân tích Token & chuẩn hóa trên khanh_sql_lexer_waf.py:
+Input      : O'Connor -> Fingerprint: w'w -> Lexer WAF: ALLOW (Benign lexical profile)
+
+Input      : 1' /*!50000UNION*/ /*!50000SELECT*/ user,password FROM users#
+Normalized : 1' UNION SELECT user,password FROM users#
+Tokens     : [n:1] [o:'] [k:UNION] [k:SELECT] [w:user] [o:,] [w:password] [k:FROM] [w:users] [c:#]
+Fingerprint: n'kkkkw -> Lexer WAF: BLOCK (Detected structural UNION + SELECT clause sequence)
+
+[+] PDO::ATTR_EMULATE_PREPARES => false + FILTER_VALIDATE_INT đã sẵn sàng.`;
+
       default:
         return step.expected_output || "[✓] Đã hoàn tất mô phỏng lệnh.";
     }

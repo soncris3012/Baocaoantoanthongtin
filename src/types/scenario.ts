@@ -2,7 +2,7 @@ export type AccentTheme = "cyan" | "amber" | "emerald" | "violet";
 
 export interface StepCommand {
   label: string;
-  shell: "zsh / bash" | "http" | "sql" | "apache" | "php";
+  shell: "zsh / bash" | "http" | "sql" | "apache" | "php" | "python";
   template: string;
   explanation: string;
 }
@@ -135,4 +135,16 @@ export interface CvssMetricDetail {
   valueCode: string;
   valueLabel: string;
   impactLevel: "bad" | "warn" | "good" | "neutral";
+}
+
+export interface EngineeringShiftRow {
+  memberNumber: number;
+  memberName: string;
+  roleTitle: string;
+  toolUserBaseline: string;
+  engineerUpgrade: string;
+  customArtifact: string;
+  artifactHref: string;
+  workbenchHref: string;
+  verifiedMetric: string;
 }

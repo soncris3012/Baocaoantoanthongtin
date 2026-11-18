@@ -102,6 +102,44 @@ export function buildStepTerminalCommands(
         `curl -i "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1'%20OR%201=1"`,
         `docker exec ${c} tail -n 10 /var/log/apache2/modsec_audit.log`,
       ];
+    case "m1-s5":
+      return [
+        `docker run -d --name ${c}-hardened -p 8080:80 --read-only --cap-drop=ALL --cap-add=NET_BIND_SERVICE --cap-add=SETUID --cap-add=SETGID --security-opt=no-new-privileges:true --memory=512m --pids-limit=128 --tmpfs /var/run/apache2:rw,noexec,nosuid --tmpfs /tmp:rw,noexec,nosuid vulnerables/web-dvwa`,
+        `docker inspect --format '{{.HostConfig.ReadonlyRootfs}} | CapDrop={{.HostConfig.CapDrop}}' ${c} && docker exec ${c} sh -c "echo '<?php system(\\$_GET[0]); ?>' > /var/www/html/shell.php"`,
+      ];
+    case "m1-s6":
+      return [
+        `python3 public/engineering/son_sec_gate.py --demo default`,
+        `python3 public/engineering/son_sec_gate.py --demo hardened --threshold 85`,
+        `python3 public/engineering/son_sec_gate.py --target http://127.0.0.1:8080/login.php --container ${c} --json`,
+      ];
+    case "m2-s5":
+      return [
+        `python3 public/engineering/hung_blind_bisect.py --demo --query "database()" --demo-secret "dvwa"`,
+      ];
+    case "m2-s6":
+      return [
+        `python3 public/engineering/hung_blind_bisect.py --demo-entropy`,
+      ];
+    case "m3-s5":
+      return [
+        `docker exec -i ${c} mysql -u root < public/engineering/quyet_zero_downtime_migration.sql`,
+        `docker exec -it ${c} mysql -u root -e "USE dvwa; CALL sp_authenticate_and_upgrade('gordonb', MD5('abc123'), '\\$2y\\$12\\$MigratedBcryptHashExample9876543210abcdef', @st, @alg); SELECT @st AS status, @alg AS hash_algo;"`,
+      ];
+    case "m3-s6":
+      return [
+        `docker exec -it ${c} mysql -u root -e "USE dvwa; SHOW COLUMNS FROM v_user_public_profile; CALL sp_record_canary_leak('172.17.0.1', 'UNION SELECT user,password FROM users#'); SELECT alert_id, canary_user, severity, source_query FROM security_canary_alerts ORDER BY alert_id DESC LIMIT 3;"`,
+      ];
+    case "m4-s5":
+      return [
+        `python3 public/engineering/khanh_sql_lexer_waf.py --benchmark`,
+      ];
+    case "m4-s6":
+      return [
+        `python3 public/engineering/khanh_sql_lexer_waf.py --payload "O'Connor"`,
+        `python3 public/engineering/khanh_sql_lexer_waf.py --payload "1' /*!50000UNION*/ /*!50000SELECT*/ user,password FROM users#"`,
+        `python3 public/engineering/khanh_sql_lexer_waf.py --show-pdo`,
+      ];
     default:
       return null;
   }
@@ -265,6 +303,60 @@ export function describeTerminalCommand(rawCmd: string): { title: string; effect
     return {
       title: "Gửi payload SQL Injection kiểm thử từ dòng lệnh cURL",
       effect: "Kiểm tra phản ứng thực tế của DVWA hoặc bộ lọc ModSecurity WAF (403 Forbidden vs 200 OK) khi nhận tham số id độc hại.",
+    };
+  }
+  if (lower.includes("son_sec_gate.py")) {
+    return {
+      title: "Chạy DevSecOps Security Gate (son_sec_gate.py)",
+      effect: "Kiểm toán tự động 5 lớp HTTP Security Headers/TRACE và 5 cờ Docker CIS Hardening, chấm điểm 0–100 và trả Exit Code cho CI/CD.",
+    };
+  }
+  if (lower.includes("hung_blind_bisect.py") && lower.includes("demo-entropy")) {
+    return {
+      title: "Phân tích Nhật ký IDS bằng Shannon Entropy & Z-Score",
+      effect: "Đo độ bất định ký tự URI kết hợp độ lệch chuẩn kích thước response nhằm phát hiện payload SQLi mã hóa lẫn tấn công Blind.",
+    };
+  }
+  if (lower.includes("hung_blind_bisect.py")) {
+    return {
+      title: "Khai thác Blind SQLi bằng Thuật toán Tìm kiếm Nhị phân O(log2 N)",
+      effect: "Chia đôi khoảng ASCII [32..126] cho từng ký tự để giải mã database() chỉ với ~7 HTTP request/ký tự, giảm ~85% dấu vết log.",
+    };
+  }
+  if (lower.includes("quyet_zero_downtime_migration.sql") || lower.includes("sp_authenticate_and_upgrade")) {
+    return {
+      title: "Triển khai & Kiểm thử Di trú Dual-Hash Zero-Downtime",
+      effect: "Nâng cấp mật khẩu MD5 sang Bcrypt tự động ngay trong lúc đăng nhập qua Stored Procedure SQL SECURITY DEFINER mà không làm gián đoạn dịch vụ.",
+    };
+  }
+  if (lower.includes("v_user_public_profile") || lower.includes("sp_record_canary_leak") || lower.includes("security_canary_alerts")) {
+    return {
+      title: "Kiểm chứng SQL View Ẩn cột Mật khẩu & Bẫy Canary Honeypot",
+      effect: "Xác nhận Web App bị chặn nhìn cột password qua View và mọi truy vấn quét toàn bảng chạm user_id=0 đều kích hoạt cảnh báo CRITICAL.",
+    };
+  }
+  if (lower.includes("khanh_sql_lexer_waf.py") && lower.includes("--benchmark")) {
+    return {
+      title: "Kiểm thử Đối nghịch WAF: Naive Regex vs SQL Lexical Tokenizer",
+      effect: "Chứng minh Regex bị vượt mặt bởi /*!50000UNION*/ hay %2527 và chặn nhầm \"O'Connor\", trong khi Lexical Tokenizer xử lý chính xác.",
+    };
+  }
+  if (lower.includes("khanh_sql_lexer_waf.py") && lower.includes("--show-pdo")) {
+    return {
+      title: "Xuất Mã nguồn Chuẩn hóa PHP SafePDO + Tắt Emulate Prepares",
+      effect: "Hiển thị mẫu PHP PDO dùng FILTER_VALIDATE_INT và PDO::ATTR_EMULATE_PREPARES = false để tách biệt cấu trúc lệnh SQL.",
+    };
+  }
+  if (lower.includes("khanh_sql_lexer_waf.py")) {
+    return {
+      title: "Phân tích Token & Fingerprint SQL bằng khanh_sql_lexer_waf.py",
+      effect: "Giải mã URL nhiều tầng, chuẩn hóa comment MySQL và kiểm tra ngữ pháp token để quyết định ALLOW/BLOCK với 0% False Positive.",
+    };
+  }
+  if (lower.includes("--read-only") || lower.includes("readonlyrootfs") || lower.includes("shell.php")) {
+    return {
+      title: "Kiểm chứng Container Bất biến (--read-only --cap-drop=ALL)",
+      effect: "Chứng minh lớp Kernel từ chối ghi webshell (/var/www/html/shell.php) với lỗi Read-only file system ngay cả khi tầng PHP có lỗ hổng.",
     };
   }
 
@@ -990,6 +1082,14 @@ export function TerminalEmulator({
     }
     if (lower.startsWith("docker run")) {
       updateRunning(true);
+      if (lower.includes("--read-only") || lower.includes("--cap-drop=all")) {
+        return {
+          output: `9e41c7b82f1a09d5e2c34810fa7c2b119d82f4e1a9b0731e4c9a2b88f4120c99\n[✓] Container Hardened '${containerDisplayName}' đang chạy với:\n    ReadonlyRootfs=true | CapDrop=[ALL] | SecurityOpt=[no-new-privileges:true]\n    Tmpfs=/var/run/apache2,/tmp:rw,noexec,nosuid | PidsLimit=128 | Memory=512MB`,
+          tone: "ok",
+          nextContext: tabContext,
+          nextCwd: tabCwd,
+        };
+      }
       return {
         output: `${shortContainerId}c94f82e109b4a7d1e8a5c3f0218e94b7d\n[✓] Container '${containerDisplayName}' (${shortContainerId}) đang lắng nghe tại http://127.0.0.1:8080 -> 80/tcp`,
         tone: "ok",
@@ -1068,6 +1168,14 @@ export function TerminalEmulator({
       };
     }
     if (lower.startsWith("docker inspect")) {
+      if (lower.includes("readonlyrootfs") || lower.includes("shell.php")) {
+        return {
+          output: `true | CapDrop=[ALL]\nsh: 1: cannot create /var/www/html/shell.php: Read-only file system\n[✓] Bảo vệ tầng Kernel: RCE INTO OUTFILE bị khóa cứng ở lớp RootFS chỉ đọc.`,
+          tone: "ok",
+          nextContext: tabContext,
+          nextCwd: tabCwd,
+        };
+      }
       return {
         output: JSON.stringify(
           [
@@ -1160,7 +1268,32 @@ export function TerminalEmulator({
           nextCwd: tabCwd,
         };
       }
-      if (lower.includes("mysql") && lower.includes(" -e ")) {
+      if (lower.includes("mysql") && (lower.includes("quyet_zero_downtime_migration.sql") || lower.includes(" -e "))) {
+        if (lower.includes("quyet_zero_downtime_migration.sql")) {
+          return {
+            output: `Query OK, 0 rows affected (ALTER TABLE users ADD COLUMN hash_algo, password_v2, migrated_at)\nQuery OK, 0 rows affected (CREATE TABLE IF NOT EXISTS security_canary_alerts)\nQuery OK, 1 row affected (INSERT Canary row user_id=0 'svc_canary_admin')\nQuery OK, 0 rows affected (CREATE OR REPLACE VIEW v_user_public_profile)\nQuery OK, 0 rows affected (CREATE PROCEDURE sp_authenticate_and_upgrade)\n+---------+------------------+------------+--------------------------+\n| user_id | user             | hash_algo  | v2_state                 |\n+---------+------------------+------------+--------------------------+\n|       0 | svc_canary_admin | argon2id   | (canary_trap_protected)  |\n|       1 | admin            | md5_legacy | (pending_lazy_upgrade)   |\n|       2 | gordonb          | md5_legacy | (pending_lazy_upgrade)   |\n+---------+------------------+------------+--------------------------+`,
+            tone: "ok",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
+        if (lower.includes("sp_authenticate_and_upgrade")) {
+          updateBcrypt(true);
+          return {
+            output: `+-------------------+-----------+\n| status            | hash_algo |\n+-------------------+-----------+\n| UPGRADED_ON_LOGIN | bcrypt_2y |\n+-------------------+-----------+\n[✓] Tài khoản legacy tự động chuyển sang Bcrypt cost=12 khi đăng nhập mà không downtime.`,
+            tone: "ok",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
+        if (lower.includes("v_user_public_profile") || lower.includes("sp_record_canary_leak") || lower.includes("security_canary_alerts")) {
+          return {
+            output: `+------------+-------------+\n| Field      | Type        |\n+------------+-------------+\n| user_id    | int(6)      |\n| first_name | varchar(15) |\n| last_name  | varchar(15) |\n| username   | varchar(15) |\n| avatar     | varchar(70) |\n+------------+-------------+\n+----------+------------------+----------+-------------------------------------------+\n| alert_id | canary_user      | severity | source_query                              |\n+----------+------------------+----------+-------------------------------------------+\n|        1 | svc_canary_admin | CRITICAL | UNION SELECT user,password FROM users#    |\n+----------+------------------+----------+-------------------------------------------+`,
+            tone: "ok",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
         if (lower.includes("create user") || lower.includes("grant ")) {
           updateLeastPriv(true);
           return {
@@ -1545,6 +1678,103 @@ export function TerminalEmulator({
         nextContext: tabContext,
         nextCwd: tabCwd,
       };
+    }
+
+    if (lower.startsWith("python3 ") || lower.startsWith("python ")) {
+      if (lower.includes("son_sec_gate.py")) {
+        if (lower.includes("--demo default")) {
+          return {
+            output: `=== DevSecOps Security Gate | Target: http://127.0.0.1:8080/login.php | Container: ${containerDisplayName} ===\n[FAIL] (+10w) Server Tokens & Signature Hidden: Server: Apache/2.4.25 (Debian)\n[FAIL] (+10w) Clickjacking Defense: XFO=missing, CSP=missing\n[FAIL] (+08w) MIME Sniffing Protection: missing\n[FAIL] (+10w) Content-Security-Policy Strictness: missing\n[FAIL] (+07w) HTTP TRACE Method Disabled: HTTP 200 OK (XST exposed)\n[FAIL] (+18w) ReadonlyRootfs Enabled: ReadonlyRootfs=False\n[FAIL] (+14w) Linux Capabilities Dropped: CapDrop=['none']\n--- SCORE: 0/100 (Threshold: 85) => VERDICT: FAIL (exit code 1) ---`,
+            tone: "error",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
+        if (lower.includes("--demo hardened")) {
+          return {
+            output: `=== DevSecOps Security Gate | Target: http://127.0.0.1:8080/login.php | Container: ${containerDisplayName} ===\n[PASS] (+10w) Server Tokens & Signature Hidden: Server: Apache\n[PASS] (+10w) Clickjacking Defense: XFO=SAMEORIGIN\n[PASS] (+08w) MIME Sniffing Protection: nosniff\n[PASS] (+10w) Content-Security-Policy Strictness: default-src 'self'\n[PASS] (+07w) HTTP TRACE Method Disabled: HTTP 405 Method Not Allowed\n[PASS] (+18w) ReadonlyRootfs Enabled: ReadonlyRootfs=True\n[PASS] (+14w) Linux Capabilities Dropped: CapDrop=['ALL']\n[PASS] (+10w) no-new-privileges SecurityOpt: ['no-new-privileges:true']\n[PASS] (+08w) Resource Quotas: Memory=536870912, PidsLimit=128\n[PASS] (+05w) Non-Root Runtime User Check: User=33:33\n--- SCORE: 100/100 (Threshold: 85) => VERDICT: PASS (exit code 0) ---`,
+            tone: "ok",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
+        const liveScore = (isApachePatched ? 10 : 0) + (isCookiePatched ? 28 : 0);
+        if (lower.includes("--json")) {
+          return {
+            output: JSON.stringify(
+              {
+                target: "http://127.0.0.1:8080/login.php",
+                container: cleanContainer,
+                score: liveScore,
+                threshold: 85,
+                verdict: liveScore >= 85 ? "PASS" : "FAIL",
+                note: "Cần áp dụng Apache + Cookie Patch và cờ Container Hardening (--read-only --cap-drop=ALL)",
+              },
+              null,
+              2
+            ),
+            tone: liveScore >= 85 ? "ok" : "warn",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
+        return {
+          output: `=== DevSecOps Security Gate | Container: ${cleanContainer} ===\nHTTP Score: ${liveScore}/45 (${isApachePatched ? "Apache Patched" : "Apache Unpatched"} · ${isCookiePatched ? "Cookie/Headers Patched" : "Headers Missing"})\nVerdict: ${liveScore >= 85 ? "PASS" : "FAIL"} (exit code ${liveScore >= 85 ? 0 : 1})`,
+          tone: liveScore >= 85 ? "ok" : "warn",
+          nextContext: tabContext,
+          nextCwd: tabCwd,
+        };
+      }
+
+      if (lower.includes("hung_blind_bisect.py")) {
+        if (lower.includes("--demo-entropy")) {
+          return {
+            output: `=== IDS Mathematical Anomaly Detector (Shannon Entropy & Z-Score) ===\nBaseline Response Mean=2333.7 bytes, StdDev=1162.8 bytes\n\n[NORMAL            ] H=3.32 bits | Z=-0.42 | HTTP 200 1842B | /vulnerabilities/sqli/?id=1&Submit=Submit\n[NORMAL            ] H=3.32 bits | Z=-0.43 | HTTP 200 1839B | /vulnerabilities/sqli/?id=2&Submit=Submit\n[ALERT [SQLi Probe]] H=4.43 bits | Z=-0.47 | HTTP 200 1791B | /vulnerabilities/sqli_blind/?id=1' AND ASCII(SUBSTRING(version(),1,1))>79#\n[ALERT [SQLi Probe]] H=4.26 bits | Z=+2.22 | HTTP 200 4920B | /vulnerabilities/sqli/?id=1' UNION SELECT user,password FROM users#\n[ALERT [SQLi Probe]] H=4.41 bits | Z=-0.49 | HTTP 200 1765B | /vulnerabilities/sqli_blind/?id=1' OR IF(1=1,SLEEP(3),0)-- -`,
+            tone: "ok",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
+        return {
+          output: `=== Custom O(log2 N) Blind SQLi Binary-Search Tracer (database()) ===\nStep 01 [pos=1] range=[ 32..126] mid= 79 ('O') | TRUE  -> lower = mid+1\nStep 02 [pos=1] range=[ 80..126] mid=103 ('g') | FALSE -> upper = mid\nStep 03 [pos=1] range=[ 80..103] mid= 91 ('[') | TRUE  -> lower = mid+1\nStep 04 [pos=1] range=[ 92..103] mid= 97 ('a') | TRUE  -> lower = mid+1\n...\nStep 28 [pos=4] range=[ 97.. 97] mid= 97 ('a') | CONVERGED\n\nExtracted Value       : dvwa\nBinary Search Requests: 28 HTTP requests (~7 req/char)\nLinear Brute Baseline : ~192 HTTP requests (~48 avg req/char)\nTraffic Reduction     : 85.4% fewer IDS log footprints`,
+          tone: "ok",
+          nextContext: tabContext,
+          nextCwd: tabCwd,
+        };
+      }
+
+      if (lower.includes("khanh_sql_lexer_waf.py")) {
+        if (lower.includes("--show-pdo")) {
+          return {
+            output: `<?php\n$id = filter_var($_GET['id'] ?? '', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);\n$pdo = new PDO($dsn, $user, $pass, [\n    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,\n    PDO::ATTR_EMULATE_PREPARES => false,\n]);\n$stmt = $pdo->prepare('SELECT first_name, last_name FROM v_user_public_profile WHERE user_id = :id LIMIT 1');\n$stmt->bindValue(':id', $id, PDO::PARAM_INT);\n$stmt->execute();`,
+            tone: "ok",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
+        if (lower.includes("--benchmark")) {
+          return {
+            output: `=== Adversarial Regex Bypass vs Context-Aware SQL Lexer Benchmark ===\n[Benign numeric ID] Payload: 1\n  Fingerprint: n        | Naive Regex: ALLOW                | SQL Lexer: ALLOW\n[False-positive stress test (surname)] Payload: O'Connor\n  Fingerprint: w'w      | Naive Regex: BLOCK (regex match)  | SQL Lexer: ALLOW\n[Naive Regex bypass: MySQL /*!50000...*/] Payload: 1' /*!50000UNION*/ /*!50000SELECT*/ user,password FROM users#\n  Fingerprint: n'kkkk   | Naive Regex: ALLOW                | SQL Lexer: BLOCK\n[Naive Regex bypass: Double-URL encoding] Payload: 1%2527%20OR%201%3D1--%20-\n  Fingerprint: n'kn=nc  | Naive Regex: ALLOW                | SQL Lexer: BLOCK\n[Blind timing payload] Payload: 1' AND SLEEP(3)#\n  Fingerprint: n'kko(n  | Naive Regex: BLOCK (regex match)  | SQL Lexer: BLOCK`,
+            tone: "ok",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
+        if (lower.includes("o'connor")) {
+          return {
+            output: `Input      : O'Connor\nNormalized : O'Connor\nTokens     : [w:O] [o:'] [w:Connor]\nFingerprint: w'w\nNaive Regex: BLOCK (regex match)  <-- False Positive!\nLexer WAF  : ALLOW -> Benign lexical profile (surname apostrophe without SQL grammar).`,
+            tone: "ok",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
+        return {
+          output: `Input      : 1' /*!50000UNION*/ /*!50000SELECT*/ user,password FROM users#\nNormalized : 1' UNION SELECT user,password FROM users#\nTokens     : [n:1] [o:'] [k:UNION] [k:SELECT] [w:user] [o:,] [w:password] [k:FROM] [w:users] [c:#]\nFingerprint: n'kkkkw\nNaive Regex: ALLOW  <-- Bypassed!\nLexer WAF  : BLOCK -> Detected structural UNION + SELECT clause sequence across normalized SQL tokens.`,
+          tone: "warn",
+          nextContext: tabContext,
+          nextCwd: tabCwd,
+        };
+      }
     }
 
     return {

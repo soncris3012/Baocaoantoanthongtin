@@ -65,7 +65,7 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
     .sort((a, b) => a.step_order - b.step_order);
   const currentState = snapshot.workspaceStates[memberNumber];
 
-  const [filterMode, setFilterMode] = useState<"all" | "main" | "defense">("all");
+  const [filterMode, setFilterMode] = useState<"all" | "main" | "defense" | "engineering">("all");
   const [containerInput, setContainerInput] = useState(currentState.container_ref);
   const [phpsessidInput, setPhpsessidInput] = useState(currentState.phpsessid);
   const [userTokenInput, setUserTokenInput] = useState(currentState.user_token);
@@ -113,8 +113,9 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
   }, [maximizedOutput]);
 
   const filteredSteps = memberSteps.filter((s) => {
-    if (filterMode === "main") return !s.is_defense;
+    if (filterMode === "main") return !s.is_defense && s.step_order < 5;
     if (filterMode === "defense") return s.is_defense;
+    if (filterMode === "engineering") return s.step_order >= 5;
     return true;
   });
 
@@ -436,16 +437,20 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
             </p>
           </div>
 
-          <div className="inline-flex rounded-md border border-hairline bg-subtle p-0.5 text-xs">
+          <div className="inline-flex flex-wrap rounded-md border border-hairline bg-subtle p-0.5 text-xs">
             {[
               { id: "all" as const, label: `Tất cả (${memberSteps.length})` },
               {
                 id: "main" as const,
-                label: `Khai thác (${memberSteps.filter((s) => !s.is_defense).length})`,
+                label: `Khai thác (${memberSteps.filter((s) => !s.is_defense && s.step_order < 5).length})`,
               },
               {
                 id: "defense" as const,
                 label: `Gia cố (${memberSteps.filter((s) => s.is_defense).length})`,
+              },
+              {
+                id: "engineering" as const,
+                label: `Chuyên sâu Kỹ sư (${memberSteps.filter((s) => s.step_order >= 5).length})`,
               },
             ].map((f) => (
               <button
@@ -557,6 +562,11 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                       <span className="font-bold text-accent">
                         BƯỚC 0{step.step_order}
                       </span>
+                      {step.step_order >= 5 && (
+                        <span className="rounded border border-emerald-600/40 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                          Chuyên sâu Kỹ sư · R&amp;D
+                        </span>
+                      )}
                       <span className="text-muted">·</span>
                       <span className="text-muted">{step.phase_tag}</span>
                       <span className="text-muted">·</span>

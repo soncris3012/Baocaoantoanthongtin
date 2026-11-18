@@ -2,7 +2,9 @@
 
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
 import {
+  AlertTriangle,
   Database,
+  Download,
   KeyRound,
   Play,
   RotateCcw,
@@ -119,12 +121,33 @@ export function Member3Simulator({
   activeTab,
   terminalAutoplay,
 }: Props) {
-  const [tab, setTab] = useState<"sqlmap" | "mariadb" | "docker" | "dvwa">(
-    activeTab === "m3-mariadb-patch" ? "mariadb" : "sqlmap"
+  const [tab, setTab] = useState<"sqlmap" | "mariadb" | "docker" | "dvwa" | "eng">(
+    activeTab === "m3-mariadb-patch"
+      ? "mariadb"
+      : activeTab === "m3-eng"
+      ? "eng"
+      : "sqlmap"
   );
   const [sqlmapStage, setSqlmapStage] = useState<1 | 2 | 3>(1);
   const [containerRunning, setContainerRunning] = useState(true);
   const [terminalCmd, setTerminalCmd] = useState<ExternalTerminalCommand | null>(null);
+  const [migrationApplied, setMigrationApplied] = useState(false);
+  const [migratedUsers, setMigratedUsers] = useState<
+    { user_id: number; user: string; hash_algo: "md5_legacy" | "bcrypt_2y" | "argon2id"; digest: string }[]
+  >(
+    INITIAL_USERS.map((u) => ({
+      user_id: u.user_id,
+      user: u.user,
+      hash_algo: "md5_legacy",
+      digest: u.md5,
+    }))
+  );
+  const [loginUser, setLoginUser] = useState("gordonb");
+  const [loginPassword, setLoginPassword] = useState("abc123");
+  const [dbActionLog, setDbActionLog] = useState<string | null>(null);
+  const [canaryAlerts, setCanaryAlerts] = useState<
+    { id: number; time: string; payload: string; severity: string }[]
+  >([]);
   const cmdSeqRef = useRef(1);
   const lastTermAutoplayIdRef = useRef(0);
 
@@ -280,6 +303,91 @@ export function Member3Simulator({
   const bcryptRun1 = generateRealisticBcrypt(labPassword, bcryptCost, saltNonce * 101);
   const bcryptRun2 = generateRealisticBcrypt(labPassword, bcryptCost, saltNonce * 997 + 33);
 
+  const handleApplyZeroDowntimeMigration = () => {
+    setMigrationApplied(true);
+    setMigratedUsers((prev) => {
+      const hasCanary = prev.some((u) => u.user_id === 0);
+      if (hasCanary) return prev;
+      return [
+        {
+          user_id: 0,
+          user: "svc_canary_admin",
+          hash_algo: "argon2id",
+          digest: "CANARY_TRAP_DO_NOT_AUTH_000000000000",
+        },
+        ...prev,
+      ];
+    });
+    setDbActionLog(
+      `[✓] Đã chạy quyet_zero_downtime_migration.sql:\n- ALTER TABLE users ADD COLUMN hash_algo ENUM('md5_legacy','bcrypt_2y','argon2id'), password_v2\n- CREATE OR REPLACE VIEW v_user_public_profile (ẩn password, WHERE user_id >= 1)\n- INSERT Canary Honeypot row user_id=0 ('svc_canary_admin')`
+    );
+  };
+
+  const handleLazyLoginUpgrade = () => {
+    if (!migrationApplied) {
+      setDbActionLog(
+        `[!] Cần chạy bước "1. Triển khai Zero-Downtime Migration" trước khi gọi sp_authenticate_and_upgrade.`
+      );
+      return;
+    }
+    const seedUser = INITIAL_USERS.find((u) => u.user === loginUser);
+    if (!seedUser) return;
+    if (deterministicPseudoMd5(loginPassword) !== seedUser.md5) {
+      setDbActionLog(
+        `CALL sp_authenticate_and_upgrade('${loginUser}', MD5('***'), ...) -> WRONG_PASSWORD (giữ nguyên hash_algo).`
+      );
+      return;
+    }
+    const currentRow = migratedUsers.find((u) => u.user === loginUser);
+    if (currentRow?.hash_algo === "bcrypt_2y") {
+      setDbActionLog(
+        `CALL sp_authenticate_and_upgrade('${loginUser}', ...) -> VERIFY_V2_IN_APP (tài khoản đã dùng bcrypt_2y ổn định).`
+      );
+      return;
+    }
+    const newBcrypt = generateRealisticBcrypt(loginPassword, 12, seedUser.user_id * 313).full;
+    setMigratedUsers((prev) =>
+      prev.map((row) =>
+        row.user === loginUser
+          ? { ...row, hash_algo: "bcrypt_2y", digest: newBcrypt }
+          : row
+      )
+    );
+    setDbActionLog(
+      `CALL sp_authenticate_and_upgrade('${loginUser}', MD5('${loginPassword}'), '${newBcrypt.slice(0, 24)}...', @st, @alg)\n=> @st = UPGRADED_ON_LOGIN | @alg = bcrypt_2y\n[✓] Người dùng '${loginUser}' đăng nhập bình thường (0s downtime) và mật khẩu đã âm thầm nâng cấp lên Bcrypt!`
+    );
+  };
+
+  const handleCheckViewIsolation = () => {
+    if (!migrationApplied) {
+      setDbActionLog(`[!] Chưa khởi tạo View v_user_public_profile.`);
+      return;
+    }
+    setDbActionLog(
+      `SELECT * FROM dvwa.v_user_public_profile ORDER BY user_id ASC;\n+---------+-----------+------------------+-----------------------+\n| user_id | username  | first_name       | avatar                |\n+---------+-----------+------------------+-----------------------+\n|       1 | admin     | admin            | /hackable/users/admin |\n|       2 | gordonb   | Gordon           | /hackable/users/gordon|\n+---------+-----------+------------------+-----------------------+\n[✓] Cột password / password_v2 và dòng Canary user_id=0 ẩn hoàn toàn khỏi App Runtime.`
+    );
+  };
+
+  const handleSimulateCanaryDump = () => {
+    if (!migrationApplied) {
+      setDbActionLog(`[!] Chưa cấy dòng Canary user_id=0.`);
+      return;
+    }
+    const now = new Date().toTimeString().slice(0, 8);
+    setCanaryAlerts((prev) => [
+      {
+        id: prev.length + 1,
+        time: now,
+        payload: "1' UNION SELECT user_id, user, password FROM users#",
+        severity: "CRITICAL",
+      },
+      ...prev,
+    ]);
+    setDbActionLog(
+      `[CRITICAL] Payload UNION SELECT quét trúng dòng bẫy user_id=0 ('svc_canary_admin')!\n=> Đã ghi sự kiện pháp chứng vào security_canary_alerts.`
+    );
+  };
+
   return (
     <div className="rounded-lg border border-hairline bg-surface p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
@@ -337,6 +445,17 @@ export function Member3Simulator({
             }`}
           >
             4. DVWA Web (:8080)
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("eng")}
+            className={`cursor-pointer rounded px-3 py-1 font-medium transition-colors ${
+              tab === "eng"
+                ? "bg-surface font-semibold text-ink shadow-sm"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            5. Kỹ sư Zero-Downtime &amp; Canary
           </button>
         </div>
       </div>
@@ -407,6 +526,16 @@ export function Member3Simulator({
                 id: "m3-s4",
                 label: "Bước 04: GRANT dvwa_svc",
                 commands: buildStepTerminalCommands("m3-s4", { container, phpsessid: session }) ?? [],
+              },
+              {
+                id: "m3-s5",
+                label: "Bước 05: Zero-Downtime SQL",
+                commands: buildStepTerminalCommands("m3-s5", { container, phpsessid: session }) ?? [],
+              },
+              {
+                id: "m3-s6",
+                label: "Bước 06: View & Canary Trap",
+                commands: buildStepTerminalCommands("m3-s6", { container, phpsessid: session }) ?? [],
               },
             ]}
             presets={[
@@ -726,6 +855,181 @@ export function Member3Simulator({
           bcryptApplied={bcryptApplied}
           leastPrivApplied={leastPrivApplied}
         />
+      )}
+
+      {tab === "eng" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-subtle p-4">
+            <div>
+              <div className="text-sm font-bold text-ink">
+                Database Security Engineering — Zero-Downtime Dual-Hash, SQL View &amp; Bẫy Canary
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                Thực hành nâng cấp từ MD5 sang Bcrypt không gây gián đoạn dịch vụ (Lazy Upgrade), tách quyền bằng SQL View v_user_public_profile và bẫy phát hiện dump dữ liệu tại user_id = 0.
+              </p>
+            </div>
+            <a
+              href="/engineering/quyet_zero_downtime_migration.sql"
+              download="quyet_zero_downtime_migration.sql"
+              className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface px-3 py-1.5 font-mono text-xs font-semibold text-ink hover:bg-canvas"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              Tải quyet_zero_downtime_migration.sql
+            </a>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-3 rounded-lg border border-hairline bg-subtle p-4">
+              <div className="text-xs font-bold uppercase tracking-wider text-ink">
+                1. Bảng Điều khiển Di trú &amp; Phòng thủ CSDL
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleApplyZeroDowntimeMigration}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                >
+                  <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                  1. Triển khai Zero-Downtime Migration
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCheckViewIsolation}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-hairline bg-surface px-3 py-1.5 text-xs font-semibold text-ink hover:bg-canvas"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                  3. Truy vấn qua View v_user_public_profile
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSimulateCanaryDump}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-rose-600/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-500/20 dark:text-rose-300"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                  4. Mô phỏng UNION Dump (Bẫy Canary)
+                </button>
+              </div>
+
+              <div className="rounded-md border border-hairline bg-surface p-3 space-y-2">
+                <div className="text-xs font-semibold text-ink">
+                  2. Mô phỏng Đăng nhập Người dùng (sp_authenticate_and_upgrade)
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <select
+                    value={loginUser}
+                    onChange={(e) => setLoginUser(e.target.value)}
+                    aria-label="Chọn tài khoản đăng nhập"
+                    className="rounded border border-hairline bg-canvas px-2.5 py-1 font-mono text-ink"
+                  >
+                    {INITIAL_USERS.map((u) => (
+                      <option key={u.user_id} value={u.user}>
+                        {u.user} (user_id={u.user_id})
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    aria-label="Mật khẩu kiểm thử"
+                    className="w-32 rounded border border-hairline bg-canvas px-2.5 py-1 font-mono text-ink"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleLazyLoginUpgrade}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded bg-accent px-3 py-1 font-semibold text-white hover:opacity-90"
+                  >
+                    <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
+                    Đăng nhập Lazy Upgrade
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-md border border-zinc-800 bg-[#0d1117] p-3 font-mono text-[11px] text-zinc-200">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-zinc-800 text-zinc-400">
+                      <th className="pb-1.5 pr-2">user_id</th>
+                      <th className="pb-1.5 pr-2">user</th>
+                      <th className="pb-1.5 pr-2">hash_algo</th>
+                      <th className="pb-1.5">password / password_v2</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/70">
+                    {migratedUsers.map((row) => (
+                      <tr key={row.user_id}>
+                        <td className="py-1.5 pr-2 text-zinc-400">{row.user_id}</td>
+                        <td className="py-1.5 pr-2 font-semibold text-zinc-100">{row.user}</td>
+                        <td className="py-1.5 pr-2">
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              row.hash_algo === "bcrypt_2y"
+                                ? "bg-emerald-500/20 text-emerald-300"
+                                : row.hash_algo === "argon2id"
+                                ? "bg-amber-500/20 text-amber-300"
+                                : "bg-rose-500/20 text-rose-300"
+                            }`}
+                          >
+                            {row.hash_algo}
+                          </span>
+                        </td>
+                        <td className="py-1.5 break-all text-zinc-400">
+                          {row.digest.length > 36 ? `${row.digest.slice(0, 36)}...` : row.digest}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-zinc-800 bg-[#0d1117] p-4 font-mono text-xs text-zinc-200">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                <div className="flex items-center gap-2">
+                  <WindowControls
+                    onClose={() => {
+                      setDbActionLog(null);
+                      setCanaryAlerts([]);
+                    }}
+                    closeTitle="Xóa log thực thi"
+                  />
+                  <span className="font-semibold text-emerald-300">
+                    2. Nhật ký MariaDB Dual-Hash &amp; Canary Alerts ({container})
+                  </span>
+                </div>
+                {canaryAlerts.length > 0 && (
+                  <span className="rounded bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-300">
+                    {canaryAlerts.length} CRITICAL ALERT
+                  </span>
+                )}
+              </div>
+
+              {!dbActionLog ? (
+                <div className="py-10 text-center text-zinc-500">
+                  Chưa chạy thao tác DB. Bấm &quot;1. Triển khai Zero-Downtime Migration&quot; để khởi tạo schema Dual-Hash, View và Bẫy Canary.
+                </div>
+              ) : (
+                <pre className="whitespace-pre-wrap rounded border border-zinc-800 bg-[#05070a] p-3 text-[11px] leading-relaxed text-emerald-300">
+                  {dbActionLog}
+                </pre>
+              )}
+
+              {canaryAlerts.length > 0 && (
+                <div className="space-y-1.5 rounded border border-rose-500/40 bg-rose-950/30 p-3 text-[11px]">
+                  <div className="font-bold text-rose-300">
+                    security_canary_alerts (Phát hiện truy cập row user_id=0):
+                  </div>
+                  {canaryAlerts.map((a) => (
+                    <div key={a.id} className="text-rose-200">
+                      [{a.time}] alert_id={a.id} | severity={a.severity} | payload={a.payload}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
