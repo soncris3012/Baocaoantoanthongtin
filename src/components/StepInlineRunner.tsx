@@ -12,6 +12,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { interpolateCommand } from "@/components/CodeBlock";
+import { type BurpWalkthroughId } from "@/components/simulators/BurpSuiteEmulator";
 import { WindowControls } from "@/components/WindowBar";
 import { ScenarioStep } from "@/types/scenario";
 
@@ -26,7 +27,15 @@ interface StepInlineRunnerProps {
   isCompleted: boolean;
   onToggleComplete: () => void;
   onOpenAdvancedSim?: (simKey?: string) => void;
+  onRunBurpWalkthrough?: (walkthroughId: BurpWalkthroughId) => void;
 }
+
+const STEP_BURP_WALKTHROUGH: Partial<Record<string, BurpWalkthroughId>> = {
+  "m2-s1": "m2-s1",
+  "m2-s2": "m2-s2",
+  "m4-s2": "m4-s2",
+  "m4-s3": "m4-s3",
+};
 
 export function StepInlineRunner({
   step,
@@ -35,6 +44,7 @@ export function StepInlineRunner({
   isCompleted,
   onToggleComplete,
   onOpenAdvancedSim,
+  onRunBurpWalkthrough,
 }: StepInlineRunnerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -499,6 +509,21 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
             >
               <Play className="h-3 w-3" aria-hidden="true" />
               Chạy thử ngay
+            </button>
+          )}
+
+          {STEP_BURP_WALKTHROUGH[step.id] && onRunBurpWalkthrough && (
+            <button
+              type="button"
+              onClick={() => {
+                const targetWalk = STEP_BURP_WALKTHROUGH[step.id];
+                if (targetWalk) onRunBurpWalkthrough(targetWalk);
+              }}
+              className="inline-flex cursor-pointer items-center gap-1 rounded bg-[#ff6633] px-2.5 py-1 text-[11px] font-semibold text-white transition-opacity hover:opacity-90"
+              title="Mở Burp Suite và chạy mô phỏng con trỏ từng bước"
+            >
+              <Play className="h-3 w-3" aria-hidden="true" />
+              Mô phỏng trực tiếp trên Burp
             </button>
           )}
 

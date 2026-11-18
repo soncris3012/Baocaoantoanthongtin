@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
   Code2,
@@ -12,7 +12,11 @@ import {
   ShieldCheck,
   XCircle,
 } from "lucide-react";
-import { BurpSuiteEmulator, type BurpPacketEvent } from "@/components/simulators/BurpSuiteEmulator";
+import {
+  type BurpAutoplayRequest,
+  type BurpPacketEvent,
+  BurpSuiteEmulator,
+} from "@/components/simulators/BurpSuiteEmulator";
 import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
 import { TerminalEmulator } from "@/components/simulators/TerminalEmulator";
 import { WindowControls } from "@/components/WindowBar";
@@ -23,6 +27,7 @@ interface Props {
   phpsessid: string;
   userToken: string;
   activeTab?: string;
+  burpAutoplay?: BurpAutoplayRequest | null;
 }
 
 interface WafAuditItem {
@@ -68,12 +73,20 @@ export function Member4Simulator({
   phpsessid,
   userToken,
   activeTab,
+  burpAutoplay,
 }: Props) {
   const [tab, setTab] = useState<"php" | "poc5" | "waf" | "terminal">(
     activeTab === "m4-poc5-waf" ? "poc5" : "php"
   );
   const [containerRunning, setContainerRunning] = useState(true);
   const [terminalSubView, setTerminalSubView] = useState<"terminal" | "docker">("terminal");
+  const lastAutoplayIdRef = useRef(0);
+
+  useEffect(() => {
+    if (!burpAutoplay || burpAutoplay.id === lastAutoplayIdRef.current) return;
+    lastAutoplayIdRef.current = burpAutoplay.id;
+    setTab("poc5");
+  }, [burpAutoplay]);
   const [selectedPhp, setSelectedPhp] = useState<
     "low" | "medium" | "high" | "impossible"
   >("low");
@@ -552,6 +565,7 @@ export function Member4Simulator({
             externalIncludeToken={includeToken === "valid"}
             externalId={poc5Payload}
             externalSyncKey={syncKey}
+            autoplayRequest={burpAutoplay}
             onActiveTabChange={handleBurpSync}
             onPacketSent={handleBurpSync}
           />

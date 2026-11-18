@@ -22,10 +22,21 @@ import {
 } from "lucide-react";
 import { CodeBlock, interpolateCommand } from "@/components/CodeBlock";
 import { RoleSimulator } from "@/components/RoleSimulator";
+import {
+  type BurpAutoplayRequest,
+  type BurpWalkthroughId,
+} from "@/components/simulators/BurpSuiteEmulator";
 import { StepInlineRunner } from "@/components/StepInlineRunner";
 import { WindowControls } from "@/components/WindowBar";
 import { useWorkspace } from "@/components/WorkspaceProvider";
 import { STEP_ENRICHMENTS } from "@/data/scenarioData";
+
+const STEP_BURP_WALKTHROUGH: Partial<Record<string, BurpWalkthroughId>> = {
+  "m2-s1": "m2-s1",
+  "m2-s2": "m2-s2",
+  "m4-s2": "m4-s2",
+  "m4-s3": "m4-s3",
+};
 
 interface MemberPageClientProps {
   memberNumber: 1 | 2 | 3 | 4;
@@ -59,6 +70,7 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(member.display_name);
   const [focusedSimKey, setFocusedSimKey] = useState<string | undefined>(undefined);
+  const [burpAutoplay, setBurpAutoplay] = useState<BurpAutoplayRequest | null>(null);
   const [copiedAllCmds, setCopiedAllCmds] = useState(false);
   const [openPitfalls, setOpenPitfalls] = useState<Record<string, boolean>>({});
   const [minimizedOutputs, setMinimizedOutputs] = useState<Record<string, boolean>>({});
@@ -192,6 +204,15 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
     if (simKey) {
       setFocusedSimKey(simKey);
     }
+    const el = document.getElementById("simulator-section");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const handleRunBurpWalkthrough = (walkthroughId: BurpWalkthroughId) => {
+    setFocusedSimKey(memberNumber === 2 ? "m2-burp" : "m4-poc5-waf");
+    setBurpAutoplay({ id: Date.now(), walkthroughId });
     const el = document.getElementById("simulator-section");
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -524,6 +545,20 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
+                    {STEP_BURP_WALKTHROUGH[step.id] && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const wId = STEP_BURP_WALKTHROUGH[step.id];
+                          if (wId) handleRunBurpWalkthrough(wId);
+                        }}
+                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-[#ff6633] px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                      >
+                        <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                        Chạy trực tiếp trên Burp Suite
+                      </button>
+                    )}
+
                     {step.simulator_key && (
                       <button
                         type="button"
@@ -644,6 +679,7 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                     isCompleted={isDone}
                     onToggleComplete={() => toggleStepCompletion(memberNumber, step.id)}
                     onOpenAdvancedSim={handleJumpToSimulator}
+                    onRunBurpWalkthrough={handleRunBurpWalkthrough}
                   />
 
                   <div className="grid gap-4 border-t border-hairline pt-4 md:grid-cols-2">
@@ -755,6 +791,7 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
             user_token: userTokenInput,
           }}
           focusedSimulatorKey={focusedSimKey}
+          burpAutoplay={burpAutoplay}
         />
       </section>
 

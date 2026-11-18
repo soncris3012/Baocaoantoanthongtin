@@ -1,5 +1,6 @@
 "use client";
 
+import { type BurpAutoplayRequest } from "@/components/simulators/BurpSuiteEmulator";
 import { Member1Simulator } from "@/components/simulators/Member1Simulator";
 import { Member2Simulator } from "@/components/simulators/Member2Simulator";
 import { Member3Simulator } from "@/components/simulators/Member3Simulator";
@@ -10,12 +11,14 @@ interface RoleSimulatorProps {
   memberNumber: 1 | 2 | 3 | 4;
   workspaceState: LabWorkspaceState;
   focusedSimulatorKey?: string;
+  burpAutoplay?: BurpAutoplayRequest | null;
 }
 
 export function RoleSimulator({
   memberNumber,
   workspaceState,
   focusedSimulatorKey,
+  burpAutoplay,
 }: RoleSimulatorProps) {
   if (memberNumber === 1) {
     return (
@@ -33,6 +36,7 @@ export function RoleSimulator({
         containerRef={workspaceState.container_ref}
         phpsessid={workspaceState.phpsessid}
         activeTab={focusedSimulatorKey}
+        burpAutoplay={burpAutoplay}
       />
     );
   }
@@ -53,6 +57,7 @@ export function RoleSimulator({
       phpsessid={workspaceState.phpsessid}
       userToken={workspaceState.user_token}
       activeTab={focusedSimulatorKey}
+      burpAutoplay={burpAutoplay}
     />
   );
 }

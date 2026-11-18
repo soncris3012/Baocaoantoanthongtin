@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bug, Database, FileSearch, Play, RotateCcw } from "lucide-react";
-import { BurpSuiteEmulator } from "@/components/simulators/BurpSuiteEmulator";
+import {
+  type BurpAutoplayRequest,
+  BurpSuiteEmulator,
+} from "@/components/simulators/BurpSuiteEmulator";
 import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
 import { TerminalEmulator } from "@/components/simulators/TerminalEmulator";
 import { WindowControls } from "@/components/WindowBar";
@@ -11,6 +14,7 @@ interface Props {
   containerRef: string;
   phpsessid: string;
   activeTab?: string;
+  burpAutoplay?: BurpAutoplayRequest | null;
 }
 
 interface AccessLogItem {
@@ -62,11 +66,23 @@ const INITIAL_LOG_LINES: AccessLogItem[] = [
   },
 ];
 
-export function Member2Simulator({ containerRef, phpsessid, activeTab }: Props) {
+export function Member2Simulator({
+  containerRef,
+  phpsessid,
+  activeTab,
+  burpAutoplay,
+}: Props) {
   const [tab, setTab] = useState<"burp" | "logs" | "docker">(
     activeTab === "m2-curl-log" ? "logs" : "burp"
   );
   const [containerRunning, setContainerRunning] = useState(true);
+  const lastAutoplayIdRef = useRef(0);
+
+  useEffect(() => {
+    if (!burpAutoplay || burpAutoplay.id === lastAutoplayIdRef.current) return;
+    lastAutoplayIdRef.current = burpAutoplay.id;
+    setTab("burp");
+  }, [burpAutoplay]);
   const [sentPayload, setSentPayload] = useState("1'");
 
   const [curlId, setCurlId] = useState("1");
@@ -259,6 +275,7 @@ export function Member2Simulator({ containerRef, phpsessid, activeTab }: Props) 
             mode="poc2"
             defaultModule="proxy"
             phpsessid={session}
+            autoplayRequest={burpAutoplay}
             onPacketSent={(evt) => {
               setSentPayload(evt.idParam);
               recordLogEntry(

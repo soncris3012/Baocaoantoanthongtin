@@ -12,6 +12,8 @@ import {
   Minimize2,
   PanelRightClose,
   PanelRightOpen,
+  Pause,
+  Play,
   Plus,
   RotateCcw,
   Rows2,
@@ -20,9 +22,23 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  Square,
   X,
 } from "lucide-react";
 import { WindowControls } from "@/components/WindowBar";
+
+export type BurpWalkthroughId =
+  | "m2-s1"
+  | "m2-s2"
+  | "m2-full"
+  | "m4-s2"
+  | "m4-s3"
+  | "m4-full";
+
+export interface BurpAutoplayRequest {
+  id: number;
+  walkthroughId: BurpWalkthroughId;
+}
 
 export interface BurpPacketEvent {
   idParam: string;
@@ -44,8 +60,265 @@ interface BurpSuiteEmulatorProps {
   externalIncludeToken?: boolean;
   externalId?: string;
   externalSyncKey?: number;
+  autoplayRequest?: BurpAutoplayRequest | null;
   onPacketSent?: (evt: BurpPacketEvent) => void;
   onActiveTabChange?: (evt: BurpPacketEvent) => void;
+}
+
+type WalkSpeed = "slow" | "normal" | "fast";
+type WalkPhase = "idle" | "gliding" | "acting" | "observing" | "done";
+
+type WalkActionType =
+  | "focus-proxy"
+  | "open-proxy-settings"
+  | "set-port-8081"
+  | "open-proxy-intercept"
+  | "set-url-loopback"
+  | "submit-loopback"
+  | "set-url-localtest"
+  | "submit-localtest"
+  | "highlight-buffer"
+  | "send-to-repeater"
+  | "turn-off-intercept"
+  | "focus-repeater"
+  | "set-id-sqli-err"
+  | "send-repeater"
+  | "set-id-sqli-or"
+  | "select-tab-1"
+  | "select-tab-2"
+  | "select-tab-3"
+  | "set-sec-impossible"
+  | "highlight-response"
+  | "switch-res-render"
+  | "rotate-token"
+  | "set-id-clean-1";
+
+interface WalkStepSpec {
+  target: string;
+  label: string;
+  detail: string;
+  action: WalkActionType;
+}
+
+const WALK_TIMINGS: Record<WalkSpeed, { glide: number; act: number; observe: number }> = {
+  slow: { glide: 1350, act: 550, observe: 1100 },
+  normal: { glide: 950, act: 420, observe: 800 },
+  fast: { glide: 550, act: 280, observe: 450 },
+};
+
+const M2_S1_STEPS: WalkStepSpec[] = [
+  {
+    target: "tab-proxy",
+    label: "Mở module Proxy",
+    detail: "Chọn tab Proxy trên thanh điều hướng chính của Burp Suite.",
+    action: "focus-proxy",
+  },
+  {
+    target: "subtab-settings",
+    label: "Vào Proxy settings",
+    detail: "Mở Proxy settings để kiểm tra xung đột cổng 8080 với Docker DVWA.",
+    action: "open-proxy-settings",
+  },
+  {
+    target: "port-8081",
+    label: "Đổi cổng sang 8081",
+    detail: "Chuyển Proxy Listener sang 127.0.0.1:8081 để chạy song song với Docker.",
+    action: "set-port-8081",
+  },
+  {
+    target: "subtab-intercept",
+    label: "Quay lại Intercept",
+    detail: "Quay về Proxy -> Intercept kèm trình duyệt Burp Embedded Chromium.",
+    action: "open-proxy-intercept",
+  },
+  {
+    target: "url-loopback",
+    label: "Thử 127.0.0.1:8080",
+    detail: "Chọn URL 127.0.0.1:8080 để chứng minh cơ chế Loopback Bypass của trình duyệt.",
+    action: "set-url-loopback",
+  },
+  {
+    target: "btn-browser-submit",
+    label: "Bấm Submit (Bypass)",
+    detail: "Submit thử: Chromium bỏ qua Proxy khi gọi 127.0.0.1, Proxy không thấy gói tin!",
+    action: "submit-loopback",
+  },
+  {
+    target: "url-localtest",
+    label: "Đổi sang localtest.me",
+    detail: "Đổi URL thành http://localtest.me:8080/vulnerabilities/sqli/ để định tuyến qua Proxy 8081.",
+    action: "set-url-localtest",
+  },
+  {
+    target: "btn-browser-submit",
+    label: "Submit & Bắt gói tin",
+    detail: "Bấm Submit DVWA — Proxy đã đánh chặn trọn vẹn gói tin HTTP GET tại cổng 8081!",
+    action: "submit-localtest",
+  },
+];
+
+const M2_S2_STEPS: WalkStepSpec[] = [
+  {
+    target: "intercept-buffer",
+    label: "Đọc Cookie PHPSESSID",
+    detail: "Quan sát dòng Cookie: security=low; PHPSESSID=... ngay trong gói tin đang bị giữ.",
+    action: "highlight-buffer",
+  },
+  {
+    target: "btn-send-to-repeater",
+    label: "Send to Repeater (Ctrl+R)",
+    detail: "Chuyển bản sao gói tin sang công cụ Repeater để tùy chỉnh payload.",
+    action: "send-to-repeater",
+  },
+  {
+    target: "tab-proxy",
+    label: "Quay lại Proxy",
+    detail: "Mở lại tab Proxy để tắt chế độ chặn, tránh làm treo trình duyệt DVWA.",
+    action: "focus-proxy",
+  },
+  {
+    target: "btn-intercept-toggle",
+    label: "Tắt Intercept is off",
+    detail: "Chuyển nút Intercept sang off để lưu lượng thông suốt bình thường.",
+    action: "turn-off-intercept",
+  },
+  {
+    target: "tab-repeater",
+    label: "Mở tab Repeater",
+    detail: "Chuyển sang tab Repeater vừa nhận gói tin PoC 2.",
+    action: "focus-repeater",
+  },
+  {
+    target: "inspector-id",
+    label: "Sửa id = 1'",
+    detail: "Chèn dấu nháy đơn (') vào tham số id qua bảng Inspector bên phải.",
+    action: "set-id-sqli-err",
+  },
+  {
+    target: "btn-repeater-send",
+    label: "Send (Kích hoạt lỗi MariaDB)",
+    detail: "Gửi gói tin id=1' -> Response nhả lỗi cú pháp MariaDB (CWE-89) & ghi vào access.log.",
+    action: "send-repeater",
+  },
+  {
+    target: "inspector-id",
+    label: "Sửa id = ' OR '1'='1",
+    detail: "Nâng cấp payload thành ' OR '1'='1 trong Inspector để trích xuất toàn bảng users.",
+    action: "set-id-sqli-or",
+  },
+  {
+    target: "btn-repeater-send",
+    label: "Send (Dump 5 tài khoản)",
+    detail: "Gửi payload -> Response hiển thị cả 5 users trong DVWA!",
+    action: "send-repeater",
+  },
+];
+
+const M4_S2_STEPS: WalkStepSpec[] = [
+  {
+    target: "repeater-tab-1",
+    label: "Xem Tab 1 · Low (SQLi)",
+    detail: "Quan sát gói tin cũ ở security=low đang dính lỗi SQL syntax MariaDB.",
+    action: "select-tab-1",
+  },
+  {
+    target: "repeater-tab-2",
+    label: "Mở Tab 2 · PoC 5 Gốc",
+    detail: "Chuyển sang Tab 2: giữ nguyên payload id=1' NHƯNG không có user_token.",
+    action: "select-tab-2",
+  },
+  {
+    target: "inspector-sec-impossible",
+    label: "Cookie: security=impossible",
+    detail: "Đảm bảo Cookie trong Inspector là impossible và chưa gắn tham số user_token.",
+    action: "set-sec-impossible",
+  },
+  {
+    target: "btn-repeater-send",
+    label: "Gửi Request PoC 5 Gốc",
+    detail: "Bấm Send -> Máy chủ gọi checkToken() ở dòng 5 trong impossible.php.",
+    action: "send-repeater",
+  },
+  {
+    target: "response-pane",
+    label: "Nhận HTTP 302 Found",
+    detail: "Phản hồi 302 Found, Location: index.php -> Bị chặn ngay tại tầng Anti-CSRF!",
+    action: "highlight-response",
+  },
+  {
+    target: "res-view-render",
+    label: "Xem Render 302 Redirect",
+    detail: "Mở chế độ Render để xem minh họa chuyển hướng từ impossible.php.",
+    action: "switch-res-render",
+  },
+];
+
+const M4_S3_STEPS: WalkStepSpec[] = [
+  {
+    target: "repeater-tab-3",
+    label: "Mở Tab 3 · PoC 5 + Token",
+    detail: "Chuyển sang Tab 3 có chứa đầy đủ tham số Anti-CSRF user_token.",
+    action: "select-tab-3",
+  },
+  {
+    target: "inspector-rotate-token",
+    label: "Lấy user_token hợp lệ",
+    detail: "Bấm Xoay token để trích xuất mã CSRF phiên hợp lệ mới nhất từ form DVWA.",
+    action: "rotate-token",
+  },
+  {
+    target: "inspector-id",
+    label: "Thử id = 1 hợp lệ",
+    detail: "Nhập id=1 kèm user_token hợp lệ để kiểm chứng truy vấn chuẩn qua PDO.",
+    action: "set-id-clean-1",
+  },
+  {
+    target: "btn-repeater-send",
+    label: "Send id=1 -> 200 OK",
+    detail: "Bấm Send -> Qua đủ 3 chốt checkToken -> is_numeric('1') -> PDO::PARAM_INT.",
+    action: "send-repeater",
+  },
+  {
+    target: "inspector-rotate-token",
+    label: "Xoay token lượt kế",
+    detail: "Lấy user_token mới cho lượt kiểm thử tấn công tiếp theo.",
+    action: "rotate-token",
+  },
+  {
+    target: "inspector-id",
+    label: "Chèn SQLi id = 1'",
+    detail: "Nhập id=1' kèm token hợp lệ nhằm xuyên qua dòng 5 để test is_numeric() dòng 11.",
+    action: "set-id-sqli-err",
+  },
+  {
+    target: "btn-repeater-send",
+    label: "Send id=1' + Token",
+    detail: "Bấm Send -> Vượt qua CSRF nhưng bị is_numeric(\"1'\") chặn đứng trước SQL!",
+    action: "send-repeater",
+  },
+  {
+    target: "res-view-render",
+    label: "Xem Render An toàn 100%",
+    detail: "Chuyển sang Render: 200 OK rỗng, hoàn toàn không lộ lỗi cú pháp MariaDB.",
+    action: "switch-res-render",
+  },
+];
+
+function getWalkthroughSteps(id: BurpWalkthroughId): WalkStepSpec[] {
+  switch (id) {
+    case "m2-s1":
+      return M2_S1_STEPS;
+    case "m2-s2":
+      return M2_S2_STEPS;
+    case "m2-full":
+      return [...M2_S1_STEPS, ...M2_S2_STEPS];
+    case "m4-s2":
+      return M4_S2_STEPS;
+    case "m4-s3":
+      return M4_S3_STEPS;
+    case "m4-full":
+      return [...M4_S2_STEPS, ...M4_S3_STEPS];
+  }
 }
 
 type ModuleTab =
@@ -542,6 +815,7 @@ export function BurpSuiteEmulator({
   externalIncludeToken,
   externalId,
   externalSyncKey,
+  autoplayRequest,
   onPacketSent,
   onActiveTabChange,
 }: BurpSuiteEmulatorProps) {
@@ -551,6 +825,22 @@ export function BurpSuiteEmulator({
 
   const [isMinimized, setIsMinimized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Guided Walkthrough Autopilot State & Virtual Cursor
+  const inlineRootRef = useRef<HTMLDivElement | null>(null);
+  const fullscreenRootRef = useRef<HTMLDivElement | null>(null);
+  const lastAutoplayIdRef = useRef<number>(0);
+
+  const [walkId, setWalkId] = useState<BurpWalkthroughId | null>(null);
+  const [stepIdx, setStepIdx] = useState(0);
+  const [phase, setPhase] = useState<WalkPhase>("idle");
+  const [isPaused, setIsPaused] = useState(false);
+  const [speed, setSpeed] = useState<WalkSpeed>("normal");
+  const [cursorPos, setCursorPos] = useState<{
+    x: number;
+    y: number;
+    containerWidth: number;
+  }>({ x: 120, y: 120, containerWidth: 800 });
 
   // Proxy Listener Settings & Loopback Bypass
   const [listenerPort, setListenerPort] = useState<8080 | 8081>(8081);
@@ -981,8 +1271,9 @@ Connection: close`;
     updateCurrentRawRequest(nextReq);
   };
 
-  const handleBrowserSubmit = () => {
-    const lowerUrl = browserUrl.trim().toLowerCase();
+  const submitBrowserWith = (urlOverride?: string, idOverride?: string) => {
+    const lowerUrl = (urlOverride ?? browserUrl).trim().toLowerCase();
+    const targetId = idOverride ?? browserIdInput;
     if (listenerPort === 8080) {
       setBrowserBanner({
         type: "err",
@@ -1000,8 +1291,8 @@ Connection: close`;
     }
 
     const capturedReq = buildHttpRequest({
-      idVal: browserIdInput,
-      urlEncode: browserIdInput.includes("'") || browserIdInput.includes(" "),
+      idVal: targetId,
+      urlEncode: targetId.includes("'") || targetId.includes(" "),
       includeToken: false,
       userToken,
       securityLevel: "low",
@@ -1034,6 +1325,374 @@ Connection: close`;
     }
   };
 
+  const handleBrowserSubmit = () => submitBrowserWith();
+
+  const walkSteps = useMemo(() => (walkId ? getWalkthroughSteps(walkId) : []), [walkId]);
+  const currentWalkStep = walkSteps[stepIdx] ?? null;
+  const activeTarget =
+    walkId && (phase === "gliding" || phase === "acting" || phase === "observing")
+      ? currentWalkStep?.target ?? null
+      : null;
+
+  const progressPct = useMemo(() => {
+    if (!walkId || walkSteps.length === 0 || phase === "idle") return 0;
+    if (phase === "done") return 100;
+    const sub = phase === "gliding" ? 0.25 : phase === "acting" ? 0.65 : 1;
+    return Math.min(99, Math.round(((stepIdx + sub) / walkSteps.length) * 100));
+  }, [walkId, walkSteps.length, phase, stepIdx]);
+
+  const highlightRing = (targetKey: string) =>
+    activeTarget === targetKey
+      ? "ring-2 ring-[#ff6633] ring-offset-1 ring-offset-[#1e1f22]"
+      : "";
+
+  const syncTabSnapshotToParent = (tabObj: RepeaterTabItem) => {
+    if (!onActiveTabChange) return;
+    const parsedTab = parseHttpRequest(tabObj.rawRequest, phpsessid, userToken);
+    onActiveTabChange({
+      idParam: parsedTab.idVal,
+      securityLevel: parsedTab.securityLevel,
+      includeToken: parsedTab.includeToken,
+      userToken: parsedTab.userToken,
+      phpsessid: parsedTab.phpsessid,
+      statusCode: tabObj.statusCode,
+      bytes: tabObj.rawResponse.length,
+      source: "Repeater",
+    });
+  };
+
+  const executeWalkAction = (action: WalkActionType) => {
+    switch (action) {
+      case "focus-proxy":
+        setActiveModule("proxy");
+        setProxySubTab("intercept");
+        break;
+      case "open-proxy-settings":
+        setActiveModule("proxy");
+        setProxySubTab("settings");
+        break;
+      case "set-port-8081":
+        setListenerPort(8081);
+        break;
+      case "open-proxy-intercept":
+        setActiveModule("proxy");
+        setProxySubTab("intercept");
+        setBrowserOpen(true);
+        break;
+      case "set-url-loopback":
+        setBrowserUrl("http://127.0.0.1:8080/vulnerabilities/sqli/");
+        break;
+      case "submit-loopback":
+        submitBrowserWith("http://127.0.0.1:8080/vulnerabilities/sqli/", "1");
+        break;
+      case "set-url-localtest":
+        setBrowserUrl("http://localtest.me:8080/vulnerabilities/sqli/");
+        break;
+      case "submit-localtest": {
+        const captured = buildHttpRequest({
+          idVal: "1",
+          urlEncode: false,
+          includeToken: false,
+          userToken,
+          securityLevel: "low",
+          phpsessid,
+        });
+        setListenerPort(8081);
+        setInterceptOn(true);
+        setInterceptBuffer(captured);
+        setBrowserBanner({
+          type: "info",
+          text: "Đã bắt giữ gói tin GET tại Proxy -> Intercept! Chứa PHPSESSID hợp lệ.",
+        });
+        break;
+      }
+      case "highlight-buffer":
+        break;
+      case "send-to-repeater":
+        handleSendToRepeater(
+          interceptBuffer ||
+            buildHttpRequest({
+              idVal: "1",
+              includeToken: false,
+              userToken,
+              securityLevel: "low",
+              phpsessid,
+            }),
+          "PoC 2 (Từ Proxy)"
+        );
+        break;
+      case "turn-off-intercept":
+        setInterceptOn(false);
+        break;
+      case "focus-repeater":
+        setActiveModule("repeater");
+        break;
+      case "set-id-sqli-err": {
+        const nextReq = buildHttpRequest({
+          idVal: "1'",
+          urlEncode: urlEncodeParam,
+          includeToken: parsedCurrentReq.includeToken,
+          userToken: parsedCurrentReq.userToken,
+          securityLevel: parsedCurrentReq.securityLevel,
+          phpsessid: parsedCurrentReq.phpsessid,
+        });
+        updateCurrentRawRequest(nextReq);
+        if (onActiveTabChange) {
+          onActiveTabChange({
+            idParam: "1'",
+            securityLevel: parsedCurrentReq.securityLevel,
+            includeToken: parsedCurrentReq.includeToken,
+            userToken: parsedCurrentReq.userToken,
+            phpsessid: parsedCurrentReq.phpsessid,
+            statusCode: currentTab.statusCode,
+            bytes: currentTab.rawResponse.length,
+            source: "Repeater",
+          });
+        }
+        break;
+      }
+      case "set-id-sqli-or":
+        handleInspectorChange({ idVal: "' OR '1'='1" });
+        break;
+      case "set-id-clean-1": {
+        const nextReq = buildHttpRequest({
+          idVal: "1",
+          urlEncode: urlEncodeParam,
+          includeToken: true,
+          userToken: parsedCurrentReq.userToken,
+          securityLevel: "impossible",
+          phpsessid: parsedCurrentReq.phpsessid,
+        });
+        updateCurrentRawRequest(nextReq);
+        if (onActiveTabChange) {
+          onActiveTabChange({
+            idParam: "1",
+            securityLevel: "impossible",
+            includeToken: true,
+            userToken: parsedCurrentReq.userToken,
+            phpsessid: parsedCurrentReq.phpsessid,
+            statusCode: currentTab.statusCode,
+            bytes: currentTab.rawResponse.length,
+            source: "Repeater",
+          });
+        }
+        break;
+      }
+      case "send-repeater":
+        handleRepeaterSend();
+        break;
+      case "select-tab-1": {
+        const t1 = repeaterTabs.find((x) => x.id === 1) ?? repeaterTabs[0];
+        if (t1) {
+          setActiveTabId(t1.id);
+          syncTabSnapshotToParent(t1);
+        }
+        break;
+      }
+      case "select-tab-2": {
+        const t2 = repeaterTabs.find((x) => x.id === 2) ?? repeaterTabs[1] ?? repeaterTabs[0];
+        if (t2) {
+          setActiveTabId(t2.id);
+          syncTabSnapshotToParent(t2);
+        }
+        break;
+      }
+      case "select-tab-3": {
+        const t3 = repeaterTabs.find((x) => x.id === 3) ?? repeaterTabs[2] ?? repeaterTabs[0];
+        if (t3) {
+          setActiveTabId(t3.id);
+          syncTabSnapshotToParent(t3);
+        }
+        break;
+      }
+      case "set-sec-impossible":
+        handleInspectorChange({ securityLevel: "impossible", includeToken: false });
+        break;
+      case "highlight-response":
+        setResViewMode("pretty");
+        break;
+      case "switch-res-render":
+        setResViewMode("render");
+        break;
+      case "rotate-token": {
+        const chars = "0123456789abcdef";
+        let nextTok = "";
+        for (let i = 0; i < 32; i++) {
+          nextTok += chars[Math.floor(Math.random() * chars.length)];
+        }
+        handleInspectorChange({ includeToken: true, userToken: nextTok });
+        if (onActiveTabChange) {
+          onActiveTabChange({
+            idParam: parsedCurrentReq.idVal,
+            securityLevel: parsedCurrentReq.securityLevel,
+            includeToken: true,
+            userToken: nextTok,
+            phpsessid: parsedCurrentReq.phpsessid,
+            statusCode: currentTab.statusCode,
+            bytes: currentTab.rawResponse.length,
+            source: "Repeater",
+          });
+        }
+        break;
+      }
+    }
+  };
+
+  const startWalkthrough = (id: BurpWalkthroughId) => {
+    setIsMinimized(false);
+
+    if (id === "m2-s1" || id === "m2-full") {
+      setActiveModule("proxy");
+      setProxySubTab("intercept");
+      setListenerPort(8080);
+      setInterceptOn(true);
+      setBrowserOpen(true);
+      setBrowserUrl("http://localtest.me:8080/vulnerabilities/sqli/");
+      setBrowserIdInput("1");
+      setBrowserBanner(null);
+    } else if (id === "m2-s2") {
+      setActiveModule("proxy");
+      setProxySubTab("intercept");
+      setListenerPort(8081);
+      setInterceptOn(true);
+      setBrowserOpen(true);
+      setInspectorOpen(true);
+      setReqViewMode("raw");
+      setResViewMode("pretty");
+      setBrowserUrl("http://localtest.me:8080/vulnerabilities/sqli/");
+      setBrowserIdInput("1");
+      setInterceptBuffer(
+        buildHttpRequest({
+          idVal: "1",
+          includeToken: false,
+          userToken,
+          securityLevel: "low",
+          phpsessid,
+        })
+      );
+      setBrowserBanner({
+        type: "info",
+        text: "Gói tin GET /vulnerabilities/sqli/?id=1 đang được giữ ở Proxy -> Intercept.",
+      });
+    } else if (id === "m4-s2" || id === "m4-full") {
+      setActiveModule("repeater");
+      setInspectorOpen(true);
+      setReqViewMode("raw");
+      setResViewMode("pretty");
+      const t1 = repeaterTabs.find((x) => x.id === 1) ?? repeaterTabs[0];
+      if (t1) {
+        setActiveTabId(t1.id);
+        syncTabSnapshotToParent(t1);
+      }
+    } else if (id === "m4-s3") {
+      setActiveModule("repeater");
+      setInspectorOpen(true);
+      setReqViewMode("raw");
+      setResViewMode("pretty");
+      const t3 = repeaterTabs.find((x) => x.id === 3) ?? repeaterTabs[0];
+      if (t3) {
+        setActiveTabId(t3.id);
+        syncTabSnapshotToParent(t3);
+      }
+    }
+
+    setWalkId(id);
+    setStepIdx(0);
+    setIsPaused(false);
+    setPhase("gliding");
+  };
+
+  const stopWalkthrough = () => {
+    setWalkId(null);
+    setStepIdx(0);
+    setPhase("idle");
+    setIsPaused(false);
+  };
+
+  const handlersRef = useRef({
+    executeWalkAction,
+    startWalkthrough,
+    isFullscreen,
+  });
+  handlersRef.current = {
+    executeWalkAction,
+    startWalkthrough,
+    isFullscreen,
+  };
+
+  // Measure target button/panel bounding box inside active visible Burp window for cursor positioning
+  useEffect(() => {
+    if (!walkId || phase === "idle" || phase === "done") return;
+    const step = walkSteps[stepIdx];
+    if (!step) return;
+
+    const raf = requestAnimationFrame(() => {
+      const root = handlersRef.current.isFullscreen
+        ? fullscreenRootRef.current
+        : inlineRootRef.current;
+      if (!root) return;
+      const el = root.querySelector(`[data-burp-target="${step.target}"]`) as HTMLElement | null;
+      if (!el) return;
+      const rootRect = root.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const x = Math.max(
+        18,
+        Math.min(rootRect.width - 24, elRect.left - rootRect.left + Math.min(elRect.width * 0.65, 92))
+      );
+      const y = Math.max(
+        18,
+        Math.min(rootRect.height - 24, elRect.top - rootRect.top + elRect.height * 0.55)
+      );
+      setCursorPos({ x, y, containerWidth: rootRect.width });
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [walkId, stepIdx, phase, activeModule, proxySubTab, inspectorOpen, isFullscreen, walkSteps]);
+
+  // Phase timer driving glide -> click -> observe -> next step
+  useEffect(() => {
+    if (!walkId || isPaused || phase === "idle" || phase === "done") return;
+    const steps = getWalkthroughSteps(walkId);
+    const current = steps[stepIdx];
+    if (!current) {
+      setPhase("done");
+      return;
+    }
+
+    const timing = WALK_TIMINGS[speed];
+    let delay = timing.glide;
+    if (phase === "acting") delay = timing.act;
+    if (phase === "observing") delay = timing.observe;
+
+    const timer = setTimeout(() => {
+      if (phase === "gliding") {
+        setPhase("acting");
+      } else if (phase === "acting") {
+        handlersRef.current.executeWalkAction(current.action);
+        setPhase("observing");
+      } else if (phase === "observing") {
+        if (stepIdx + 1 < steps.length) {
+          setStepIdx((i) => i + 1);
+          setPhase("gliding");
+        } else {
+          setPhase("done");
+        }
+      }
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [walkId, stepIdx, phase, isPaused, speed]);
+
+  // Trigger walkthrough automatically from parent page exercise step buttons
+  useEffect(() => {
+    if (!autoplayRequest || autoplayRequest.id === lastAutoplayIdRef.current) return;
+    lastAutoplayIdRef.current = autoplayRequest.id;
+    const t = setTimeout(() => {
+      handlersRef.current.startWalkthrough(autoplayRequest.walkthroughId);
+    }, 420);
+    return () => clearTimeout(t);
+  }, [autoplayRequest]);
+
   const selectedHistoryRow =
     httpHistory.find((h) => h.idx === selectedHistoryIdx) ?? httpHistory[httpHistory.length - 1];
 
@@ -1047,12 +1706,66 @@ Connection: close`;
     { id: "logger", label: "Logger" },
   ];
 
+  const cursorFlipLeft = cursorPos.x > cursorPos.containerWidth - 260;
+  const cursorGlideMs = speed === "slow" ? 1200 : speed === "fast" ? 450 : 850;
+
   const renderBurpWindow = (fullscreenMode: boolean) => (
     <div
-      className={`flex flex-col overflow-hidden rounded-lg border border-[#383a40] bg-[#1e1f22] text-[#dfe1e5] shadow-xl ${
+      ref={fullscreenMode ? fullscreenRootRef : inlineRootRef}
+      className={`relative flex flex-col overflow-hidden rounded-lg border border-[#383a40] bg-[#1e1f22] text-[#dfe1e5] shadow-xl ${
         fullscreenMode ? "h-full w-full" : ""
       }`}
     >
+      {/* Virtual Animated Mouse Cursor Overlay */}
+      {walkId && phase !== "idle" && phase !== "done" && currentWalkStep && (
+        <div
+          aria-hidden="true"
+          style={{
+            left: `${cursorPos.x}px`,
+            top: `${cursorPos.y}px`,
+            transitionProperty: "left, top",
+            transitionDuration: `${cursorGlideMs}ms`,
+            transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
+          }}
+          className="pointer-events-none absolute z-40"
+        >
+          {/* Click ripple */}
+          {phase === "acting" && (
+            <span className="absolute -left-3 -top-3 h-7 w-7 rounded-full border-2 border-[#ff6633] bg-[#ff6633]/25 animate-ping" />
+          )}
+
+          {/* Crisp Desktop Pointer SVG */}
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            className={`drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)] transition-transform duration-150 ${
+              phase === "acting" ? "scale-90" : "scale-100"
+            }`}
+          >
+            <path
+              d="M4 3L19 11.5L11.8 13.6L8.8 20.5L4 3Z"
+              fill="#ffffff"
+              stroke="#111827"
+              strokeWidth="1.8"
+              strokeLinejoin="round"
+            />
+          </svg>
+
+          {/* Edge-Aware Floating Action Label */}
+          <div
+            className={`absolute top-5 whitespace-nowrap rounded-md border border-[#ff6633]/70 bg-[#18191d]/95 px-2.5 py-1 font-sans text-[11px] font-semibold text-white shadow-lg ${
+              cursorFlipLeft ? "right-2" : "left-4"
+            }`}
+          >
+            <span className="mr-1.5 font-mono font-bold text-[#ff885e]">
+              {progressPct}%
+            </span>
+            <span>{currentWalkStep.label}</span>
+          </div>
+        </div>
+      )}
+
       {/* 1. Native Desktop Title Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#383a40] bg-[#2b2d31] px-3 py-2 text-xs">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -1133,12 +1846,13 @@ Connection: close`;
                 <button
                   key={t.id}
                   type="button"
+                  data-burp-target={`tab-${t.id}`}
                   onClick={() => setActiveModule(t.id)}
                   className={`relative cursor-pointer px-3.5 py-2 font-medium transition-colors ${
                     active
                       ? "border-b-2 border-[#ff6633] bg-[#1e1f22] font-semibold text-white"
                       : "border-b-2 border-transparent text-zinc-400 hover:text-zinc-100"
-                  }`}
+                  } ${highlightRing(`tab-${t.id}`)}`}
                 >
                   <span className="inline-flex items-center gap-1.5">
                     <span>{t.label}</span>
@@ -1152,6 +1866,143 @@ Connection: close`;
                 </button>
               );
             })}
+          </div>
+
+          {/* 3.5 Guided Step-by-Step Walkthrough Toolbar & % Progress Strip */}
+          <div className="border-b border-[#383a40] bg-[#212328] px-3 py-2 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-mono text-[11px] font-bold text-[#ff885e]">
+                  Chạy mô phỏng trực quan:
+                </span>
+                {(mode === "poc2"
+                  ? ([
+                      { id: "m2-s1", label: "Bước 01 · Proxy 8081 & localtest.me" },
+                      { id: "m2-s2", label: "Bước 02 · Intercept & SQLi PoC 2" },
+                      { id: "m2-full", label: "Chạy trọn bộ PoC 2" },
+                    ] as const)
+                  : ([
+                      { id: "m4-s2", label: "Bước 02 · PoC 5 Gốc (302)" },
+                      { id: "m4-s3", label: "Bước 03 · PoC 5 + Token" },
+                      { id: "m4-full", label: "Chạy trọn bộ PoC 5" },
+                    ] as const)
+                ).map((preset) => {
+                  const isSelected = walkId === preset.id && phase !== "idle";
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => startWalkthrough(preset.id)}
+                      className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                        isSelected
+                          ? "border-[#ff6633] bg-[#ff6633]/20 font-semibold text-white"
+                          : "border-[#3c3f47] bg-[#2b2d31] text-zinc-200 hover:border-[#ff6633]/60 hover:text-white"
+                      }`}
+                    >
+                      <Play className="h-2.5 w-2.5 text-[#ff6633]" aria-hidden="true" />
+                      <span>{preset.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-1.5 text-[11px]">
+                <span className="text-zinc-400">Tốc độ:</span>
+                {(
+                  [
+                    { id: "slow", label: "Chậm" },
+                    { id: "normal", label: "Từ từ" },
+                    { id: "fast", label: "Nhanh" },
+                  ] as const
+                ).map((sp) => (
+                  <button
+                    key={sp.id}
+                    type="button"
+                    onClick={() => setSpeed(sp.id)}
+                    className={`cursor-pointer rounded border px-2 py-0.5 font-mono text-[10.5px] transition-colors ${
+                      speed === sp.id
+                        ? "border-[#ff6633] bg-[#ff6633] font-bold text-white"
+                        : "border-[#3c3f47] bg-[#2b2d31] text-zinc-300 hover:text-white"
+                    }`}
+                  >
+                    {sp.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {walkId && phase !== "idle" && (
+              <div className="mt-2 rounded border border-[#383a40] bg-[#16171a] px-2.5 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="rounded bg-[#ff6633] px-2 py-0.5 font-mono text-[11px] font-bold text-white">
+                      {progressPct}%
+                    </span>
+                    <span className="font-mono text-[11px] text-zinc-400">
+                      Thao tác {Math.min(stepIdx + 1, walkSteps.length)}/{walkSteps.length}
+                    </span>
+                    <span className="truncate font-medium text-zinc-100">
+                      {phase === "done"
+                        ? "Đã hoàn thành toàn bộ thao tác mô phỏng trên Burp Suite (100%)."
+                        : currentWalkStep?.detail}
+                    </span>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {phase !== "done" && (
+                      <button
+                        type="button"
+                        onClick={() => setIsPaused((p) => !p)}
+                        className="inline-flex cursor-pointer items-center gap-1 rounded border border-[#3c3f47] bg-[#2b2d31] px-2 py-0.5 text-[11px] text-zinc-200 hover:bg-[#383a40]"
+                      >
+                        {isPaused ? (
+                          <>
+                            <Play className="h-2.5 w-2.5 text-emerald-400" aria-hidden="true" />
+                            <span>Tiếp tục</span>
+                          </>
+                        ) : (
+                          <>
+                            <Pause className="h-2.5 w-2.5 text-amber-300" aria-hidden="true" />
+                            <span>Tạm dừng</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    {phase === "done" && (
+                      <button
+                        type="button"
+                        onClick={() => startWalkthrough(walkId)}
+                        className="inline-flex cursor-pointer items-center gap-1 rounded border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/25"
+                      >
+                        <RotateCcw className="h-2.5 w-2.5" aria-hidden="true" />
+                        <span>Chạy lại</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={stopWalkthrough}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded border border-[#3c3f47] bg-[#2b2d31] px-2 py-0.5 text-[11px] text-zinc-300 hover:bg-rose-600/20 hover:text-rose-200"
+                    >
+                      <Square className="h-2.5 w-2.5" aria-hidden="true" />
+                      <span>{phase === "done" ? "Đóng" : "Dừng"}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#2b2d31]">
+                  <div
+                    className={`h-full transition-all duration-300 ${
+                      phase === "done"
+                        ? "bg-emerald-400"
+                        : "bg-gradient-to-r from-[#ff6633] to-amber-400"
+                    }`}
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 4. Active Module Content */}
@@ -1170,12 +2021,13 @@ Connection: close`;
                       <button
                         key={st.id}
                         type="button"
+                        data-burp-target={`subtab-${st.id}`}
                         onClick={() => setProxySubTab(st.id)}
                         className={`cursor-pointer rounded px-3 py-1 font-medium transition-colors ${
                           proxySubTab === st.id
                             ? "bg-[#383a40] font-semibold text-white"
                             : "text-zinc-400 hover:text-zinc-100"
-                        }`}
+                        } ${highlightRing(`subtab-${st.id}`)}`}
                       >
                         {st.label}
                       </button>
@@ -1200,12 +2052,13 @@ Connection: close`;
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
+                        data-burp-target="btn-intercept-toggle"
                         onClick={() => setInterceptOn((v) => !v)}
                         className={`cursor-pointer rounded px-3 py-1.5 text-xs font-bold transition-colors ${
                           interceptOn
                             ? "bg-[#ff6633] text-white"
                             : "border border-[#45474d] bg-[#2b2d31] text-zinc-200 hover:bg-[#383a40]"
-                        }`}
+                        } ${highlightRing("btn-intercept-toggle")}`}
                       >
                         {interceptOn ? "Intercept is on" : "Intercept is off"}
                       </button>
@@ -1240,6 +2093,7 @@ Connection: close`;
 
                       <button
                         type="button"
+                        data-burp-target="btn-send-to-repeater"
                         onClick={() =>
                           handleSendToRepeater(
                             interceptBuffer ||
@@ -1253,7 +2107,9 @@ Connection: close`;
                             "Repeater (từ Proxy)"
                           )
                         }
-                        className="inline-flex cursor-pointer items-center gap-1.5 rounded border border-[#ff6633]/60 bg-[#ff6633]/15 px-3 py-1.5 text-xs font-semibold text-[#ff885e] hover:bg-[#ff6633]/25"
+                        className={`inline-flex cursor-pointer items-center gap-1.5 rounded border border-[#ff6633]/60 bg-[#ff6633]/15 px-3 py-1.5 text-xs font-semibold text-[#ff885e] hover:bg-[#ff6633]/25 ${highlightRing(
+                          "btn-send-to-repeater"
+                        )}`}
                       >
                         <Send className="h-3 w-3" aria-hidden="true" />
                         Send to Repeater (Ctrl+R)
@@ -1279,6 +2135,7 @@ Connection: close`;
                           <div className="flex flex-wrap gap-1.5">
                             <button
                               type="button"
+                              data-burp-target="url-localtest"
                               onClick={() =>
                                 setBrowserUrl("http://localtest.me:8080/vulnerabilities/sqli/")
                               }
@@ -1286,12 +2143,13 @@ Connection: close`;
                                 browserUrl.includes("localtest.me")
                                   ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-300"
                                   : "border-[#383a40] bg-[#25262a] text-zinc-400"
-                              }`}
+                              } ${highlightRing("url-localtest")}`}
                             >
                               http://localtest.me:8080/vulnerabilities/sqli/ (Khuyên dùng)
                             </button>
                             <button
                               type="button"
+                              data-burp-target="url-loopback"
                               onClick={() =>
                                 setBrowserUrl("http://127.0.0.1:8080/vulnerabilities/sqli/")
                               }
@@ -1299,7 +2157,7 @@ Connection: close`;
                                 browserUrl.includes("127.0.0.1")
                                   ? "border-rose-500/60 bg-rose-500/15 text-rose-300"
                                   : "border-[#383a40] bg-[#25262a] text-zinc-400"
-                              }`}
+                              } ${highlightRing("url-loopback")}`}
                             >
                               http://127.0.0.1:8080/... (Thử Loopback Bypass)
                             </button>
@@ -1324,8 +2182,11 @@ Connection: close`;
                           />
                           <button
                             type="button"
+                            data-burp-target="btn-browser-submit"
                             onClick={handleBrowserSubmit}
-                            className="cursor-pointer rounded bg-[#3b82f6] px-3 py-1 font-semibold text-white hover:bg-[#2563eb]"
+                            className={`cursor-pointer rounded bg-[#3b82f6] px-3 py-1 font-semibold text-white hover:bg-[#2563eb] ${highlightRing(
+                              "btn-browser-submit"
+                            )}`}
                           >
                             Submit DVWA
                           </button>
@@ -1351,7 +2212,12 @@ Connection: close`;
                     )}
 
                     {/* Intercept Request Editor */}
-                    <div className="rounded border border-[#383a40] bg-[#141518] p-2.5">
+                    <div
+                      data-burp-target="intercept-buffer"
+                      className={`rounded border border-[#383a40] bg-[#141518] p-2.5 ${highlightRing(
+                        "intercept-buffer"
+                      )}`}
+                    >
                       <div className="mb-1.5 flex items-center justify-between font-mono text-[11px] text-zinc-400">
                         <span>Intercepted Request Buffer (Sửa trực tiếp hoặc bấm Ctrl+R gửi sang Repeater)</span>
                         <span>Raw</span>
@@ -1462,23 +2328,25 @@ Connection: close`;
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
+                        data-burp-target="port-8080"
                         onClick={() => setListenerPort(8080)}
                         className={`cursor-pointer rounded border px-3 py-1.5 font-mono text-xs ${
                           listenerPort === 8080
                             ? "border-rose-500 bg-rose-500/20 font-bold text-rose-300"
                             : "border-[#383a40] bg-[#25262a] text-zinc-300"
-                        }`}
+                        } ${highlightRing("port-8080")}`}
                       >
                         127.0.0.1:8080 (Mặc định · Xung đột)
                       </button>
                       <button
                         type="button"
+                        data-burp-target="port-8081"
                         onClick={() => setListenerPort(8081)}
                         className={`cursor-pointer rounded border px-3 py-1.5 font-mono text-xs ${
                           listenerPort === 8081
                             ? "border-emerald-500 bg-emerald-500/20 font-bold text-emerald-300"
                             : "border-[#383a40] bg-[#25262a] text-zinc-300"
-                        }`}
+                        } ${highlightRing("port-8081")}`}
                       >
                         127.0.0.1:8081 (Running · Khuyên dùng)
                       </button>
@@ -1509,11 +2377,12 @@ Connection: close`;
                     return (
                       <div
                         key={tab.id}
+                        data-burp-target={`repeater-tab-${tab.id}`}
                         className={`inline-flex items-center gap-1 rounded-t border px-2.5 py-1 font-mono text-[11px] ${
                           isActive
                             ? "border-[#ff6633] bg-[#2b2d31] font-bold text-white"
                             : "border-[#383a40] bg-[#25262a] text-zinc-400 hover:text-zinc-200"
-                        }`}
+                        } ${highlightRing(`repeater-tab-${tab.id}`)}`}
                       >
                         <button
                           type="button"
@@ -1573,9 +2442,12 @@ Connection: close`;
                   <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
+                      data-burp-target="btn-repeater-send"
                       onClick={() => handleRepeaterSend()}
                       disabled={isSending}
-                      className="inline-flex cursor-pointer items-center gap-1.5 rounded bg-[#ff6633] px-4 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                      className={`inline-flex cursor-pointer items-center gap-1.5 rounded bg-[#ff6633] px-4 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-60 ${highlightRing(
+                        "btn-repeater-send"
+                      )}`}
                     >
                       <Send className="h-3.5 w-3.5" aria-hidden="true" />
                       {isSending ? "Sending..." : "Send"}
@@ -1747,7 +2619,12 @@ Connection: close`;
                     </div>
 
                     {/* Response Panel */}
-                    <div className="flex flex-col overflow-hidden rounded border border-[#383a40] bg-[#16171a]">
+                    <div
+                      data-burp-target="response-pane"
+                      className={`flex flex-col overflow-hidden rounded border border-[#383a40] bg-[#16171a] ${highlightRing(
+                        "response-pane"
+                      )}`}
+                    >
                       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#383a40] bg-[#25262a] px-2.5 py-1.5">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-white">Response</span>
@@ -1766,12 +2643,13 @@ Connection: close`;
                             <button
                               key={m}
                               type="button"
+                              data-burp-target={`res-view-${m}`}
                               onClick={() => setResViewMode(m)}
                               className={`cursor-pointer rounded px-2 py-0.5 capitalize ${
                                 resViewMode === m
                                   ? "bg-[#383a40] font-semibold text-white"
                                   : "text-zinc-400 hover:text-zinc-200"
-                              }`}
+                              } ${highlightRing(`res-view-${m}`)}`}
                             >
                               {m}
                             </button>
@@ -1926,16 +2804,24 @@ Connection: close`;
                           </div>
                           <input
                             type="text"
+                            data-burp-target="inspector-id"
                             value={parsedCurrentReq.idVal}
                             onChange={(e) => handleInspectorChange({ idVal: e.target.value })}
                             aria-label="Inspector Query param id"
-                            className="w-full rounded border border-[#383a40] bg-[#16171a] px-2 py-1 font-mono text-[11px] text-zinc-100 focus:border-[#ff6633] focus:outline-none"
+                            className={`w-full rounded border border-[#383a40] bg-[#16171a] px-2 py-1 font-mono text-[11px] text-zinc-100 focus:border-[#ff6633] focus:outline-none ${highlightRing(
+                              "inspector-id"
+                            )}`}
                           />
                         </div>
 
                         <div>
                           <div className="mb-1 flex items-center justify-between text-[10px] text-zinc-400">
-                            <label className="inline-flex cursor-pointer items-center gap-1">
+                            <label
+                              data-burp-target="inspector-token-checkbox"
+                              className={`inline-flex cursor-pointer items-center gap-1 rounded px-0.5 ${highlightRing(
+                                "inspector-token-checkbox"
+                              )}`}
+                            >
                               <input
                                 type="checkbox"
                                 checked={parsedCurrentReq.includeToken}
@@ -1947,6 +2833,7 @@ Connection: close`;
                             </label>
                             <button
                               type="button"
+                              data-burp-target="inspector-rotate-token"
                               onClick={() => {
                                 const chars = "0123456789abcdef";
                                 let next = "";
@@ -1955,7 +2842,9 @@ Connection: close`;
                                 }
                                 handleInspectorChange({ includeToken: true, userToken: next });
                               }}
-                              className="inline-flex cursor-pointer items-center gap-0.5 text-[#ff885e] hover:underline"
+                              className={`inline-flex cursor-pointer items-center gap-0.5 rounded px-1 text-[#ff885e] hover:underline ${highlightRing(
+                                "inspector-rotate-token"
+                              )}`}
                             >
                               <RotateCcw className="h-2.5 w-2.5" aria-hidden="true" /> Xoay token
                             </button>
@@ -1986,12 +2875,13 @@ Connection: close`;
                               <button
                                 key={lvl}
                                 type="button"
+                                data-burp-target={`inspector-sec-${lvl}`}
                                 onClick={() => handleInspectorChange({ securityLevel: lvl })}
                                 className={`cursor-pointer rounded border px-2 py-0.5 font-mono text-[10px] ${
                                   parsedCurrentReq.securityLevel === lvl
                                     ? "border-[#ff6633] bg-[#ff6633] font-bold text-white"
                                     : "border-[#383a40] bg-[#25262a] text-zinc-300"
-                                }`}
+                                } ${highlightRing(`inspector-sec-${lvl}`)}`}
                               >
                                 {lvl}
                               </button>
