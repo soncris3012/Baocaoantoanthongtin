@@ -48,11 +48,21 @@ export async function getWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
     }
 
     const members = (membersRes.data ?? []) as TeamMember[];
-    const steps = (stepsRes.data ?? []) as ScenarioStep[];
+    const dbSteps = (stepsRes.data ?? []) as ScenarioStep[];
 
-    if (members.length === 0 || steps.length === 0) {
+    if (members.length === 0 || dbSteps.length === 0) {
       return buildFallbackSnapshot(true);
     }
+
+    const dbStepIds = new Set(dbSteps.map((s) => s.id));
+    const steps = [
+      ...dbSteps,
+      ...SCENARIO_STEPS.filter((s) => !dbStepIds.has(s.id)),
+    ].sort((a, b) =>
+      a.member_number !== b.member_number
+        ? a.member_number - b.member_number
+        : a.step_order - b.step_order
+    );
 
     const workspaceStates: Record<number, LabWorkspaceState> = { ...DEFAULT_WORKSPACE_STATES };
     for (const row of (stateRes.data ?? []) as LabWorkspaceState[]) {

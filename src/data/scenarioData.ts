@@ -223,15 +223,15 @@ export const TEAM_MEMBERS: TeamMember[] = [
     member_number: 1,
     slug: "1",
     display_name: "Sơn",
-    role_title: "Hạ tầng Lab, Trinh sát Bề mặt (PoC 1) & Gia cố Apache",
+    role_title: "Hạ tầng Lab, Trinh sát Bề mặt (PoC 1) & Gia cố Apache / Cookie",
     device: "MacBook (macOS Apple Silicon)",
     os_env: "macOS Terminal (zsh) + Docker Desktop",
     stage_label: "Giai đoạn 1 • Trinh sát & Gia cố",
     main_practice: "Setup Docker, Trinh sát bằng Nmap & cURL (PoC 1)",
-    defense_scope: "Vá lỗi Apache Banner trực tiếp (Live Patching) & Chuẩn hóa CWE / CVSS v3.1",
+    defense_scope: "Vá lỗi Apache Banner (CWE-200) & Gia cố Cờ Bảo mật Cookie / Security Headers (CWE-614)",
     overview_summary:
-      "Khởi tạo mô hình Lab Docker cô lập, giới thiệu chuẩn PTES kết hợp Black-box & White-box, thực hành quét dịch vụ Nmap và thu thập HTTP Header (PoC 1) bằng cURL, sau đó gia cố trực tiếp cấu hình Apache để ẩn phiên bản.",
-    tools: ["Docker CLI (Container 215d3a734374)", "Nmap (-sV -p 8080)", "cURL (zsh)", "Apache security.conf"],
+      "Khởi tạo mô hình Lab Docker cô lập, thực hành quét dịch vụ Nmap và thu thập HTTP Header (PoC 1) bằng cURL, sau đó thực thi 2 bản vá trực tiếp trên Apache để ẩn phiên bản máy chủ và gắn cờ bảo mật Cookie / HTTP Headers.",
+    tools: ["Docker CLI (Container 215d3a734374)", "Nmap (-sV -p 8080)", "cURL (zsh)", "Apache security.conf & mod_headers"],
     accent_theme: "cyan",
   },
   {
@@ -399,6 +399,56 @@ Server: Apache`,
       "Thay vì chỉ đề xuất lý thuyết, quá trình gia cố trực tiếp (Live Hardening) trên container giúp triệt tiêu hoàn toàn thông tin phiên bản 2.4.25 và OS Debian trước khi chuyển sang Giai đoạn 2.",
     presenter_script:
       "Để khắc phục ngay lỗ hổng rò rỉ thông tin máy chủ, cấu hình security.conf bên trong container được bổ sung ServerTokens Prod và ServerSignature Off. Khi kiểm tra lại bằng cURL, phản hồi chỉ còn duy nhất 'Server: Apache'.",
+    simulator_key: "m1-patch",
+  },
+  {
+    id: "m1-s4",
+    member_number: 1,
+    step_order: 4,
+    phase_tag: "GIA CỐ & PHÒNG THỦ • COOKIE & SECURITY HEADERS",
+    title: "Vá lỗi 4 Trực tiếp — Gia cố Cờ Cookie (HttpOnly, SameSite) & HTTP Security Headers",
+    poc_ref: "Vá lỗi 4 • CWE-614",
+    is_defense: true,
+    goal: "Khắc phục điểm yếu thứ hai phát hiện tại PoC 1 (CWE-614, CVSS 4.2): kích hoạt mod_headers của Apache để tự động gắn cờ HttpOnly, SameSite=Strict cho Cookie phiên và bổ sung header chống MIME-Sniffing, Clickjacking.",
+    action_steps: [
+      "Bật module headers của Apache bên trong container bằng lệnh a2enmod headers.",
+      "Nối cấu hình Header edit Set-Cookie (thêm HttpOnly; SameSite=Strict) cùng 2 chỉ thị X-Content-Type-Options: nosniff và X-Frame-Options: SAMEORIGIN vào /etc/apache2/conf-available/security.conf.",
+      "Tải lại dịch vụ Apache (service apache2 reload) để áp dụng chính sách header mới mà không làm gián đoạn phiên.",
+      "Chạy cURL kiểm tra lại phản hồi từ login.php để xác nhận cả 2 lỗ hổng CWE-200 và CWE-614 của Giai đoạn 1 đều đã được xử lý triệt để.",
+    ],
+    commands: [
+      {
+        label: "Bật mod_headers & Gia cố cờ Cookie + Security Headers",
+        shell: "zsh / bash",
+        template: `docker exec -it {{CONTAINER}} bash -c "a2enmod headers && cat << 'EOF' >> /etc/apache2/conf-available/security.conf
+Header edit Set-Cookie ^(.*)$ \\"\\$1; HttpOnly; SameSite=Strict\\"
+Header always set X-Content-Type-Options \\"nosniff\\"
+Header always set X-Frame-Options \\"SAMEORIGIN\\"
+EOF
+service apache2 reload"`,
+        explanation:
+          "HttpOnly ngăn JavaScript đọc trộm PHPSESSID khi có XSS; SameSite=Strict chặn trình duyệt tự gửi cookie kèm request giả mạo liên trang (CSRF); nosniff và SAMEORIGIN bảo vệ trình duyệt khỏi MIME-Sniffing và Clickjacking.",
+      },
+      {
+        label: "Kiểm chứng tổng thể HTTP Header sau khi hoàn tất 2 bản vá",
+        shell: "zsh / bash",
+        template: `curl -Is http://127.0.0.1:8080/login.php | grep -iE "(Server:|Set-Cookie:|X-Content-Type|X-Frame)"`,
+        explanation:
+          "Lọc đồng thời dòng Server, Set-Cookie và các Security Headers để lấy bằng chứng đối chứng hoàn chỉnh sau Giai đoạn 1.",
+      },
+    ],
+    expected_output: `Enabling module headers.
+Reloading Apache httpd web server: apache2.
+
+Server: Apache
+Set-Cookie: PHPSESSID=2d0vvd715drf3nv8mgq7vderg6; path=/; HttpOnly; SameSite=Strict
+Set-Cookie: security=low; HttpOnly; SameSite=Strict
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN`,
+    academic_explanation:
+      "Khắc phục trực tiếp CWE-614 (CVSS 4.2 Medium) và củng cố chuẩn OWASP A05:2021 (Security Misconfiguration). Dù kẻ tấn công chèn được kịch bản phía client, cờ HttpOnly vẫn khóa chặt quyền truy cập document.cookie đối với PHPSESSID.",
+    presenter_script:
+      "Sau khi đã ẩn Banner máy chủ ở Bước 3, Bước 4 xử lý nốt lỗ hổng thứ hai của PoC 1 bằng cách bật mod_headers trên Apache, ép mọi Cookie cấp phát đều mang cờ HttpOnly và SameSite=Strict, đồng thời bổ sung X-Frame-Options và X-Content-Type-Options.",
     simulator_key: "m1-patch",
   },
 
@@ -926,7 +976,7 @@ export const VULNERABILITIES: VulnerabilityItem[] = [
     cvss_vector: "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N",
     cvss_score: 4.2,
     severity: "Medium",
-    poc_ref: "PoC 1 (Set-Cookie thiếu HttpOnly, SameSite=Strict)",
+    poc_ref: "PoC 1 & Vá lỗi 4 (Set-Cookie thiếu HttpOnly, SameSite=Strict)",
     owner_member: 1,
     remediation: "Thiết lập đầy đủ cờ HttpOnly, Secure và SameSite=Strict cho PHPSESSID; không lưu trạng thái bảo mật (security=low) ở phía Client.",
   },
@@ -1278,6 +1328,24 @@ export const STEP_ENRICHMENTS: Record<string, StepEnrichment> = {
         symptom: "Lệnh docker exec báo 'No such container'",
         cause: "Tên/ID container trên máy Ubuntu khác với máy Mac (215d3a734374 vs dvwa).",
         fix: "Cập nhật biến CONTAINER_REF phía trên thành 'dvwa' hoặc ID thật lấy từ lệnh docker ps.",
+      },
+    ],
+  },
+  "m1-s4": {
+    verification_checks: [
+      "Cả 2 dòng Set-Cookie (PHPSESSID và security=low) đều có hậu tố '; HttpOnly; SameSite=Strict'.",
+      "Phản hồi HTTP có đủ 'X-Content-Type-Options: nosniff' và 'X-Frame-Options: SAMEORIGIN'.",
+    ],
+    pitfalls: [
+      {
+        symptom: "Apache báo lỗi syntax 'Invalid command Header, perhaps misspelled or defined by a module not included'",
+        cause: "Chưa kích hoạt module mod_headers của Apache trước khi tải lại cấu hình.",
+        fix: "Chạy lệnh 'a2enmod headers' bên trong container trước khi gọi 'service apache2 reload'.",
+      },
+      {
+        symptom: "Chạy lặp lệnh nối >> nhiều lần khiến Set-Cookie bị gắn trùng lặp '; HttpOnly; SameSite=Strict'",
+        cause: "Mỗi lần chạy '>>' sẽ nối thêm một dòng Header edit vào cuối tệp security.conf.",
+        fix: "Kiểm tra cuối tệp bằng 'docker exec {{CONTAINER}} tail -n 10 /etc/apache2/conf-available/security.conf' hoặc xóa dòng thừa bằng nano/sed nếu chạy lại.",
       },
     ],
   },

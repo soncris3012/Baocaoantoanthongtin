@@ -100,11 +100,14 @@ Service detection performed. 1 service recognized.`,
 
     if (lower.startsWith("curl")) {
       const cookieFlags = cookiePatched
-        ? "; path=/; HttpOnly; Secure; SameSite=Strict"
+        ? "; path=/; HttpOnly; SameSite=Strict"
         : "; path=/";
       const secCookie = cookiePatched
-        ? "Set-Cookie: security=impossible; HttpOnly; Secure; SameSite=Strict"
+        ? "Set-Cookie: security=low; HttpOnly; SameSite=Strict"
         : "Set-Cookie: security=low";
+      const extraHeaders = cookiePatched
+        ? `\nX-Content-Type-Options: nosniff\nX-Frame-Options: SAMEORIGIN`
+        : "";
 
       return {
         severity: apachePatched && cookiePatched ? "ok" : "warn",
@@ -115,7 +118,7 @@ Set-Cookie: PHPSESSID=2d0vvd715drf3nv8mgq7vderg6${cookieFlags}
 Expires: Tue, 23 Jun 2009 12:00:00 GMT
 Cache-Control: no-cache, must-revalidate
 Pragma: no-cache
-${secCookie}
+${secCookie}${extraHeaders}
 Content-Type: text/html;charset=utf-8`,
       };
     }
@@ -134,7 +137,9 @@ Reloading Apache httpd web server: apache2.
       setCookiePatched(true);
       return {
         severity: "ok",
-        output: `[✓] Đã kích hoạt session.cookie_httponly = 1, session.cookie_secure = 1, SameSite=Strict trong php.ini`,
+        output: `Enabling module headers.
+Reloading Apache httpd web server: apache2.
+[✓] Đã gắn HttpOnly; SameSite=Strict cho Set-Cookie & bật X-Content-Type-Options: nosniff, X-Frame-Options: SAMEORIGIN`,
       };
     }
 
@@ -387,7 +392,7 @@ Service detection performed. 1 service recognized.`}
                         >
                           Set-Cookie: PHPSESSID=2d0vvd715drf3nv8mgq7vderg6; path=/
                           {cookiePatched
-                            ? "; HttpOnly; Secure; SameSite=Strict [ĐÃ GIA CỐ]"
+                            ? "; HttpOnly; SameSite=Strict [ĐÃ GIA CỐ]"
                             : " [CWE-614: Thiếu HttpOnly]"}
                         </div>
                         <div>Expires: Tue, 23 Jun 2009 12:00:00 GMT</div>
@@ -401,9 +406,19 @@ Service detection performed. 1 service recognized.`}
                           }`}
                         >
                           {cookiePatched
-                            ? "Set-Cookie: security=impossible; HttpOnly; SameSite=Strict [AN TOÀN]"
+                            ? "Set-Cookie: security=low; HttpOnly; SameSite=Strict [ĐÃ KHÓA CỜ]"
                             : "Set-Cookie: security=low [Thiếu SameSite=Strict]"}
                         </div>
+                        {cookiePatched && (
+                          <>
+                            <div className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-300">
+                              X-Content-Type-Options: nosniff
+                            </div>
+                            <div className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-300">
+                              X-Frame-Options: SAMEORIGIN
+                            </div>
+                          </>
+                        )}
                         <div>Content-Type: text/html;charset=utf-8</div>
                       </div>
                     )}
@@ -647,9 +662,15 @@ Service detection performed. 1 service recognized.`}
                 </div>
                 <div>
                   {cookiePatched
-                    ? "Set-Cookie: PHPSESSID=...; HttpOnly; Secure; SameSite=Strict"
+                    ? "Set-Cookie: PHPSESSID=...; HttpOnly; SameSite=Strict"
                     : "Set-Cookie: PHPSESSID=...; path=/ [Chưa bật cờ Cookie]"}
                 </div>
+                {cookiePatched && (
+                  <>
+                    <div>X-Content-Type-Options: nosniff</div>
+                    <div>X-Frame-Options: SAMEORIGIN</div>
+                  </>
+                )}
               </div>
               <div className="mt-2 text-[11px] text-zinc-500">
                 Quay lại Tab 1 chạy thử <code className="text-zinc-300">nmap</code> hoặc{" "}

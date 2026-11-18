@@ -137,6 +137,31 @@ Server: Apache
         return `${patchPart}\n\n${checkPart}`;
       }
 
+      case "m1-s4": {
+        const modHeadersPart = `[+] Kết nối container ${container} & bật module Apache headers...
+$ docker exec -it ${container} bash -c "a2enmod headers && ... && service apache2 reload"
+Enabling module headers.
+To activate the new configuration, you need to run:
+  service apache2 reload
+[+] Nối Header edit Set-Cookie (HttpOnly; SameSite=Strict), X-Content-Type-Options, X-Frame-Options -> security.conf
+Reloading Apache httpd web server: apache2.`;
+
+        const verifyAllPart = `[+] Kiểm chứng tổng thể HTTP Header sau 2 bản vá (CWE-200 & CWE-614):
+$ curl -Is http://127.0.0.1:8080/login.php | grep -iE "(Server:|Set-Cookie:|X-Content-Type|X-Frame)"
+
+Server: Apache
+Set-Cookie: PHPSESSID=${sess}; path=/; HttpOnly; SameSite=Strict
+Set-Cookie: security=low; HttpOnly; SameSite=Strict
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+
+[✓] Hoàn tất Vá lỗi 4: Cookie đã khóa HttpOnly + SameSite=Strict & bật đủ Security Headers!`;
+
+        if (cmdChoice === 0) return modHeadersPart;
+        if (cmdChoice === 1) return verifyAllPart;
+        return `${modHeadersPart}\n\n${verifyAllPart}`;
+      }
+
       case "m2-s1":
         return `[+] Kiểm tra Burp Proxy Listener tại 127.0.0.1:8081: ACTIVE (không xung đột cổng 8080)
 [+] Phân giải DNS nội bộ localtest.me -> 127.0.0.1 (vượt cơ chế Loopback Bypass của Chromium)
