@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   XCircle,
 } from "lucide-react";
+import { BurpSuiteEmulator, type BurpPacketEvent } from "@/components/simulators/BurpSuiteEmulator";
 import { WindowControls } from "@/components/WindowBar";
 import { PHP_LEVEL_SOURCES } from "@/data/scenarioData";
 
@@ -70,10 +71,11 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
 
   const [cookieSecurity, setCookieSecurity] = useState<"low" | "impossible">("impossible");
   const [includeToken, setIncludeToken] = useState<"missing" | "valid">("valid");
-  const [poc5Payload, setPoc5Payload] = useState<"1" | "1'">("1'");
+  const [poc5Payload, setPoc5Payload] = useState<string>("1'");
   const [activeToken, setActiveToken] = useState(
     userToken.trim() || "d41d8cd98f00b204e9800998ecf8427e"
   );
+  const [syncKey, setSyncKey] = useState(0);
   const [isSendingPoc5, setIsSendingPoc5] = useState(false);
 
   const [wafInput, setWafInput] = useState("1' OR 1=1");
@@ -107,13 +109,24 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
       next += chars[Math.floor(Math.random() * chars.length)];
     }
     setActiveToken(next);
+    setSyncKey((k) => k + 1);
   };
 
   const handleSendPoc5 = () => {
     setIsSendingPoc5(true);
+    setSyncKey((k) => k + 1);
     setTimeout(() => {
       setIsSendingPoc5(false);
-    }, 320);
+    }, 260);
+  };
+
+  const handleBurpSync = (evt: BurpPacketEvent) => {
+    setCookieSecurity(evt.securityLevel);
+    setIncludeToken(evt.includeToken ? "valid" : "missing");
+    setPoc5Payload(evt.idParam);
+    if (evt.userToken) {
+      setActiveToken(evt.userToken);
+    }
   };
 
   const recordWafAudit = (val: string) => {
@@ -167,7 +180,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
     }
 
     const tokenPassed = includeToken === "valid";
-    const isNumPassed = tokenPassed && poc5Payload === "1";
+    const isNumPassed = tokenPassed && /^\d+$/.test(poc5Payload.trim());
 
     return [
       {
@@ -187,8 +200,8 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
         note: !tokenPassed
           ? "Chưa chạy tới bước này"
           : isNumPassed
-          ? "is_numeric('1') === true"
-          : "is_numeric(\"1'\") === false -> Hủy truy vấn!",
+          ? `is_numeric('${poc5Payload}') === true`
+          : `is_numeric("${poc5Payload}") === false -> Hủy truy vấn!`,
       },
       {
         name: "3. PDO::PARAM_INT · Dòng 13–15",
@@ -201,47 +214,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
     ];
   };
 
-  const renderPoc5Response = () => {
-    if (cookieSecurity === "low") {
-      if (poc5Payload === "1'") {
-        return {
-          badge: "LỖ HỔNG SQLi (CWE-89)",
-          badgeClass: "bg-rose-500/20 text-rose-300",
-          body: `HTTP/1.1 200 OK\nServer: Apache/2.4.25 (Debian)\n\n<pre>You have an error in your SQL syntax; check the manual that corresponds\nto your MariaDB server version for the right syntax to use near '''1''' at line 1</pre>`,
-        };
-      }
-      return {
-        badge: "200 OK (low.php)",
-        badgeClass: "bg-amber-500/20 text-amber-300",
-        body: `HTTP/1.1 200 OK\n\nID: 1 | First name: admin | Surname: admin`,
-      };
-    }
-
-    if (includeToken === "missing") {
-      return {
-        badge: "302 Found · CHẶN BỞI checkToken() (Dòng 5)",
-        badgeClass: "bg-amber-500/20 text-amber-300",
-        body: `HTTP/1.1 302 Found\nDate: Wed, 04 Nov 2026 02:07:32 GMT\nServer: Apache/2.4.25 (Debian)\nLocation: index.php\nContent-Length: 0\nContent-Type: text/html; charset=UTF-8\n\n# Phân tích PoC 5 gốc: Thiếu user_token -> bị chặn ngay tại lớp Anti-CSRF (dòng 5).`,
-      };
-    }
-
-    if (poc5Payload === "1'") {
-      return {
-        badge: "200 OK RỖNG · CHẶN BỞI is_numeric() & PDO (Dòng 11–15)",
-        badgeClass: "bg-emerald-500/20 text-emerald-300",
-        body: `HTTP/1.1 200 OK\nContent-Type: text/html;charset=utf-8\n\n<!-- Trang HTML hợp lệ, KHÔNG có bản ghi, KHÔNG lộ lỗi MariaDB -->\n# Phân tích PoC 5 tinh chỉnh:\n# 1) Đã vượt qua checkToken() ở dòng 5 nhờ có user_token hợp lệ.\n# 2) Hàm is_numeric("1'") ở dòng 11 trả về FALSE -> bỏ qua khối truy vấn SQL.\n# 3) PDO prepare() + bindParam(':id', $id, PDO::PARAM_INT) khóa chặt cấu trúc lệnh.`,
-      };
-    }
-
-    return {
-      badge: "200 OK HỢP LỆ · PDO Prepared Statements",
-      badgeClass: "bg-emerald-500/20 text-emerald-300",
-      body: `HTTP/1.1 200 OK\nContent-Type: text/html;charset=utf-8\n\nID: 1\nFirst name: admin\nSurname: admin`,
-    };
-  };
-
   const checkpoints = getCheckpointStates();
-  const poc5Res = renderPoc5Response();
 
   return (
     <div className="rounded-lg border border-hairline bg-surface p-4 sm:p-5">
@@ -428,7 +401,10 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
                   <button
                     key={lvl}
                     type="button"
-                    onClick={() => setCookieSecurity(lvl)}
+                    onClick={() => {
+                      setCookieSecurity(lvl);
+                      setSyncKey((k) => k + 1);
+                    }}
                     className={`flex-1 cursor-pointer rounded border px-2 py-1 font-mono text-xs ${
                       cookieSecurity === lvl
                         ? "border-ink bg-ink font-semibold text-canvas"
@@ -456,7 +432,10 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
               <div className="flex gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setIncludeToken("missing")}
+                  onClick={() => {
+                    setIncludeToken("missing");
+                    setSyncKey((k) => k + 1);
+                  }}
                   className={`flex-1 cursor-pointer rounded border px-2 py-1 text-xs ${
                     includeToken === "missing"
                       ? "border-ink bg-ink font-semibold text-canvas"
@@ -467,7 +446,10 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIncludeToken("valid")}
+                  onClick={() => {
+                    setIncludeToken("valid");
+                    setSyncKey((k) => k + 1);
+                  }}
                   className={`flex-1 cursor-pointer rounded border px-2 py-1 text-xs ${
                     includeToken === "valid"
                       ? "border-ink bg-ink font-semibold text-canvas"
@@ -488,7 +470,10 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
                   <button
                     key={val}
                     type="button"
-                    onClick={() => setPoc5Payload(val)}
+                    onClick={() => {
+                      setPoc5Payload(val);
+                      setSyncKey((k) => k + 1);
+                    }}
                     className={`flex-1 cursor-pointer rounded border px-2 py-1 font-mono text-xs ${
                       poc5Payload === val
                         ? "border-ink bg-ink font-semibold text-canvas"
@@ -546,46 +531,18 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
             ))}
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-2">
-            <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs">
-              <div className="mb-2 flex items-center justify-between border-b border-zinc-800 pb-2">
-                <div className="flex items-center gap-2.5">
-                  <WindowControls />
-                  <span className="font-bold text-zinc-200">KHUNG REQUEST (Burp Repeater)</span>
-                </div>
-                <span className="text-[11px] text-zinc-400">localtest.me:8080</span>
-              </div>
-              <pre className="overflow-x-auto leading-relaxed text-zinc-200">
-{`GET /vulnerabilities/sqli/?id=${poc5Payload}&Submit=Submit${
-  includeToken === "valid" ? `&user_token=${activeToken}` : ""
-} HTTP/1.1
-Host: localtest.me:8080
-Cookie: security=${cookieSecurity}; PHPSESSID=${session}
-User-Agent: Mozilla/5.0 (Burp Repeater)`}
-              </pre>
-            </div>
-
-            <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs">
-              <div className="mb-2 flex items-center justify-between border-b border-zinc-800 pb-2">
-                <div className="flex items-center gap-2.5">
-                  <WindowControls />
-                  <span className="font-bold text-zinc-200">PHẢN HỒI MÁY CHỦ</span>
-                </div>
-                <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${poc5Res.badgeClass}`}>
-                  {poc5Res.badge}
-                </span>
-              </div>
-              {isSendingPoc5 ? (
-                <div className="py-8 text-center text-amber-400">
-                  Đang gửi gói tin kiểm chứng...
-                </div>
-              ) : (
-                <pre className="overflow-x-auto leading-relaxed text-zinc-300">
-                  {poc5Res.body}
-                </pre>
-              )}
-            </div>
-          </div>
+          <BurpSuiteEmulator
+            mode="poc5"
+            defaultModule="repeater"
+            phpsessid={session}
+            userToken={activeToken}
+            externalSecurity={cookieSecurity}
+            externalIncludeToken={includeToken === "valid"}
+            externalId={poc5Payload}
+            externalSyncKey={syncKey}
+            onActiveTabChange={handleBurpSync}
+            onPacketSent={handleBurpSync}
+          />
         </div>
       )}
 
