@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { WindowControls } from "@/components/WindowBar";
 import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
+import { DvwaWebEmulator } from "@/components/simulators/DvwaWebEmulator";
 import {
   buildStepTerminalCommands,
   type ExternalTerminalCommand,
@@ -118,7 +119,7 @@ export function Member3Simulator({
   activeTab,
   terminalAutoplay,
 }: Props) {
-  const [tab, setTab] = useState<"sqlmap" | "mariadb" | "docker">(
+  const [tab, setTab] = useState<"sqlmap" | "mariadb" | "docker" | "dvwa">(
     activeTab === "m3-mariadb-patch" ? "mariadb" : "sqlmap"
   );
   const [sqlmapStage, setSqlmapStage] = useState<1 | 2 | 3>(1);
@@ -305,6 +306,17 @@ export function Member3Simulator({
             }`}
           >
             3. Docker Container (dvwa)
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("dvwa")}
+            className={`cursor-pointer rounded px-3 py-1 font-medium transition-colors ${
+              tab === "dvwa"
+                ? "bg-surface font-semibold text-ink shadow-sm"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            4. DVWA Web (:8080)
           </button>
         </div>
       </div>
@@ -687,6 +699,16 @@ export function Member3Simulator({
             </div>
           )}
         </div>
+      )}
+
+      {tab === "dvwa" && (
+        <DvwaWebEmulator
+          defaultPage="sqli"
+          phpsessid={session}
+          containerRunning={containerRunning}
+          bcryptApplied={bcryptApplied}
+          leastPrivApplied={leastPrivApplied}
+        />
       )}
     </div>
   );

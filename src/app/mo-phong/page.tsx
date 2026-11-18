@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, ExternalLink, Save } from "lucide-react";
 import { RoleSimulator } from "@/components/RoleSimulator";
+import { DvwaWebEmulator } from "@/components/simulators/DvwaWebEmulator";
 import { useWorkspace } from "@/components/WorkspaceProvider";
 import { ATTACK_FLOW_STAGES } from "@/data/scenarioData";
 
@@ -13,16 +14,26 @@ function MoPhongContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
+  const isDvwaParam = searchParams.get("view") === "dvwa";
   const initialParam = Number(searchParams.get("member"));
   const validInitial: 1 | 2 | 3 | 4 =
     initialParam >= 1 && initialParam <= 4 ? (initialParam as 1 | 2 | 3 | 4) : 1;
 
+  const [viewMode, setViewMode] = useState<"member" | "dvwa">(isDvwaParam ? "dvwa" : "member");
   const [selectedMember, setSelectedMember] = useState<1 | 2 | 3 | 4>(validInitial);
 
   useEffect(() => {
+    const viewParam = searchParams.get("view");
+    if (viewParam === "dvwa") {
+      setViewMode("dvwa");
+      return;
+    }
     const param = Number(searchParams.get("member"));
-    if (param >= 1 && param <= 4 && param !== selectedMember) {
-      setSelectedMember(param as 1 | 2 | 3 | 4);
+    if (param >= 1 && param <= 4) {
+      setViewMode("member");
+      if (param !== selectedMember) {
+        setSelectedMember(param as 1 | 2 | 3 | 4);
+      }
     }
   }, [searchParams, selectedMember]);
 
@@ -47,8 +58,14 @@ function MoPhongContent() {
   ]);
 
   const handleSelectMember = (num: 1 | 2 | 3 | 4) => {
+    setViewMode("member");
     setSelectedMember(num);
     router.replace(`/mo-phong?member=${num}`, { scroll: false });
+  };
+
+  const handleOpenDvwaView = () => {
+    setViewMode("dvwa");
+    router.replace("/mo-phong?view=dvwa", { scroll: false });
   };
 
   const handleSaveVars = async () => {
@@ -72,13 +89,24 @@ function MoPhongContent() {
         </Link>
 
         <div className="inline-flex flex-wrap rounded-md border border-hairline bg-subtle p-0.5">
+          <button
+            type="button"
+            onClick={handleOpenDvwaView}
+            className={`cursor-pointer rounded px-3 py-1 font-mono text-xs font-medium transition-colors ${
+              viewMode === "dvwa"
+                ? "bg-emerald-600 font-bold text-white shadow-sm"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            DVWA Web (:8080)
+          </button>
           {snapshot.members.map((m) => (
             <button
               key={m.member_number}
               type="button"
               onClick={() => handleSelectMember(m.member_number as 1 | 2 | 3 | 4)}
               className={`cursor-pointer rounded px-3 py-1 font-mono text-xs font-medium transition-colors ${
-                m.member_number === selectedMember
+                viewMode === "member" && m.member_number === selectedMember
                   ? "bg-surface font-bold text-ink shadow-sm"
                   : "text-muted hover:text-ink"
               }`}
@@ -230,17 +258,37 @@ function MoPhongContent() {
         </div>
       </section>
 
-      {/* Simulator Frame */}
-      <RoleSimulator
-        key={`sim-page-${selectedMember}`}
-        memberNumber={selectedMember}
-        workspaceState={{
-          ...currentState,
-          container_ref: containerInput,
-          phpsessid: phpsessidInput,
-          user_token: userTokenInput,
-        }}
-      />
+      {/* Simulator Frame or Full DVWA Web Emulator */}
+      {viewMode === "dvwa" ? (
+        <section className="space-y-3 rounded-lg border border-hairline bg-surface p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline pb-3">
+            <div>
+              <h2 className="text-sm font-bold text-ink sm:text-base">
+                Ứng dụng Web Mục tiêu: Damn Vulnerable Web Application (DVWA v1.10)
+              </h2>
+              <p className="font-mono text-xs text-muted">
+                http://127.0.0.1:8080 · Tài khoản mặc định: admin / password · Hỗ trợ chuyển 4 mức Low / Medium / High / Impossible
+              </p>
+            </div>
+          </div>
+          <DvwaWebEmulator
+            defaultPage="home"
+            phpsessid={phpsessidInput}
+            userToken={userTokenInput}
+          />
+        </section>
+      ) : (
+        <RoleSimulator
+          key={`sim-page-${selectedMember}`}
+          memberNumber={selectedMember}
+          workspaceState={{
+            ...currentState,
+            container_ref: containerInput,
+            phpsessid: phpsessidInput,
+            user_token: userTokenInput,
+          }}
+        />
+      )}
     </div>
   );
 }

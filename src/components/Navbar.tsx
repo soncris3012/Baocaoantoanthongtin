@@ -101,6 +101,13 @@ export function Navbar() {
           </Link>
 
           <Link
+            href="/mo-phong?view=dvwa"
+            className="rounded-md border border-emerald-600/35 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:text-emerald-300 sm:text-sm"
+          >
+            DVWA Web
+          </Link>
+
+          <Link
             href="/lab-setup"
             className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
               pathname === "/lab-setup"

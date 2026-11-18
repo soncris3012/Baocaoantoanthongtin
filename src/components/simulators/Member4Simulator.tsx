@@ -18,6 +18,7 @@ import {
   BurpSuiteEmulator,
 } from "@/components/simulators/BurpSuiteEmulator";
 import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
+import { DvwaWebEmulator } from "@/components/simulators/DvwaWebEmulator";
 import {
   buildStepTerminalCommands,
   type ExternalTerminalCommand,
@@ -81,7 +82,7 @@ export function Member4Simulator({
   burpAutoplay,
   terminalAutoplay,
 }: Props) {
-  const [tab, setTab] = useState<"php" | "poc5" | "waf" | "terminal">(
+  const [tab, setTab] = useState<"php" | "poc5" | "waf" | "terminal" | "dvwa">(
     activeTab === "m4-poc5-waf"
       ? "poc5"
       : activeTab === "m4-terminal"
@@ -89,6 +90,7 @@ export function Member4Simulator({
       : "php"
   );
   const [containerRunning, setContainerRunning] = useState(true);
+  const [wafEnabledInDvwa, setWafEnabledInDvwa] = useState(false);
   const [terminalSubView, setTerminalSubView] = useState<"terminal" | "docker">("terminal");
   const lastAutoplayIdRef = useRef(0);
   const lastTermAutoplayIdRef = useRef(0);
@@ -277,6 +279,7 @@ export function Member4Simulator({
             { id: "poc5" as const, label: "2. PoC 5 Đối chứng" },
             { id: "waf" as const, label: "3. WAF ModSecurity" },
             { id: "terminal" as const, label: "4. Terminal & Docker (dvwa)" },
+            { id: "dvwa" as const, label: "5. DVWA Web (:8080)" },
           ].map((t) => (
             <button
               key={t.id}
@@ -848,6 +851,24 @@ export function Member4Simulator({
             />
           )}
         </div>
+      )}
+
+      {tab === "dvwa" && (
+        <DvwaWebEmulator
+          defaultPage="sqli"
+          phpsessid={session}
+          userToken={activeToken}
+          containerRunning={containerRunning}
+          externalSecurityLevel={cookieSecurity}
+          onSecurityLevelChange={(lvl) => {
+            if (lvl === "low" || lvl === "impossible") {
+              setCookieSecurity(lvl);
+            }
+          }}
+          wafEnabled={wafEnabledInDvwa}
+          onWafEnabledChange={setWafEnabledInDvwa}
+          onWafLogged={(val) => recordWafAudit(val)}
+        />
       )}
     </div>
   );

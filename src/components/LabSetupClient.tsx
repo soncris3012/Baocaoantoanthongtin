@@ -13,6 +13,7 @@ import {
 import { CodeBlock } from "@/components/CodeBlock";
 import { WindowControls } from "@/components/WindowBar";
 import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
+import { DvwaWebEmulator } from "@/components/simulators/DvwaWebEmulator";
 import { TerminalEmulator } from "@/components/simulators/TerminalEmulator";
 import { useWorkspace } from "@/components/WorkspaceProvider";
 import { LAB_MAINTENANCE_COMMANDS, UBUNTU_SETUP_COMMANDS } from "@/data/scenarioData";
@@ -215,6 +216,11 @@ export function LabSetupClient() {
             containerName={sandboxOs === "macos" ? "epic_dijkstra" : "dvwa"}
             running={sandboxRunning}
             onRunningChange={setSandboxRunning}
+          />
+
+          <DvwaWebEmulator
+            defaultPage="setup"
+            containerRunning={sandboxRunning}
           />
         </div>
       </section>

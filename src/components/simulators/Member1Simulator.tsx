@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { WindowControls } from "@/components/WindowBar";
 import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
+import { DvwaWebEmulator } from "@/components/simulators/DvwaWebEmulator";
 import {
   buildStepTerminalCommands,
   type ExternalTerminalCommand,
@@ -23,7 +24,7 @@ interface Props {
 }
 
 export function Member1Simulator({ containerRef, activeTab, terminalAutoplay }: Props) {
-  const [tab, setTab] = useState<"recon" | "docker" | "patch">(
+  const [tab, setTab] = useState<"recon" | "docker" | "patch" | "dvwa">(
     activeTab === "m1-patch" ? "patch" : "recon"
   );
   const [containerRunning, setContainerRunning] = useState(true);
@@ -120,6 +121,17 @@ export function Member1Simulator({ containerRef, activeTab, terminalAutoplay }: 
               }`}
             >
               3. Live Patching Apache &amp; Cookie
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("dvwa")}
+              className={`cursor-pointer rounded px-3 py-1 font-medium transition-colors ${
+                tab === "dvwa"
+                  ? "bg-surface font-semibold text-ink shadow-sm"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              4. DVWA Web (:8080)
             </button>
           </div>
         </div>
@@ -365,6 +377,15 @@ export function Member1Simulator({ containerRef, activeTab, terminalAutoplay }: 
             </div>
           </div>
         </div>
+      )}
+
+      {tab === "dvwa" && (
+        <DvwaWebEmulator
+          defaultPage="home"
+          containerRunning={containerRunning}
+          apachePatched={apachePatched}
+          cookiePatched={cookiePatched}
+        />
       )}
     </div>
   );

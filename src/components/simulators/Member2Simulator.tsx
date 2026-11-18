@@ -7,6 +7,7 @@ import {
   BurpSuiteEmulator,
 } from "@/components/simulators/BurpSuiteEmulator";
 import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
+import { DvwaWebEmulator } from "@/components/simulators/DvwaWebEmulator";
 import {
   buildStepTerminalCommands,
   type ExternalTerminalCommand,
@@ -78,7 +79,7 @@ export function Member2Simulator({
   burpAutoplay,
   terminalAutoplay,
 }: Props) {
-  const [tab, setTab] = useState<"burp" | "logs" | "docker">(
+  const [tab, setTab] = useState<"burp" | "logs" | "docker" | "dvwa">(
     activeTab === "m2-curl-log" ? "logs" : "burp"
   );
   const [containerRunning, setContainerRunning] = useState(true);
@@ -279,6 +280,17 @@ export function Member2Simulator({
             }`}
           >
             3. Docker Container (dvwa)
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("dvwa")}
+            className={`cursor-pointer rounded px-3 py-1 font-medium transition-colors ${
+              tab === "dvwa"
+                ? "bg-surface font-semibold text-ink shadow-sm"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            4. DVWA Web (:8080)
           </button>
         </div>
       </div>
@@ -556,6 +568,19 @@ export function Member2Simulator({
           onRunningChange={setContainerRunning}
           accessLogs={liveLogs}
           onOpenExternalTerminal={() => setTab("logs")}
+        />
+      )}
+
+      {tab === "dvwa" && (
+        <DvwaWebEmulator
+          defaultPage="sqli"
+          defaultHost="localtest.me:8080"
+          phpsessid={session}
+          containerRunning={containerRunning}
+          onSqlRequestLogged={(idParam, ua) => {
+            setSentPayload(idParam);
+            recordLogEntry(idParam, ua);
+          }}
         />
       )}
     </div>
