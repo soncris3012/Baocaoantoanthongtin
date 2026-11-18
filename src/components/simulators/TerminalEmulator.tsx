@@ -8,6 +8,7 @@ import {
   Play,
   Plus,
   RotateCcw,
+  SkipForward,
   Square,
   Terminal as TerminalIcon,
   X,
@@ -104,6 +105,173 @@ export function buildStepTerminalCommands(
     default:
       return null;
   }
+}
+
+export function describeTerminalCommand(rawCmd: string): { title: string; effect: string } {
+  const c = rawCmd.trim();
+  const lower = c.toLowerCase();
+
+  if (lower.startsWith("docker --version")) {
+    return {
+      title: "Kiểm tra phiên bản Docker Engine",
+      effect: "Xác nhận Docker CLI và daemon đang hoạt động bình thường trên máy trước khi kéo image và dựng lab DVWA.",
+    };
+  }
+  if (lower.startsWith("docker pull")) {
+    return {
+      title: "Tải image vulnerables/web-dvwa",
+      effect: "Kéo toàn bộ gói máy chủ Apache + PHP + MariaDB chứa ứng dụng DVWA từ Docker Registry về máy cục bộ.",
+    };
+  }
+  if (lower.startsWith("docker run")) {
+    return {
+      title: "Khởi tạo container DVWA",
+      effect: "Chạy container ở chế độ nền (-d), gán tên 'dvwa' và ánh xạ cổng 8080 ngoài máy thật vào cổng 80 Apache bên trong container.",
+    };
+  }
+  if (lower.startsWith("docker ps")) {
+    return {
+      title: "Liệt kê các container Docker",
+      effect: "Hiển thị Container ID, Image, trạng thái Up/Exited và quy tắc ánh xạ cổng (0.0.0.0:8080->80/tcp) để xác định đúng mục tiêu kiểm thử.",
+    };
+  }
+  if (lower.startsWith("docker stop") || lower.startsWith("docker start") || lower.startsWith("docker restart")) {
+    return {
+      title: "Điều khiển vòng đời Container",
+      effect: "Dừng, khởi động lại hoặc bật dịch vụ DVWA trên cổng 8080 — đồng bộ trực tiếp với giao diện Docker Desktop.",
+    };
+  }
+  if (lower.includes("a2enconf security") || lower.includes("servertokens prod")) {
+    return {
+      title: "Vá lỗi CWE-200: Ẩn Apache Server Banner",
+      effect: "Cấu hình ServerTokens Prod & ServerSignature Off trong /etc/apache2/conf-available/security.conf rồi reload Apache để chỉ trả về 'Server: Apache' thay vì lộ 2.4.25 (Debian).",
+    };
+  }
+  if (lower.includes("a2enmod headers") || lower.includes("set-cookie")) {
+    return {
+      title: "Vá lỗi CWE-614: Gia cố Cookie & Security Headers",
+      effect: "Bật mod_headers và chèn HttpOnly; SameSite=Strict vào Set-Cookie cùng X-Content-Type-Options: nosniff, X-Frame-Options: SAMEORIGIN chống đánh cắp phiên qua XSS/CSRF.",
+    };
+  }
+  if (lower.includes("php -r") && lower.includes("argon2id")) {
+    return {
+      title: "Kiểm tra thuật toán băm được PHP hỗ trợ",
+      effect: "Kiểm tra xem phiên bản PHP trong container đã biên dịch với PASSWORD_ARGON2ID hay cần dùng PASSWORD_BCRYPT.",
+    };
+  }
+  if (lower.includes("php -r") && lower.includes("password_hash")) {
+    return {
+      title: "Sinh chuỗi băm Bcrypt (cost=12) + Salt ngẫu nhiên",
+      effect: "Tạo chuỗi băm Bcrypt 60 ký tự có Salt 22 ký tự ngẫu nhiên mỗi lần gọi, chống giải mã bằng Rainbow Table so với MD5 thuần.",
+    };
+  }
+  if (lower.includes("mysql") && lower.includes("update users")) {
+    return {
+      title: "Cập nhật mật khẩu sang Bcrypt trong MariaDB",
+      effect: "Ghi đè chuỗi MD5 cũ của tài khoản admin bằng mã băm Bcrypt mới và truy vấn lại bảng users để kiểm chứng kết quả.",
+    };
+  }
+  if (lower.includes("mysql") && (lower.includes("create user") || lower.includes("grant "))) {
+    return {
+      title: "Áp dụng nguyên tắc Đặc quyền tối thiểu (Least Privilege)",
+      effect: "Tạo tài khoản riêng dvwa_svc@localhost chỉ có quyền SELECT, INSERT, UPDATE trên dvwa.users; thu hồi quyền DROP, ALTER, FILE, SUPER so với dùng root.",
+    };
+  }
+  if (lower.includes("mysql") || lower.includes("select ") || lower.includes("show grants") || lower.includes("show tables")) {
+    return {
+      title: "Kiểm toán dữ liệu & phân quyền MariaDB CLI",
+      effect: "Truy vấn trực tiếp bảng users hoặc danh sách GRANT trong cơ sở dữ liệu DVWA để đối chiếu thuật toán lưu trữ mật khẩu và đặc quyền user.",
+    };
+  }
+  if (lower.includes("cat ") && lower.includes(".php")) {
+    return {
+      title: "Kiểm toán mã nguồn PHP hộp trắng (White-box)",
+      effect: "Đọc mã nguồn backend DVWA có đánh số dòng (-n) để chỉ ra điểm nối chuỗi SQL gây lỗ hổng và 3 lớp phòng thủ ở file impossible.php.",
+    };
+  }
+  if (lower.includes("diff -u")) {
+    return {
+      title: "So sánh khác biệt mã nguồn (Diff)",
+      effect: "Đối chiếu trực tiếp từng dòng giữa low.php (lỗ hổng) và impossible.php (checkToken + is_numeric + PDO::PARAM_INT).",
+    };
+  }
+  if (lower.includes("apache2ctl") || lower.includes("security2")) {
+    return {
+      title: "Kiểm tra module WAF ModSecurity trong Apache",
+      effect: "Xác nhận module security2_module (shared) đã được nạp để thực thi bộ lọc tường lửa ứng dụng Web (OWASP CRS).",
+    };
+  }
+  if (lower.includes("modsec_audit.log")) {
+    return {
+      title: "Đọc nhật ký chặn tầng biên ModSecurity Audit Log",
+      effect: "Truy xuất các sự kiện HTTP 403 Denied gần nhất kèm quy tắc SecRule 100001 đã chặn chuỗi tấn công SQL Injection.",
+    };
+  }
+  if (lower.includes("access.log")) {
+    return {
+      title: "Blue Team Log Forensics trên Apache access.log",
+      effect: "Lọc các dấu hiệu tấn công IoC (%27, nháy đơn, UNION, SELECT) kèm IP nguồn, mã phản hồi HTTP và User-Agent công cụ khai thác.",
+    };
+  }
+  if (lower.startsWith("docker exec") && (lower.includes("bash") || lower.includes(" sh"))) {
+    return {
+      title: "Mở shell tương tác bên trong Container",
+      effect: "Đi thẳng vào môi trường root bash của container để chỉnh cấu hình Apache, kiểm tra file mã nguồn PHP hoặc đọc log hệ thống.",
+    };
+  }
+  if (lower.startsWith("nmap")) {
+    return {
+      title: "Quét cổng và dò phiên bản dịch vụ (Nmap -sV)",
+      effect: "Xác định cổng 8080 đang mở HTTP và bóc tách phiên bản phần mềm máy chủ web (Apache httpd 2.4.25 Debian) phục vụ đánh giá bề mặt tấn công.",
+    };
+  }
+  if (lower.startsWith("sqlmap") && lower.includes("--dbs")) {
+    return {
+      title: "SQLMap Pha 1: Dò điểm tiêm & liệt kê Database (--dbs)",
+      effect: "Tự động kiểm thử tham số ?id= bằng cookie phiên (--cookie), nhận diện MariaDB/MySQL bị SQLi và liệt kê tên các cơ sở dữ liệu.",
+    };
+  }
+  if (lower.startsWith("sqlmap") && lower.includes("--tables")) {
+    return {
+      title: "SQLMap Pha 2: Liệt kê bảng trong CSDL dvwa (--tables)",
+      effect: "Khui danh sách toàn bộ bảng dữ liệu thuộc schema 'dvwa' (gồm bảng guestbook và users) để chuẩn bị trích xuất.",
+    };
+  }
+  if (lower.startsWith("sqlmap") && lower.includes("--dump")) {
+    return {
+      title: "SQLMap Pha 3: Dump bảng users & Dictionary Crack MD5 (--dump)",
+      effect: "Trích xuất toàn bộ bản ghi user/password và tự động đối chiếu từ điển để giải mã chuỗi MD5 không Salt thành mật khẩu rõ.",
+    };
+  }
+  if (lower.startsWith("curl") && lower.includes("login.php") && lower.includes("grep")) {
+    return {
+      title: "Kiểm chứng HTTP Security Headers bằng cURL + grep",
+      effect: "Chỉ lấy HTTP response header (-Is) và lọc dòng Server, Set-Cookie, X-Content-Type-Options, X-Frame-Options để chứng minh bản vá đã có hiệu lực.",
+    };
+  }
+  if (lower.startsWith("curl") && lower.includes("login.php")) {
+    return {
+      title: "Thu thập HTTP Header trang login.php (CWE-200 & CWE-614)",
+      effect: "Đọc phản hồi đầu trang (-is | head -n 15) để lấy bằng chứng lộ Server Banner Apache/Debian và Cookie thiếu HttpOnly/SameSite.",
+    };
+  }
+  if (lower.startsWith("curl") && lower.includes("grep -o")) {
+    return {
+      title: "Khai thác tự động bằng cURL kết hợp lọc Regex (grep -o)",
+      effect: "Đính kèm cookie phiên (-b) gửi request tới /vulnerabilities/sqli/ và trích xuất chính xác dòng 'First name: ...' từ mã HTML trả về.",
+    };
+  }
+  if (lower.startsWith("curl") && (lower.includes("1'") || lower.includes("or%20") || lower.includes("union"))) {
+    return {
+      title: "Gửi payload SQL Injection kiểm thử từ dòng lệnh cURL",
+      effect: "Kiểm tra phản ứng thực tế của DVWA hoặc bộ lọc ModSecurity WAF (403 Forbidden vs 200 OK) khi nhận tham số id độc hại.",
+    };
+  }
+
+  return {
+    title: "Thực thi lệnh kiểm thử / quản trị hệ thống",
+    effect: "Gửi câu lệnh trực tiếp vào shell hiện tại và quan sát kết quả trả về từ hệ thống/container.",
+  };
 }
 
 export interface TerminalEntryInput {
@@ -1513,6 +1681,21 @@ export function TerminalEmulator({
     setTypePhase("idle");
   };
 
+  const completeCurrentCommandAndPause = () => {
+    const currentCmd = typeQueue[queueIdx];
+    if (!currentCmd) return;
+    runCommandInTab(currentCmd, typeContext);
+    if (queueIdx + 1 < typeQueue.length) {
+      setQueueIdx((i) => i + 1);
+      setCharIdx(0);
+      setTypePhase("typing");
+      setIsTypePaused(true);
+    } else {
+      setIsTypePaused(false);
+      setTypePhase("done");
+    }
+  };
+
   const typingPct = useMemo(() => {
     if (typeQueue.length === 0 || typePhase === "idle") return 0;
     if (typePhase === "done") return 100;
@@ -1778,19 +1961,51 @@ export function TerminalEmulator({
 
           <div className="flex flex-wrap items-center gap-2 text-[11px]">
             {typeQueue.length > 0 && typePhase !== "idle" && (
-              <div className="flex items-center gap-2 rounded border border-white/15 bg-black/40 px-2 py-0.5 font-mono text-[10px]">
-                <span className="max-w-[140px] truncate text-emerald-300">
+              <div className="flex flex-wrap items-center gap-1.5 rounded border border-white/15 bg-black/40 px-2 py-0.5 font-mono text-[10px]">
+                <span className="max-w-[135px] truncate text-emerald-300">
                   {typeActiveLabel || `Lệnh ${Math.min(queueIdx + 1, typeQueue.length)}/${typeQueue.length}`}
                 </span>
                 <div className="h-1.5 w-16 overflow-hidden rounded-full bg-zinc-700">
                   <div
                     className={`h-full transition-all duration-150 ${
-                      typePhase === "done" ? "bg-emerald-400" : "bg-sky-400"
+                      typePhase === "done"
+                        ? "bg-emerald-400"
+                        : isTypePaused
+                        ? "bg-amber-400"
+                        : "bg-sky-400"
                     }`}
                     style={{ width: `${typingPct}%` }}
                   />
                 </div>
                 <span className="font-bold text-white">{typingPct}%</span>
+                {typePhase !== "done" && (
+                  <button
+                    type="button"
+                    onClick={() => setIsTypePaused((p) => !p)}
+                    className={`inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 font-sans text-[10px] font-semibold transition-colors ${
+                      isTypePaused
+                        ? "bg-emerald-600 text-white hover:bg-emerald-500"
+                        : "bg-amber-500/20 text-amber-200 hover:bg-amber-500/35"
+                    }`}
+                    title={
+                      isTypePaused
+                        ? "Tiếp tục gõ lệnh"
+                        : "Tạm dừng lại để giải thích đoạn đang chạy"
+                    }
+                  >
+                    {isTypePaused ? (
+                      <>
+                        <Play className="h-2.5 w-2.5" aria-hidden="true" />
+                        <span>Tiếp tục</span>
+                      </>
+                    ) : (
+                      <>
+                        <Pause className="h-2.5 w-2.5" aria-hidden="true" />
+                        <span>Tạm dừng</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             )}
 
@@ -1991,7 +2206,11 @@ export function TerminalEmulator({
                         <button
                           type="button"
                           onClick={() => setIsTypePaused((p) => !p)}
-                          className="inline-flex cursor-pointer items-center gap-1 rounded border border-white/15 bg-white/10 px-2 py-0.5 text-zinc-200 hover:bg-white/20"
+                          className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2.5 py-0.5 font-semibold transition-colors ${
+                            isTypePaused
+                              ? "border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-500"
+                              : "border-amber-500/50 bg-amber-500/20 text-amber-200 hover:bg-amber-500/30"
+                          }`}
                         >
                           {isTypePaused ? (
                             <>
@@ -2005,6 +2224,17 @@ export function TerminalEmulator({
                             </>
                           )}
                         </button>
+                        {isTypePaused && (
+                          <button
+                            type="button"
+                            onClick={completeCurrentCommandAndPause}
+                            className="inline-flex cursor-pointer items-center gap-1 rounded border border-white/15 bg-white/10 px-2 py-0.5 text-zinc-100 hover:bg-white/20"
+                            title="Thực thi xong lệnh đang gõ và giữ trạng thái tạm dừng trước lệnh kế tiếp"
+                          >
+                            <SkipForward className="h-2.5 w-2.5" aria-hidden="true" />
+                            Xong lệnh này
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={stopTypewriterQueue}
@@ -2050,6 +2280,47 @@ export function TerminalEmulator({
                 ))}
               </div>
             )}
+
+            {/* Pause-to-Explain Banner */}
+            {isTypePaused && typeQueue.length > 0 && typePhase !== "idle" && typePhase !== "done" && (() => {
+              const pausedCmd = typeQueue[queueIdx] ?? "";
+              const info = describeTerminalCommand(pausedCmd);
+              return (
+                <div className="space-y-1.5 border-b border-amber-500/40 bg-[#241c11] px-3.5 py-2.5 font-sans text-xs text-zinc-200">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono text-[11px] font-bold text-amber-300">
+                      ĐANG TẠM DỪNG ĐỂ GIẢI THÍCH · Lệnh {Math.min(queueIdx + 1, typeQueue.length)}/
+                      {typeQueue.length} ({typingPct}%)
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={completeCurrentCommandAndPause}
+                        className="inline-flex cursor-pointer items-center gap-1 rounded border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-200 hover:bg-amber-500/25"
+                      >
+                        <SkipForward className="h-3 w-3" aria-hidden="true" />
+                        Chạy xong lệnh này &amp; giữ dừng
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsTypePaused(false)}
+                        className="inline-flex cursor-pointer items-center gap-1 rounded bg-emerald-600 px-2.5 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-500"
+                      >
+                        <Play className="h-3 w-3" aria-hidden="true" />
+                        Tiếp tục chạy
+                      </button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto rounded border border-amber-500/25 bg-black/45 px-2.5 py-1 font-mono text-[11px] text-amber-200">
+                    $ {pausedCmd}
+                  </div>
+                  <div className="text-[11.5px] leading-relaxed text-zinc-200">
+                    <span className="font-semibold text-amber-300">Tác dụng — {info.title}: </span>
+                    {info.effect}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Terminal Output Viewport + Prompt */}
             <div

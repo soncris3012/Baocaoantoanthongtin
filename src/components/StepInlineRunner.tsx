@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Pause,
   Play,
   RotateCcw,
   ShieldAlert,
   ShieldCheck,
+  SkipForward,
   Terminal,
 } from "lucide-react";
 import { interpolateCommand } from "@/components/CodeBlock";
@@ -55,9 +57,9 @@ export function StepInlineRunner({
   const [selectedCmdIdx, setSelectedCmdIdx] = useState<number | "all">(
     step.commands.length > 1 ? "all" : 0
   );
-  const [isRunning, setIsRunning] = useState(false);
   const [hasRun, setHasRun] = useState(false);
   const [runPhase, setRunPhase] = useState<"idle" | "typing" | "streaming" | "done">("idle");
+  const [isPaused, setIsPaused] = useState(false);
   const [typedCmdChars, setTypedCmdChars] = useState(0);
   const [visibleLineCount, setVisibleLineCount] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -65,7 +67,6 @@ export function StepInlineRunner({
   const [quickEntries, setQuickEntries] = useState<
     Array<{ id: number; cmd: string; out: string }>
   >([]);
-  const streamTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const container =
     variables.container.trim() || (memberNumber === 1 ? "215d3a734374" : "dvwa");
@@ -390,11 +391,43 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
   }, [step.id, step.expected_output, selectedCmdIdx, container, sess, token]);
   const fullLines = useMemo(() => fullStreamText.split("\n"), [fullStreamText]);
 
+  const isActiveRun = runPhase === "typing" || runPhase === "streaming";
+  const isRunning = isActiveRun && !isPaused;
+
   useEffect(() => {
-    return () => {
-      if (streamTimerRef.current) clearInterval(streamTimerRef.current);
-    };
-  }, []);
+    if (!isActiveRun || isPaused) return;
+
+    if (runPhase === "typing") {
+      if (!activeCommandText || typedCmdChars >= activeCommandText.length) {
+        const t = setTimeout(() => setRunPhase("streaming"), 120);
+        return () => clearTimeout(t);
+      }
+      const stepChars = activeCommandText.length > 140 ? 3 : 2;
+      const t = setTimeout(() => {
+        const nextChars = Math.min(activeCommandText.length, typedCmdChars + stepChars);
+        setTypedCmdChars(nextChars);
+        if (nextChars >= activeCommandText.length) {
+          setRunPhase("streaming");
+        }
+      }, 28);
+      return () => clearTimeout(t);
+    }
+
+    if (runPhase === "streaming") {
+      if (visibleLineCount >= fullLines.length) {
+        setRunPhase("done");
+        return;
+      }
+      const t = setTimeout(() => {
+        const nextLines = Math.min(fullLines.length, visibleLineCount + 2);
+        setVisibleLineCount(nextLines);
+        if (nextLines >= fullLines.length) {
+          setRunPhase("done");
+        }
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [isActiveRun, runPhase, isPaused, typedCmdChars, visibleLineCount, activeCommandText, fullLines.length]);
 
   const inlineProgressPct = useMemo(() => {
     if (runPhase === "idle") return 0;
@@ -405,75 +438,31 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
     return Math.min(99, 45 + Math.round((visibleLineCount / Math.max(1, fullLines.length)) * 54));
   }, [runPhase, typedCmdChars, activeCommandText.length, visibleLineCount, fullLines.length]);
 
-  const startStreaming = (linesCount: number) => {
-    if (streamTimerRef.current) clearInterval(streamTimerRef.current);
-    const cmdText = activeCommandText;
-    setIsRunning(true);
+  const startStreaming = () => {
     setHasRun(true);
-    setVisibleLineCount(0);
-
-    if (!cmdText) {
-      setTypedCmdChars(0);
-      setRunPhase("streaming");
-      let current = 0;
-      streamTimerRef.current = setInterval(() => {
-        current += 2;
-        if (current >= linesCount) {
-          setVisibleLineCount(linesCount);
-          setRunPhase("done");
-          setIsRunning(false);
-          if (streamTimerRef.current) clearInterval(streamTimerRef.current);
-        } else {
-          setVisibleLineCount(current);
-        }
-      }, 55);
-      return;
-    }
-
+    setIsPaused(false);
     setTypedCmdChars(0);
-    setRunPhase("typing");
-    let chars = 0;
-    const stepChars = cmdText.length > 140 ? 3 : 2;
-    let currentLine = 0;
-    let phase: "typing" | "streaming" = "typing";
-
-    streamTimerRef.current = setInterval(() => {
-      if (phase === "typing") {
-        chars += stepChars;
-        if (chars >= cmdText.length) {
-          setTypedCmdChars(cmdText.length);
-          phase = "streaming";
-          setRunPhase("streaming");
-        } else {
-          setTypedCmdChars(chars);
-        }
-        return;
-      }
-
-      currentLine += 2;
-      if (currentLine >= linesCount) {
-        setVisibleLineCount(linesCount);
-        setRunPhase("done");
-        setIsRunning(false);
-        if (streamTimerRef.current) clearInterval(streamTimerRef.current);
-      } else {
-        setVisibleLineCount(currentLine);
-      }
-    }, 28);
+    setVisibleLineCount(0);
+    setRunPhase(activeCommandText ? "typing" : "streaming");
   };
 
   const handleRun = () => {
     setIsMinimized(false);
-    startStreaming(fullLines.length);
+    startStreaming();
   };
 
   const handleInstantShow = () => {
-    if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+    setIsPaused(false);
     setTypedCmdChars(activeCommandText.length);
     setVisibleLineCount(fullLines.length);
     setRunPhase("done");
-    setIsRunning(false);
     setHasRun(true);
+  };
+
+  const handleFinishTypingOnly = () => {
+    setTypedCmdChars(activeCommandText.length);
+    setRunPhase("streaming");
+    setIsPaused(true);
   };
 
   const handleCopy = async () => {
@@ -532,9 +521,14 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
         >
           <Terminal className="h-4 w-4 text-accent" aria-hidden="true" />
           <span>Mô phỏng Trực quan Bước 0{step.step_order}</span>
-          {hasRun && !isRunning && (
+          {hasRun && !isActiveRun && (
             <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
               ĐÃ CHẠY
+            </span>
+          )}
+          {isActiveRun && isPaused && (
+            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+              TẠM DỪNG · {inlineProgressPct}%
             </span>
           )}
           {isRunning && (
@@ -556,7 +550,7 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
               onClick={() => {
                 setIsOpen(true);
                 setIsMinimized(false);
-                startStreaming(fullLines.length);
+                startStreaming();
               }}
               className="inline-flex cursor-pointer items-center gap-1.5 rounded bg-ink px-2.5 py-1 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
             >
@@ -613,8 +607,7 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
             <div className="flex items-center gap-2.5">
               <WindowControls
                 onClose={() => {
-                  if (streamTimerRef.current) clearInterval(streamTimerRef.current);
-                  setIsRunning(false);
+                  setIsPaused(false);
                   setRunPhase("idle");
                   setIsOpen(false);
                 }}
@@ -636,7 +629,11 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
                   <div className="h-1.5 w-14 overflow-hidden rounded-full bg-zinc-700">
                     <div
                       className={`h-full transition-all duration-150 ${
-                        runPhase === "done" ? "bg-emerald-400" : "bg-sky-400"
+                        runPhase === "done"
+                          ? "bg-emerald-400"
+                          : isPaused
+                          ? "bg-amber-400"
+                          : "bg-sky-400"
                       }`}
                       style={{ width: `${inlineProgressPct}%` }}
                     />
@@ -645,7 +642,31 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
                 </div>
               )}
 
-              {isRunning && (
+              {isActiveRun && (
+                <button
+                  type="button"
+                  onClick={() => setIsPaused((p) => !p)}
+                  className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
+                    isPaused
+                      ? "border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-500"
+                      : "border-amber-500/50 bg-amber-500/15 text-amber-200 hover:bg-amber-500/25"
+                  }`}
+                >
+                  {isPaused ? (
+                    <>
+                      <Play className="h-3 w-3" aria-hidden="true" />
+                      <span>Tiếp tục</span>
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="h-3 w-3" aria-hidden="true" />
+                      <span>Tạm dừng</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {isActiveRun && (
                 <button
                   type="button"
                   onClick={handleInstantShow}
@@ -667,7 +688,7 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
                 className="inline-flex cursor-pointer items-center gap-1 rounded bg-emerald-600 px-2.5 py-0.5 text-[11px] font-bold text-white transition-opacity hover:opacity-90"
               >
                 <Play className="h-3 w-3" aria-hidden="true" />
-                {isRunning ? "Đang chạy..." : hasRun ? "Chạy lại" : "Chạy lệnh"}
+                {isActiveRun ? "Chạy từ đầu" : hasRun ? "Chạy lại" : "Chạy lệnh"}
               </button>
             </div>
           </div>
@@ -681,8 +702,7 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
                   <button
                     type="button"
                     onClick={() => {
-                      if (streamTimerRef.current) clearInterval(streamTimerRef.current);
-                      setIsRunning(false);
+                      setIsPaused(false);
                       setSelectedCmdIdx("all");
                       setHasRun(false);
                       setRunPhase("idle");
@@ -702,8 +722,7 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
                       key={idx}
                       type="button"
                       onClick={() => {
-                        if (streamTimerRef.current) clearInterval(streamTimerRef.current);
-                        setIsRunning(false);
+                        setIsPaused(false);
                         setSelectedCmdIdx(idx);
                         setHasRun(false);
                         setRunPhase("idle");
@@ -738,6 +757,48 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
                   </pre>
                 )}
               </div>
+
+              {/* Pause-to-Explain Card */}
+              {isActiveRun && isPaused && (
+                <div className="space-y-2 rounded border border-amber-500/40 bg-amber-950/30 p-3 font-sans text-xs text-zinc-200">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono text-[11px] font-bold text-amber-300">
+                      ĐANG TẠM DỪNG ({inlineProgressPct}%) — GIẢI THÍCH ĐOẠN ĐANG CHẠY
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {runPhase === "typing" && (
+                        <button
+                          type="button"
+                          onClick={handleFinishTypingOnly}
+                          className="inline-flex cursor-pointer items-center gap-1 rounded border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-200 hover:bg-amber-500/25"
+                        >
+                          <SkipForward className="h-3 w-3" aria-hidden="true" />
+                          Hiện đủ câu lệnh (giữ dừng)
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setIsPaused(false)}
+                        className="inline-flex cursor-pointer items-center gap-1 rounded bg-emerald-600 px-2.5 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-500"
+                      >
+                        <Play className="h-3 w-3" aria-hidden="true" />
+                        Tiếp tục chạy
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 text-[11.5px] leading-relaxed">
+                    {(selectedCmdIdx === "all"
+                      ? interpolatedCommands
+                      : [interpolatedCommands[selectedCmdIdx] ?? interpolatedCommands[0]]
+                    ).map((item, idx) => (
+                      <div key={idx}>
+                        <span className="font-semibold text-amber-200">{item.label}:</span>{" "}
+                        <span className="text-zinc-200">Tác dụng: {item.explanation}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Terminal Stream Output */}
               <div

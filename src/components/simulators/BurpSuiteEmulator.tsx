@@ -22,6 +22,7 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  SkipForward,
   Square,
   X,
 } from "lucide-react";
@@ -94,6 +95,7 @@ interface WalkStepSpec {
   target: string;
   label: string;
   detail: string;
+  purpose: string;
   action: WalkActionType;
   typeField?: WalkTypeField;
   typeValue?: string;
@@ -110,18 +112,21 @@ const M2_S1_STEPS: WalkStepSpec[] = [
     target: "tab-proxy",
     label: "Mở module Proxy",
     detail: "Chọn tab Proxy trên thanh công cụ chính của Burp Suite.",
+    purpose: "Mở phân hệ Proxy của Burp Suite để kiểm tra cổng lắng nghe trung gian (MITM) giữa trình duyệt và container DVWA.",
     action: "focus-proxy",
   },
   {
     target: "subtab-settings",
     label: "Mở Proxy settings",
     detail: "Mở Proxy settings -> Proxy Listeners để đổi cổng tránh xung đột 8080 của Docker.",
+    purpose: "Truy cập bảng Proxy Listeners nhằm kiểm tra và thay đổi cổng ràng buộc khi cổng 8080 đã bị Docker DVWA chiếm dụng.",
     action: "open-proxy-settings",
   },
   {
     target: "port-input",
     label: "Gõ cổng 8081",
     detail: "Nhập cổng lắng nghe mới 8081 vào ô Bind to port.",
+    purpose: "Gán cổng trống 8081 để Burp Suite lắng nghe độc lập trên 127.0.0.1:8081 mà không đụng cổng 8080 của ứng dụng mục tiêu.",
     action: "focus-target",
     typeField: "port",
     typeValue: "8081",
@@ -130,18 +135,21 @@ const M2_S1_STEPS: WalkStepSpec[] = [
     target: "btn-port-apply",
     label: "Bấm OK áp dụng cổng 8081",
     detail: "Xác nhận kích hoạt Proxy Listener trên 127.0.0.1:8081.",
+    purpose: "Khởi động lại Proxy Listener trên 127.0.0.1:8081 để sẵn sàng nhận lưu lượng HTTP từ trình duyệt Embedded Chromium.",
     action: "apply-port",
   },
   {
     target: "subtab-intercept",
     label: "Quay lại Intercept",
     detail: "Quay về Proxy -> Intercept kèm trình duyệt Burp Embedded Chromium.",
+    purpose: "Mở giao diện bắt gói tin trực tiếp (Intercept) cùng trình duyệt Embedded Chromium tích hợp sẵn proxy 127.0.0.1:8081.",
     action: "open-proxy-intercept",
   },
   {
     target: "browser-url-input",
     label: "Gõ http://127.0.0.1:8080/vulnerabilities/sqli/",
     detail: "Gõ địa chỉ 127.0.0.1:8080 trên thanh URL để kiểm chứng cơ chế Loopback Bypass.",
+    purpose: "Kiểm chứng nguyên nhân kỹ thuật: Chromium mặc định bỏ qua Proxy đối với dải 127.0.0.1/localhost (Proxy Bypass List).",
     action: "focus-target",
     typeField: "browser-url",
     typeValue: "http://127.0.0.1:8080/vulnerabilities/sqli/",
@@ -150,12 +158,14 @@ const M2_S1_STEPS: WalkStepSpec[] = [
     target: "btn-browser-submit",
     label: "Bấm Submit",
     detail: "Submit thử: Chromium bỏ qua Proxy khi gọi 127.0.0.1, Proxy không thấy gói tin.",
+    purpose: "Cho thấy request đi thẳng tới container 8080 mà tab Intercept không bắt được gói tin nào, chứng minh cần dùng tên miền localtest.me.",
     action: "submit-loopback",
   },
   {
     target: "browser-url-input",
     label: "Gõ http://localtest.me:8080/vulnerabilities/sqli/",
     detail: "Sửa địa chỉ thành http://localtest.me:8080/vulnerabilities/sqli/ để đi qua Proxy 8081.",
+    purpose: "Sử dụng tên miền localtest.me (trỏ DNS về 127.0.0.1) để vượt danh sách ngoại lệ loopback, buộc Chromium đẩy gói tin qua Burp Proxy 8081.",
     action: "focus-target",
     typeField: "browser-url",
     typeValue: "http://localtest.me:8080/vulnerabilities/sqli/",
@@ -164,6 +174,7 @@ const M2_S1_STEPS: WalkStepSpec[] = [
     target: "browser-id-input",
     label: "Gõ User ID = 1",
     detail: "Nhập User ID = 1 trên giao diện DVWA.",
+    purpose: "Gửi một truy vấn hợp lệ (id=1) để lấy mẫu gói tin HTTP GET đầy đủ cookie phiên PHPSESSID và đường dẫn chuẩn.",
     action: "focus-target",
     typeField: "browser-id",
     typeValue: "1",
@@ -172,6 +183,7 @@ const M2_S1_STEPS: WalkStepSpec[] = [
     target: "btn-browser-submit",
     label: "Bấm Submit & Bắt gói tin",
     detail: "Proxy 8081 đánh chặn trọn vẹn gói tin HTTP GET tại Proxy -> Intercept.",
+    purpose: "Hoàn tất đánh chặn gói tin qua Proxy 127.0.0.1:8081, giữ nguyên raw HTTP request lại để đọc Cookie và gửi sang Repeater.",
     action: "submit-localtest",
   },
 ];
@@ -181,36 +193,42 @@ const M2_S2_STEPS: WalkStepSpec[] = [
     target: "intercept-buffer",
     label: "Đọc Cookie PHPSESSID",
     detail: "Đọc dòng Cookie: security=low; PHPSESSID=... ngay trong gói tin bị chặn.",
+    purpose: "Xác nhận gói tin mang theo phiên đăng nhập hợp lệ và mức bảo mật security=low tại client — điều kiện để không bị chuyển hướng về login.php.",
     action: "highlight-buffer",
   },
   {
     target: "btn-send-to-repeater",
     label: "Send to Repeater (Ctrl+R)",
     detail: "Chuyển bản sao gói tin sang công cụ Repeater để chỉnh sửa payload.",
+    purpose: "Nhân bản gói tin sang module Repeater nhằm tái lập, sửa tham số ?id= và so sánh trực tiếp mã phản hồi HTTP nhiều lần mà không cần bấm lại trình duyệt.",
     action: "send-to-repeater",
   },
   {
     target: "tab-proxy",
     label: "Quay lại Proxy",
     detail: "Mở lại tab Proxy để tắt chế độ chặn, tránh làm treo trình duyệt DVWA.",
+    purpose: "Quay về tab Proxy để giải phóng luồng lưu lượng trình duyệt sau khi đã có bản sao gói tin nằm an toàn bên Repeater.",
     action: "focus-proxy",
   },
   {
     target: "btn-intercept-toggle",
     label: "Tắt Intercept is off",
     detail: "Tắt Intercept để lưu lượng trình duyệt không bị giữ lại.",
+    purpose: "Tránh việc các request nền của Chromium bị kẹt lại hàng đợi Proxy trong lúc nhóm kiểm thử tập trung thao tác trên Repeater.",
     action: "turn-off-intercept",
   },
   {
     target: "tab-repeater",
     label: "Mở tab Repeater",
     detail: "Chuyển sang tab Repeater vừa nhận gói tin PoC 2.",
+    purpose: "Chuyển sang không gian làm việc Repeater với cột Inspector, ô Raw Request bên trái và ô Response Render/Pretty bên phải.",
     action: "focus-repeater",
   },
   {
     target: "inspector-id",
     label: "Gõ id = 1'",
     detail: "Gõ dấu nháy đơn (') vào tham số id trong Inspector.",
+    purpose: "Chèn ký tự nháy đơn (') để kiểm tra xem backend PHP có ghép thẳng biến $_GET['id'] vào chuỗi SQL SELECT hay không.",
     action: "focus-target",
     typeField: "inspector-id",
     typeValue: "1'",
@@ -219,12 +237,14 @@ const M2_S2_STEPS: WalkStepSpec[] = [
     target: "btn-repeater-send",
     label: "Bấm Send (id=1')",
     detail: "Gửi gói tin id=1' -> Response trả lỗi cú pháp MariaDB (CWE-89) & ghi access.log.",
+    purpose: "Xác nhận 2 lỗ hổng đồng thời: Error-based SQLi (CWE-89) khi dấu nháy đơn phá vỡ câu SQL và CWE-209 khi ứng dụng in thẳng lỗi MariaDB ra HTML.",
     action: "send-repeater",
   },
   {
     target: "inspector-id",
     label: "Gõ id = ' OR '1'='1",
     detail: "Gõ payload ' OR '1'='1 vào tham số id trong Inspector để dump toàn bảng users.",
+    purpose: "Biến mệnh đề WHERE thành điều kiện luôn đúng ('1'='1') để ép MariaDB trả về toàn bộ dòng dữ liệu trong bảng users.",
     action: "focus-target",
     typeField: "inspector-id",
     typeValue: "' OR '1'='1",
@@ -233,6 +253,7 @@ const M2_S2_STEPS: WalkStepSpec[] = [
     target: "btn-repeater-send",
     label: "Bấm Send (Dump 5 users)",
     detail: "Gửi payload -> Response hiển thị cả 5 tài khoản DVWA.",
+    purpose: "Hoàn tất PoC 2: Trích xuất trái phép danh sách toàn bộ 5 người dùng (admin, Gordon, 1337, Pablo, Bob) ngay trên phản hồi HTTP.",
     action: "send-repeater",
   },
 ];
@@ -242,18 +263,21 @@ const M4_S2_STEPS: WalkStepSpec[] = [
     target: "repeater-tab-1",
     label: "Xem Tab 1 (security=low)",
     detail: "Quan sát request cũ ở mức security=low đang dính lỗi SQL syntax MariaDB.",
+    purpose: "Làm đối chứng nền: khi Cookie đặt security=low, tham số id=1' làm sập truy vấn SELECT và rò lỗi MariaDB.",
     action: "select-tab-1",
   },
   {
     target: "repeater-tab-2",
     label: "Mở Tab 2 (PoC 5 Gốc)",
     detail: "Chuyển sang Tab 2 không chứa tham số user_token.",
+    purpose: "Kiểm thử tình huống gửi trực tiếp request từ công cụ ngoài (Repeater) ở mức bảo vệ Impossible nhưng cố tình không đính kèm Anti-CSRF token.",
     action: "select-tab-2",
   },
   {
     target: "inspector-id",
     label: "Gõ id = 1'",
     detail: "Giữ payload id=1' trên gói tin thiếu user_token.",
+    purpose: "Đưa payload SQLi kinh điển (id=1') để xem lớp bảo vệ nào trong impossible.php chặn trước.",
     action: "focus-target",
     typeField: "inspector-id",
     typeValue: "1'",
@@ -262,18 +286,21 @@ const M4_S2_STEPS: WalkStepSpec[] = [
     target: "inspector-sec-impossible",
     label: "Đổi Cookie -> impossible",
     detail: "Đổi Cookie thành security=impossible trong Inspector.",
+    purpose: "Kích hoạt nhánh mã nguồn impossible.php phía máy chủ thông qua giá trị Cookie security=impossible.",
     action: "set-sec-impossible",
   },
   {
     target: "btn-repeater-send",
     label: "Bấm Send",
     detail: "Bấm Send -> Máy chủ gọi checkToken() ở dòng 5 trong impossible.php.",
+    purpose: "Thực thi request lên server để kiểm chứng lớp 1 checkToken() phản ứng ngay trước khi chạm vào câu lệnh kiểm tra $id hay SQL.",
     action: "send-repeater",
   },
   {
     target: "res-view-render",
     label: "Mở chế độ Render",
     detail: "Phản hồi HTTP 302 Found -> Location: index.php (chặn ngay tại Anti-CSRF).",
+    purpose: "Hiển thị kết quả trực quan HTTP 302 Redirect về index.php (0 bytes nội dung SQL) — chứng minh lớp 1 Anti-CSRF đã cắt đứt luồng tấn công từ sớm.",
     action: "switch-res-render",
   },
 ];
@@ -283,18 +310,21 @@ const M4_S3_STEPS: WalkStepSpec[] = [
     target: "repeater-tab-3",
     label: "Mở Tab 3 (Có user_token)",
     detail: "Chuyển sang Tab 3 có kèm tham số Anti-CSRF user_token.",
+    purpose: "Tinh chỉnh lại bài test PoC 5: bổ sung tham số user_token hợp lệ để vượt qua checkToken() ở dòng 5, nhờ vậy mới kiểm chứng được lớp 2 và lớp 3 phía sau.",
     action: "select-tab-3",
   },
   {
     target: "inspector-rotate-token",
     label: "Lấy user_token mới",
     detail: "Trích xuất mã user_token phiên hợp lệ mới nhất từ form DVWA.",
+    purpose: "Mỗi lượt truy vấn trên Impossible sinh một session_token một lần (nonce); cần đồng bộ user_token mới khớp với phiên PHPSESSID.",
     action: "rotate-token",
   },
   {
     target: "inspector-id",
     label: "Gõ id = 1",
     detail: "Gõ id=1 kèm user_token hợp lệ để kiểm chứng truy vấn chuẩn qua PDO.",
+    purpose: "Kiểm tra ca hợp lệ (Happy path): id=1 là số nguyên sạch nên đi xuyên qua cả 3 lớp kiểm soát vào MariaDB qua PDO::PARAM_INT.",
     action: "focus-target",
     typeField: "inspector-id",
     typeValue: "1",
@@ -303,18 +333,21 @@ const M4_S3_STEPS: WalkStepSpec[] = [
     target: "btn-repeater-send",
     label: "Bấm Send (id=1)",
     detail: "Qua đủ 3 chốt checkToken -> is_numeric('1') -> PDO::PARAM_INT (200 OK).",
+    purpose: "Xác nhận ứng dụng vẫn hoạt động bình thường với người dùng thật (trả về HTTP 200 First name: admin) dù đang bật chế độ bảo mật cao nhất.",
     action: "send-repeater",
   },
   {
     target: "inspector-rotate-token",
     label: "Lấy user_token vòng kế",
     detail: "Lấy user_token mới cho lượt kiểm thử tấn công tiếp theo.",
+    purpose: "Xoay vòng Anti-CSRF token cho lượt request kế tiếp vì token vòng trước đã tiêu thụ xong.",
     action: "rotate-token",
   },
   {
     target: "inspector-id",
     label: "Gõ id = 1'",
     detail: "Gõ payload SQLi id=1' kèm token hợp lệ để xuyên qua checkToken() dòng 5.",
+    purpose: "Thử tấn công ngay cả khi kẻ tấn công có sẵn CSRF user_token hợp lệ trong phiên làm việc.",
     action: "focus-target",
     typeField: "inspector-id",
     typeValue: "1'",
@@ -323,12 +356,14 @@ const M4_S3_STEPS: WalkStepSpec[] = [
     target: "btn-repeater-send",
     label: "Bấm Send (id=1' + Token)",
     detail: "Qua checkToken(), nhưng bị is_numeric(\"1'\") ở dòng 11 chặn trước khi gọi SQL.",
+    purpose: "Chứng minh lớp 2 (is_numeric) và lớp 3 (PDO Prepared Statement ép kiểu PARAM_INT) triệt tiêu hoàn toàn SQLi ngay cả khi đã qua chốt Anti-CSRF.",
     action: "send-repeater",
   },
   {
     target: "res-view-render",
     label: "Mở chế độ Render",
     detail: "200 OK rỗng, hoàn toàn không lộ lỗi cú pháp MariaDB.",
+    purpose: "Đối chiếu kết quả cuối cùng: trang chỉ hiện form bình thường, không rò dữ liệu hay thông báo lỗi SQL (khắc phục dứt điểm CWE-89 & CWE-209).",
     action: "switch-res-render",
   },
 ];
@@ -1636,6 +1671,25 @@ Connection: close`;
     setIsPaused(false);
   };
 
+  const completeCurrentWalkStepAndPause = () => {
+    const current = walkSteps[stepIdx];
+    if (!current) return;
+    if (current.typeField && current.typeValue) {
+      applyWalkFieldValue(current.typeField, current.typeValue);
+      setTypedChars(current.typeValue.length);
+    }
+    executeWalkAction(current.action);
+    if (stepIdx + 1 < walkSteps.length) {
+      setStepIdx((i) => i + 1);
+      setTypedChars(0);
+      setPhase("gliding");
+      setIsPaused(true);
+    } else {
+      setIsPaused(false);
+      setPhase("done");
+    }
+  };
+
   const handlersRef = useRef({
     executeWalkAction,
     applyWalkFieldValue,
@@ -1850,11 +1904,13 @@ Connection: close`;
         <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-zinc-400">
           {walkId && phase !== "idle" && (
             <div className="flex items-center gap-2 rounded border border-[#3c3f47] bg-[#1e1f22] px-2 py-0.5">
-              <div className="h-2 w-24 overflow-hidden rounded-full border border-[#3c3f47] bg-[#18191c] sm:w-32">
+              <div className="h-2 w-24 overflow-hidden rounded-full border border-[#3c3f47] bg-[#18191c] sm:w-28">
                 <div
                   className={`h-full transition-all duration-300 ${
                     phase === "done"
                       ? "bg-emerald-400"
+                      : isPaused
+                      ? "bg-amber-400"
                       : "bg-gradient-to-r from-[#ff6633] to-amber-400"
                   }`}
                   style={{ width: `${progressPct}%` }}
@@ -1862,7 +1918,11 @@ Connection: close`;
               </div>
               <span
                 className={`font-mono text-[11px] font-bold ${
-                  phase === "done" ? "text-emerald-300" : "text-[#ff885e]"
+                  phase === "done"
+                    ? "text-emerald-300"
+                    : isPaused
+                    ? "text-amber-300"
+                    : "text-[#ff885e]"
                 }`}
               >
                 {progressPct}%
@@ -1870,6 +1930,34 @@ Connection: close`;
               <span className="font-mono text-[10.5px] text-zinc-400">
                 {Math.min(stepIdx + 1, walkSteps.length)}/{walkSteps.length}
               </span>
+              {phase !== "done" && (
+                <button
+                  type="button"
+                  onClick={() => setIsPaused((p) => !p)}
+                  className={`inline-flex cursor-pointer items-center gap-1 rounded px-2 py-0.5 text-[10.5px] font-semibold transition-colors ${
+                    isPaused
+                      ? "bg-emerald-600 text-white hover:bg-emerald-500"
+                      : "bg-amber-500/20 text-amber-200 hover:bg-amber-500/35"
+                  }`}
+                  title={
+                    isPaused
+                      ? "Tiếp tục chạy mô phỏng"
+                      : "Tạm dừng để giải thích tác dụng của bước hiện tại"
+                  }
+                >
+                  {isPaused ? (
+                    <>
+                      <Play className="h-2.5 w-2.5" aria-hidden="true" />
+                      <span>Tiếp tục</span>
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="h-2.5 w-2.5" aria-hidden="true" />
+                      <span>Tạm dừng</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           )}
 
@@ -1905,6 +1993,8 @@ Connection: close`;
             className={`h-full transition-all duration-300 ${
               phase === "done"
                 ? "bg-emerald-400"
+                : isPaused
+                ? "bg-amber-400"
                 : "bg-gradient-to-r from-[#ff6633] to-amber-400"
             }`}
             style={{ width: `${progressPct}%` }}
@@ -1990,23 +2080,40 @@ Connection: close`;
               {walkId && phase !== "idle" && (
                 <>
                   {phase !== "done" ? (
-                    <button
-                      type="button"
-                      onClick={() => setIsPaused((p) => !p)}
-                      className="inline-flex cursor-pointer items-center gap-1 rounded border border-[#3c3f47] bg-[#2b2d31] px-2 py-0.5 text-[10.5px] text-zinc-200 hover:bg-[#383a40]"
-                    >
-                      {isPaused ? (
-                        <>
-                          <Play className="h-2.5 w-2.5 text-emerald-400" aria-hidden="true" />
-                          <span>Tiếp tục</span>
-                        </>
-                      ) : (
-                        <>
-                          <Pause className="h-2.5 w-2.5 text-amber-300" aria-hidden="true" />
-                          <span>Tạm dừng</span>
-                        </>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setIsPaused((p) => !p)}
+                        className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2.5 py-0.5 text-[10.5px] font-semibold transition-colors ${
+                          isPaused
+                            ? "border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-500"
+                            : "border-amber-500/50 bg-amber-500/20 text-amber-200 hover:bg-amber-500/30"
+                        }`}
+                      >
+                        {isPaused ? (
+                          <>
+                            <Play className="h-2.5 w-2.5" aria-hidden="true" />
+                            <span>Tiếp tục</span>
+                          </>
+                        ) : (
+                          <>
+                            <Pause className="h-2.5 w-2.5" aria-hidden="true" />
+                            <span>Tạm dừng</span>
+                          </>
+                        )}
+                      </button>
+                      {isPaused && (
+                        <button
+                          type="button"
+                          onClick={completeCurrentWalkStepAndPause}
+                          className="inline-flex cursor-pointer items-center gap-1 rounded border border-[#3c3f47] bg-[#2b2d31] px-2 py-0.5 text-[10.5px] text-zinc-100 hover:bg-[#383a40]"
+                          title="Thực hiện xong thao tác này và giữ dừng trước thao tác kế tiếp"
+                        >
+                          <SkipForward className="h-2.5 w-2.5" aria-hidden="true" />
+                          <span>Xong bước này</span>
+                        </button>
                       )}
-                    </button>
+                    </>
                   ) : (
                     <button
                       type="button"
@@ -2030,6 +2137,45 @@ Connection: close`;
               )}
             </div>
           </div>
+
+          {/* Pause-to-Explain Banner */}
+          {isPaused && walkId && phase !== "idle" && phase !== "done" && currentWalkStep && (
+            <div className="space-y-1.5 border-b border-amber-500/40 bg-[#2b2116] px-3.5 py-2.5 text-xs text-zinc-200">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-mono text-[11px] font-bold text-amber-300">
+                  ĐANG TẠM DỪNG ĐỂ GIẢI THÍCH · Thao tác {Math.min(stepIdx + 1, walkSteps.length)}/
+                  {walkSteps.length}: {currentWalkStep.label}
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={completeCurrentWalkStepAndPause}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-200 hover:bg-amber-500/25"
+                  >
+                    <SkipForward className="h-3 w-3" aria-hidden="true" />
+                    Xong thao tác này &amp; giữ dừng
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsPaused(false)}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded bg-emerald-600 px-2.5 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-500"
+                  >
+                    <Play className="h-3 w-3" aria-hidden="true" />
+                    Tiếp tục chạy
+                  </button>
+                </div>
+              </div>
+              {currentWalkStep.typeValue && (
+                <div className="overflow-x-auto rounded border border-amber-500/25 bg-black/40 px-2.5 py-1 font-mono text-[11px] text-amber-200">
+                  Dữ liệu nhập: {currentWalkStep.typeValue}
+                </div>
+              )}
+              <div className="text-[11.5px] leading-relaxed text-zinc-200">
+                <span className="font-semibold text-amber-300">Tác dụng: </span>
+                {currentWalkStep.purpose}
+              </div>
+            </div>
+          )}
 
           {/* 3. Main Module Tab Bar */}
           <div className="flex flex-wrap items-center gap-0.5 border-b border-[#383a40] bg-[#2b2d31] px-2 pt-1 text-xs">
