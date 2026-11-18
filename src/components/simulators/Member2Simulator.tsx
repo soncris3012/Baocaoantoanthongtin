@@ -7,7 +7,11 @@ import {
   BurpSuiteEmulator,
 } from "@/components/simulators/BurpSuiteEmulator";
 import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
-import { TerminalEmulator } from "@/components/simulators/TerminalEmulator";
+import {
+  buildStepTerminalCommands,
+  type ExternalTerminalCommand,
+  TerminalEmulator,
+} from "@/components/simulators/TerminalEmulator";
 import { WindowControls } from "@/components/WindowBar";
 
 interface Props {
@@ -15,6 +19,7 @@ interface Props {
   phpsessid: string;
   activeTab?: string;
   burpAutoplay?: BurpAutoplayRequest | null;
+  terminalAutoplay?: ExternalTerminalCommand | null;
 }
 
 interface AccessLogItem {
@@ -71,18 +76,27 @@ export function Member2Simulator({
   phpsessid,
   activeTab,
   burpAutoplay,
+  terminalAutoplay,
 }: Props) {
   const [tab, setTab] = useState<"burp" | "logs" | "docker">(
     activeTab === "m2-curl-log" ? "logs" : "burp"
   );
   const [containerRunning, setContainerRunning] = useState(true);
   const lastAutoplayIdRef = useRef(0);
+  const lastTermAutoplayIdRef = useRef(0);
 
   useEffect(() => {
     if (!burpAutoplay || burpAutoplay.id === lastAutoplayIdRef.current) return;
     lastAutoplayIdRef.current = burpAutoplay.id;
     setTab("burp");
   }, [burpAutoplay]);
+
+  useEffect(() => {
+    if (!terminalAutoplay || terminalAutoplay.id === lastTermAutoplayIdRef.current) return;
+    lastTermAutoplayIdRef.current = terminalAutoplay.id;
+    setTab("logs");
+    setNewLogCount(0);
+  }, [terminalAutoplay]);
   const [sentPayload, setSentPayload] = useState("1'");
 
   const [curlId, setCurlId] = useState("1");
@@ -339,32 +353,43 @@ export function Member2Simulator({
             onContainerRunningChange={setContainerRunning}
             externalAccessLogs={liveLogs}
             onCurlLogged={(idParam, ua) => recordLogEntry(idParam, ua)}
+            externalCommand={terminalAutoplay}
+            stepGroups={[
+              {
+                id: "m2-s3",
+                label: "Bước 03: curl + grep",
+                commands: buildStepTerminalCommands("m2-s3", { container, phpsessid: session }) ?? [],
+              },
+              {
+                id: "m2-s4",
+                label: "Bước 04: grep access.log",
+                commands: buildStepTerminalCommands("m2-s4", { container, phpsessid: session }) ?? [],
+              },
+              {
+                id: "m2-all",
+                label: "Chạy Bước 03 -> 04",
+                commands: [
+                  ...(buildStepTerminalCommands("m2-s3", { container, phpsessid: session }) ?? []),
+                  ...(buildStepTerminalCommands("m2-s4", { container, phpsessid: session }) ?? []),
+                ],
+              },
+            ]}
             presets={[
               {
-                label: "curl + grep admin",
+                label: 'curl -s ... | grep -o "First name: [^<]*"',
                 command: `curl -s -b "security=low; PHPSESSID=${session}" "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1&Submit=Submit" | grep -o "First name: [^<]*"`,
               },
               {
-                label: "curl SQLi 1'",
+                label: "curl -s ... ?id=1'&Submit=Submit",
                 command: `curl -s -b "security=low; PHPSESSID=${session}" "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1'&Submit=Submit"`,
               },
               {
-                label: "grep access.log",
-                command: `docker exec ${container} grep -E "(%27|UNION|SELECT)" /var/log/apache2/access.log`,
+                label: `docker exec ${container} grep -E ... /var/log/apache2/access.log`,
+                command: `docker exec ${container} grep -E "(%27|'|UNION|SELECT)" /var/log/apache2/access.log | tail -n 5`,
               },
               {
                 label: "docker ps",
                 command: "docker ps",
-              },
-            ]}
-            initialEntries={[
-              {
-                command: `docker exec ${container} grep -E "(%27|UNION|SELECT)" /var/log/apache2/access.log`,
-                output: INITIAL_LOG_LINES.map(
-                  (l) =>
-                    `${l.ip} - - [${l.timestamp}] "${l.method} ${l.uri} HTTP/1.1" ${l.status} ${l.bytes} "-" "${l.ua}"`
-                ).join("\n"),
-                tone: "warn",
               },
             ]}
           />

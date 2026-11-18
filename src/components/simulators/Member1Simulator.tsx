@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
   RotateCcw,
@@ -10,14 +10,19 @@ import {
 } from "lucide-react";
 import { WindowControls } from "@/components/WindowBar";
 import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
-import { TerminalEmulator } from "@/components/simulators/TerminalEmulator";
+import {
+  buildStepTerminalCommands,
+  type ExternalTerminalCommand,
+  TerminalEmulator,
+} from "@/components/simulators/TerminalEmulator";
 
 interface Props {
   containerRef: string;
   activeTab?: string;
+  terminalAutoplay?: ExternalTerminalCommand | null;
 }
 
-export function Member1Simulator({ containerRef, activeTab }: Props) {
+export function Member1Simulator({ containerRef, activeTab, terminalAutoplay }: Props) {
   const [tab, setTab] = useState<"recon" | "docker" | "patch">(
     activeTab === "m1-patch" ? "patch" : "recon"
   );
@@ -26,9 +31,21 @@ export function Member1Simulator({ containerRef, activeTab }: Props) {
 
   const [apachePatched, setApachePatched] = useState(false);
   const [cookiePatched, setCookiePatched] = useState(false);
+  const lastTermAutoplayIdRef = useRef(0);
+
+  useEffect(() => {
+    if (!terminalAutoplay || terminalAutoplay.id === lastTermAutoplayIdRef.current) return;
+    lastTermAutoplayIdRef.current = terminalAutoplay.id;
+    setTab("recon");
+  }, [terminalAutoplay]);
 
   const containerName = containerRef.trim() || "215d3a734374";
   const remainingFindings = (apachePatched ? 0 : 1) + (cookiePatched ? 0 : 1);
+  const vars = { container: containerName, phpsessid: "7nst0hrqrfmv744a5ouj7663b0" };
+  const s1 = buildStepTerminalCommands("m1-s1", vars) ?? [];
+  const s2 = buildStepTerminalCommands("m1-s2", vars) ?? [];
+  const s3 = buildStepTerminalCommands("m1-s3", vars) ?? [];
+  const s4 = buildStepTerminalCommands("m1-s4", vars) ?? [];
 
   const handleApplyApachePatch = () => {
     setIsRunning(true);
@@ -121,32 +138,28 @@ export function Member1Simulator({ containerRef, activeTab }: Props) {
             cookiePatched={cookiePatched}
             onApachePatchedChange={setApachePatched}
             onCookiePatchedChange={setCookiePatched}
+            externalCommand={terminalAutoplay}
+            stepGroups={[
+              { id: "m1-s1", label: "Bước 01: docker ps & nmap", commands: s1 },
+              { id: "m1-s2", label: "Bước 02: curl HTTP Headers", commands: s2 },
+              { id: "m1-s3", label: "Bước 03: ServerTokens Prod", commands: s3 },
+              { id: "m1-s4", label: "Bước 04: Cookie & Security Headers", commands: s4 },
+              { id: "m1-all", label: "Chạy trọn bộ 4 bước", commands: [...s1, ...s2, ...s3, ...s4] },
+            ]}
             presets={[
               { label: "docker ps", command: "docker ps" },
-              { label: "nmap -sV", command: "nmap -sV -p 8080 127.0.0.1" },
+              { label: "nmap -sV -p 8080 127.0.0.1", command: "nmap -sV -p 8080 127.0.0.1" },
               {
-                label: "curl -is login.php",
+                label: "curl -is http://127.0.0.1:8080/login.php | head -n 15",
                 command: "curl -is http://127.0.0.1:8080/login.php | head -n 15",
               },
               {
-                label: "grep Server:",
+                label: 'curl -Is .../login.php | grep -i "Server:"',
                 command: 'curl -Is http://127.0.0.1:8080/login.php | grep -i "Server:"',
               },
               {
-                label: "docker exec bash",
+                label: `docker exec -it ${containerName} bash`,
                 command: `docker exec -it ${containerName} bash`,
-              },
-            ]}
-            initialEntries={[
-              {
-                command: "curl -is http://127.0.0.1:8080/login.php | head -n 15",
-                output: `HTTP/1.1 200 OK
-Date: Wed, 04 Nov 2026 02:09:19 GMT
-Server: Apache/2.4.25 (Debian)
-Set-Cookie: PHPSESSID=2d0vvd715drf3nv8mgq7vderg6; path=/
-Set-Cookie: security=low
-Content-Type: text/html;charset=utf-8`,
-                tone: "warn",
               },
             ]}
           />

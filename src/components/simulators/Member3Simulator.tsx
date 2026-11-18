@@ -12,6 +12,7 @@ import {
 import { WindowControls } from "@/components/WindowBar";
 import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
 import {
+  buildStepTerminalCommands,
   type ExternalTerminalCommand,
   TerminalEmulator,
 } from "@/components/simulators/TerminalEmulator";
@@ -20,6 +21,7 @@ interface Props {
   containerRef: string;
   phpsessid: string;
   activeTab?: string;
+  terminalAutoplay?: ExternalTerminalCommand | null;
 }
 
 interface UserRow {
@@ -110,16 +112,27 @@ function deterministicPseudoMd5(input: string): string {
   return `${part(h1)}${part(h2)}${part(h1 ^ h2)}${part(h1 + h2)}`;
 }
 
-export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) {
+export function Member3Simulator({
+  containerRef,
+  phpsessid,
+  activeTab,
+  terminalAutoplay,
+}: Props) {
   const [tab, setTab] = useState<"sqlmap" | "mariadb" | "docker">(
     activeTab === "m3-mariadb-patch" ? "mariadb" : "sqlmap"
   );
   const [sqlmapStage, setSqlmapStage] = useState<1 | 2 | 3>(1);
-  const [isScanning, setIsScanning] = useState(false);
-  const [isSequenceRunning, setIsSequenceRunning] = useState(false);
   const [containerRunning, setContainerRunning] = useState(true);
   const [terminalCmd, setTerminalCmd] = useState<ExternalTerminalCommand | null>(null);
   const cmdSeqRef = useRef(1);
+  const lastTermAutoplayIdRef = useRef(0);
+
+  useEffect(() => {
+    if (!terminalAutoplay || terminalAutoplay.id === lastTermAutoplayIdRef.current) return;
+    lastTermAutoplayIdRef.current = terminalAutoplay.id;
+    setTab("sqlmap");
+    setTerminalCmd(terminalAutoplay);
+  }, [terminalAutoplay]);
 
   const [bcryptApplied, setBcryptApplied] = useState(false);
   const [leastPrivApplied, setLeastPrivApplied] = useState(false);
@@ -135,8 +148,6 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
   );
   const [sqlOutput, setSqlOutput] = useState<string | null>(null);
 
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-
   const container = containerRef.trim() || "dvwa";
   const session = phpsessid.trim() || "7nst0hrqrfmv744a5ouj7663b0";
 
@@ -150,58 +161,22 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
     return `sqlmap -u "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1&Submit=Submit" --cookie="security=low; PHPSESSID=${session}" ${flag}`;
   };
 
-  useEffect(() => {
-    return () => {
-      timersRef.current.forEach(clearTimeout);
-    };
-  }, []);
-
-  const clearTimers = () => {
-    timersRef.current.forEach(clearTimeout);
-    timersRef.current = [];
-  };
-
   const handleStageSelect = (stage: 1 | 2 | 3) => {
-    clearTimers();
-    setIsSequenceRunning(false);
     setSqlmapStage(stage);
-    setIsScanning(true);
-    setTerminalCmd({ id: cmdSeqRef.current++, context: "host", command: buildSqlmapCmd(stage) });
-    const t = setTimeout(() => {
-      setIsScanning(false);
-    }, 320);
-    timersRef.current.push(t);
+    setTerminalCmd({
+      id: cmdSeqRef.current++,
+      context: "host",
+      commands: [buildSqlmapCmd(stage)],
+    });
   };
 
   const handleRunSequence = () => {
-    clearTimers();
-    setIsSequenceRunning(true);
     setSqlmapStage(1);
-    setIsScanning(true);
-    setTerminalCmd({ id: cmdSeqRef.current++, context: "host", command: buildSqlmapCmd(1) });
-
-    timersRef.current.push(setTimeout(() => setIsScanning(false), 300));
-    timersRef.current.push(
-      setTimeout(() => {
-        setSqlmapStage(2);
-        setIsScanning(true);
-        setTerminalCmd({ id: cmdSeqRef.current++, context: "host", command: buildSqlmapCmd(2) });
-      }, 1050)
-    );
-    timersRef.current.push(setTimeout(() => setIsScanning(false), 1350));
-    timersRef.current.push(
-      setTimeout(() => {
-        setSqlmapStage(3);
-        setIsScanning(true);
-        setTerminalCmd({ id: cmdSeqRef.current++, context: "host", command: buildSqlmapCmd(3) });
-      }, 2150)
-    );
-    timersRef.current.push(
-      setTimeout(() => {
-        setIsScanning(false);
-        setIsSequenceRunning(false);
-      }, 2500)
-    );
+    setTerminalCmd({
+      id: cmdSeqRef.current++,
+      context: "host",
+      commands: [buildSqlmapCmd(1), buildSqlmapCmd(2), buildSqlmapCmd(3)],
+    });
   };
 
   const runSqlCommand = (rawSql?: string) => {
@@ -212,7 +187,7 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
     if (lower.includes("grants")) {
       if (!leastPrivApplied) {
         setSqlOutput(
-          "ERROR 1141 (42000): There is no such grant defined for user 'dvwa_svc' on host 'localhost'\n(Gợi ý: Bấm nút 'Thực thi Vá lỗi 2: Tạo User dvwa_svc' phía trên trước khi kiểm tra)"
+          "ERROR 1141 (42000): There is no such grant defined for user 'dvwa_svc' on host 'localhost'"
         );
       } else {
         setSqlOutput(`+--------------------------------------------------------------------------------+
@@ -338,9 +313,9 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             {[
-              { id: 1 as const, label: "Lệnh 1: --dbs" },
-              { id: 2 as const, label: "Lệnh 2: -D dvwa --tables" },
-              { id: 3 as const, label: "Lệnh 3: -T users --dump" },
+              { id: 1 as const, label: "sqlmap --dbs" },
+              { id: 2 as const, label: "sqlmap -D dvwa --tables" },
+              { id: 3 as const, label: "sqlmap -T users --dump" },
             ].map((s) => (
               <button
                 key={s.id}
@@ -357,20 +332,13 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
               </button>
             ))}
 
-            {isScanning && (
-              <span className="font-mono text-xs text-amber-500">
-                Đang nạp SQLMap {sqlmapStage}/3...
-              </span>
-            )}
-
             <button
               type="button"
               onClick={handleRunSequence}
-              disabled={isSequenceRunning}
-              className="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+              className="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
             >
               <Play className="h-3 w-3" aria-hidden="true" />
-              {isSequenceRunning ? `Đang chạy bước ${sqlmapStage}/3...` : "Chạy Tuần tự 3 Lệnh"}
+              Chạy 3 lệnh SQLMap
             </button>
           </div>
 
@@ -387,25 +355,40 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
             onBcryptAppliedChange={setBcryptApplied}
             onLeastPrivAppliedChange={setLeastPrivApplied}
             externalCommand={terminalCmd}
-            presets={[
-              { label: "sqlmap --dbs", command: buildSqlmapCmd(1) },
-              { label: "sqlmap --tables", command: buildSqlmapCmd(2) },
-              { label: "sqlmap --dump", command: buildSqlmapCmd(3) },
+            stepGroups={[
               {
-                label: "Vào MariaDB CLI",
+                id: "m3-s1",
+                label: "Bước 01: SQLMap 3 pha",
+                commands: buildStepTerminalCommands("m3-s1", { container, phpsessid: session }) ?? [],
+              },
+              {
+                id: "m3-s2",
+                label: "Bước 02: Audit users MD5",
+                commands: buildStepTerminalCommands("m3-s2", { container, phpsessid: session }) ?? [],
+              },
+              {
+                id: "m3-s3",
+                label: "Bước 03: PHP Bcrypt UPDATE",
+                commands: buildStepTerminalCommands("m3-s3", { container, phpsessid: session }) ?? [],
+              },
+              {
+                id: "m3-s4",
+                label: "Bước 04: GRANT dvwa_svc",
+                commands: buildStepTerminalCommands("m3-s4", { container, phpsessid: session }) ?? [],
+              },
+            ]}
+            presets={[
+              { label: "sqlmap ... --dbs --batch", command: buildSqlmapCmd(1) },
+              { label: "sqlmap ... -D dvwa --tables --batch", command: buildSqlmapCmd(2) },
+              { label: "sqlmap ... -D dvwa -T users --dump --batch", command: buildSqlmapCmd(3) },
+              {
+                label: `docker exec -it ${container} mysql -u root dvwa`,
                 command: `docker exec -it ${container} mysql -u root dvwa`,
               },
               {
-                label: "SELECT users",
+                label: "SELECT user_id, user, password FROM users;",
                 command: "SELECT user_id, user, password FROM users;",
                 context: "mariadb",
-              },
-            ]}
-            initialEntries={[
-              {
-                command: buildSqlmapCmd(1),
-                output: `[INFO] testing connection to http://127.0.0.1:8080/vulnerabilities/sqli/\n[INFO] GET parameter 'id' is vulnerable (MySQL / MariaDB fork)\navailable databases [2]:\n[*] dvwa\n[*] information_schema`,
-                tone: "warn",
               },
             ]}
           />

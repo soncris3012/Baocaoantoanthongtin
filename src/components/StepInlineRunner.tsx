@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { interpolateCommand } from "@/components/CodeBlock";
 import { type BurpWalkthroughId } from "@/components/simulators/BurpSuiteEmulator";
+import { buildStepTerminalCommands } from "@/components/simulators/TerminalEmulator";
 import { WindowControls } from "@/components/WindowBar";
 import { ScenarioStep } from "@/types/scenario";
 
@@ -28,6 +29,7 @@ interface StepInlineRunnerProps {
   onToggleComplete: () => void;
   onOpenAdvancedSim?: (simKey?: string) => void;
   onRunBurpWalkthrough?: (walkthroughId: BurpWalkthroughId) => void;
+  onRunTerminalWalkthrough?: (cmds: string[]) => void;
 }
 
 const STEP_BURP_WALKTHROUGH: Partial<Record<string, BurpWalkthroughId>> = {
@@ -45,6 +47,7 @@ export function StepInlineRunner({
   onToggleComplete,
   onOpenAdvancedSim,
   onRunBurpWalkthrough,
+  onRunTerminalWalkthrough,
 }: StepInlineRunnerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -54,6 +57,8 @@ export function StepInlineRunner({
   );
   const [isRunning, setIsRunning] = useState(false);
   const [hasRun, setHasRun] = useState(false);
+  const [runPhase, setRunPhase] = useState<"idle" | "typing" | "streaming" | "done">("idle");
+  const [typedCmdChars, setTypedCmdChars] = useState(0);
   const [visibleLineCount, setVisibleLineCount] = useState(0);
   const [copied, setCopied] = useState(false);
   const [quickCmd, setQuickCmd] = useState("");
@@ -66,6 +71,10 @@ export function StepInlineRunner({
     variables.container.trim() || (memberNumber === 1 ? "215d3a734374" : "dvwa");
   const sess = variables.phpsessid.trim() || "7nst0hrqrfmv744a5ouj7663b0";
   const token = variables.userToken.trim() || "d41d8cd98f00b204e9800998ecf8427e";
+  const stepTermCmds = useMemo(
+    () => buildStepTerminalCommands(step.id, { container, phpsessid: sess }),
+    [step.id, container, sess]
+  );
 
   const hostPrompt =
     memberNumber === 1
@@ -95,7 +104,8 @@ export function StepInlineRunner({
     return interpolatedCommands[selectedCmdIdx]?.rendered ?? interpolatedCommands[0].rendered;
   }, [interpolatedCommands, selectedCmdIdx]);
 
-  const getSimulatedStream = (cmdChoice: number | "all"): string => {
+  const fullStreamText = useMemo(() => {
+    const cmdChoice = selectedCmdIdx;
     switch (step.id) {
       case "m1-s1":
         return `[+] Kết nối Docker daemon (/var/run/docker.sock)... OK
@@ -377,13 +387,7 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
       default:
         return step.expected_output || "[✓] Đã hoàn tất mô phỏng lệnh.";
     }
-  };
-
-  const fullStreamText = useMemo(
-    () => getSimulatedStream(selectedCmdIdx),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [step.id, selectedCmdIdx, container, sess, token]
-  );
+  }, [step.id, step.expected_output, selectedCmdIdx, container, sess, token]);
   const fullLines = useMemo(() => fullStreamText.split("\n"), [fullStreamText]);
 
   useEffect(() => {
@@ -392,23 +396,70 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
     };
   }, []);
 
+  const inlineProgressPct = useMemo(() => {
+    if (runPhase === "idle") return 0;
+    if (runPhase === "done") return 100;
+    if (runPhase === "typing") {
+      return Math.min(45, Math.round((typedCmdChars / Math.max(1, activeCommandText.length)) * 45));
+    }
+    return Math.min(99, 45 + Math.round((visibleLineCount / Math.max(1, fullLines.length)) * 54));
+  }, [runPhase, typedCmdChars, activeCommandText.length, visibleLineCount, fullLines.length]);
+
   const startStreaming = (linesCount: number) => {
     if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+    const cmdText = activeCommandText;
     setIsRunning(true);
     setHasRun(true);
     setVisibleLineCount(0);
 
-    let current = 0;
+    if (!cmdText) {
+      setTypedCmdChars(0);
+      setRunPhase("streaming");
+      let current = 0;
+      streamTimerRef.current = setInterval(() => {
+        current += 2;
+        if (current >= linesCount) {
+          setVisibleLineCount(linesCount);
+          setRunPhase("done");
+          setIsRunning(false);
+          if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+        } else {
+          setVisibleLineCount(current);
+        }
+      }, 55);
+      return;
+    }
+
+    setTypedCmdChars(0);
+    setRunPhase("typing");
+    let chars = 0;
+    const stepChars = cmdText.length > 140 ? 3 : 2;
+    let currentLine = 0;
+    let phase: "typing" | "streaming" = "typing";
+
     streamTimerRef.current = setInterval(() => {
-      current += 2;
-      if (current >= linesCount) {
+      if (phase === "typing") {
+        chars += stepChars;
+        if (chars >= cmdText.length) {
+          setTypedCmdChars(cmdText.length);
+          phase = "streaming";
+          setRunPhase("streaming");
+        } else {
+          setTypedCmdChars(chars);
+        }
+        return;
+      }
+
+      currentLine += 2;
+      if (currentLine >= linesCount) {
         setVisibleLineCount(linesCount);
+        setRunPhase("done");
         setIsRunning(false);
         if (streamTimerRef.current) clearInterval(streamTimerRef.current);
       } else {
-        setVisibleLineCount(current);
+        setVisibleLineCount(currentLine);
       }
-    }, 65);
+    }, 28);
   };
 
   const handleRun = () => {
@@ -418,7 +469,9 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
 
   const handleInstantShow = () => {
     if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+    setTypedCmdChars(activeCommandText.length);
     setVisibleLineCount(fullLines.length);
+    setRunPhase("done");
     setIsRunning(false);
     setHasRun(true);
   };
@@ -443,9 +496,9 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
       return;
     }
 
-    let out = `shell: '${trimmed}'. Hỗ trợ nhanh: docker ps, docker ps -a, docker images, whoami, pwd, id, hostname, curl -Is http://127.0.0.1:8080/login.php, clear`;
+    let out = `shell: '${trimmed}'. Lệnh hỗ trợ: docker ps, docker ps -a, docker images, whoami, pwd, id, hostname, curl -Is http://127.0.0.1:8080/login.php, clear`;
     if (lower === "help" || lower === "?") {
-      out = "Lệnh nhanh: docker ps | docker ps -a | docker images | whoami | id | pwd | hostname | curl -Is http://127.0.0.1:8080/login.php | clear";
+      out = "Các lệnh hỗ trợ: docker ps | docker ps -a | docker images | whoami | id | pwd | hostname | curl -Is http://127.0.0.1:8080/login.php | clear";
     } else if (lower.startsWith("docker ps")) {
       out = `CONTAINER ID   IMAGE                  STATUS       PORTS                    NAMES\n${container.padEnd(14, " ")} vulnerables/web-dvwa   Up 2 hours   0.0.0.0:8080->80/tcp     ${memberNumber === 1 ? "epic_dijkstra" : "dvwa"}`;
     } else if (lower === "docker images") {
@@ -527,6 +580,18 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
             </button>
           )}
 
+          {stepTermCmds && onRunTerminalWalkthrough && (
+            <button
+              type="button"
+              onClick={() => onRunTerminalWalkthrough(stepTermCmds)}
+              className="inline-flex cursor-pointer items-center gap-1 rounded bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white transition-opacity hover:opacity-90"
+              title="Mở Terminal và mô phỏng gõ từng chữ cho bước này"
+            >
+              <Play className="h-3 w-3" aria-hidden="true" />
+              Mô phỏng trực tiếp trên Terminal
+            </button>
+          )}
+
           {step.simulator_key && onOpenAdvancedSim && (
             <button
               type="button"
@@ -550,6 +615,7 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
                 onClose={() => {
                   if (streamTimerRef.current) clearInterval(streamTimerRef.current);
                   setIsRunning(false);
+                  setRunPhase("idle");
                   setIsOpen(false);
                 }}
                 closeTitle="Đóng cửa sổ mô phỏng"
@@ -565,6 +631,20 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
+              {runPhase !== "idle" && (
+                <div className="flex items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 font-mono text-[10px]">
+                  <div className="h-1.5 w-14 overflow-hidden rounded-full bg-zinc-700">
+                    <div
+                      className={`h-full transition-all duration-150 ${
+                        runPhase === "done" ? "bg-emerald-400" : "bg-sky-400"
+                      }`}
+                      style={{ width: `${inlineProgressPct}%` }}
+                    />
+                  </div>
+                  <span className="font-bold text-white">{inlineProgressPct}%</span>
+                </div>
+              )}
+
               {isRunning && (
                 <button
                   type="button"
@@ -601,8 +681,12 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
                   <button
                     type="button"
                     onClick={() => {
+                      if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+                      setIsRunning(false);
                       setSelectedCmdIdx("all");
                       setHasRun(false);
+                      setRunPhase("idle");
+                      setTypedCmdChars(0);
                       setVisibleLineCount(0);
                     }}
                     className={`cursor-pointer rounded border px-2 py-0.5 text-[11px] font-medium transition-colors ${
@@ -618,8 +702,12 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
                       key={idx}
                       type="button"
                       onClick={() => {
+                        if (streamTimerRef.current) clearInterval(streamTimerRef.current);
+                        setIsRunning(false);
                         setSelectedCmdIdx(idx);
                         setHasRun(false);
+                        setRunPhase("idle");
+                        setTypedCmdChars(0);
                         setVisibleLineCount(0);
                       }}
                       className={`cursor-pointer rounded border px-2 py-0.5 text-[11px] font-medium transition-colors ${
@@ -634,17 +722,20 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
                 </div>
               )}
 
-              {/* Executed Command Preview */}
+              {/* Executed Command Typewriter Line */}
               <div className="rounded border border-zinc-800/80 bg-[#0d1117] px-3 py-2 text-zinc-400">
                 <span className="text-emerald-400">{hostPrompt}</span>{" "}
-                <span className="font-semibold text-zinc-100">
-                  {activeCommandText.split("\n")[0]}
-                </span>
-                {activeCommandText.split("\n").length > 1 && (
-                  <span className="text-zinc-500">
-                    {" "}
-                    (+{activeCommandText.split("\n").length - 1} dòng lệnh nối tiếp)
-                  </span>
+                {runPhase === "idle" ? (
+                  <span className="inline-block h-3.5 w-1.5 animate-pulse bg-zinc-400 align-middle" />
+                ) : (
+                  <pre className="inline whitespace-pre-wrap font-semibold text-zinc-100">
+                    {runPhase === "typing"
+                      ? activeCommandText.slice(0, typedCmdChars)
+                      : activeCommandText}
+                    {runPhase === "typing" && (
+                      <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-emerald-400 align-middle" />
+                    )}
+                  </pre>
                 )}
               </div>
 

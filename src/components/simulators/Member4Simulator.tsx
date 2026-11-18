@@ -18,7 +18,11 @@ import {
   BurpSuiteEmulator,
 } from "@/components/simulators/BurpSuiteEmulator";
 import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
-import { TerminalEmulator } from "@/components/simulators/TerminalEmulator";
+import {
+  buildStepTerminalCommands,
+  type ExternalTerminalCommand,
+  TerminalEmulator,
+} from "@/components/simulators/TerminalEmulator";
 import { WindowControls } from "@/components/WindowBar";
 import { PHP_LEVEL_SOURCES } from "@/data/scenarioData";
 
@@ -28,6 +32,7 @@ interface Props {
   userToken: string;
   activeTab?: string;
   burpAutoplay?: BurpAutoplayRequest | null;
+  terminalAutoplay?: ExternalTerminalCommand | null;
 }
 
 interface WafAuditItem {
@@ -74,19 +79,32 @@ export function Member4Simulator({
   userToken,
   activeTab,
   burpAutoplay,
+  terminalAutoplay,
 }: Props) {
   const [tab, setTab] = useState<"php" | "poc5" | "waf" | "terminal">(
-    activeTab === "m4-poc5-waf" ? "poc5" : "php"
+    activeTab === "m4-poc5-waf"
+      ? "poc5"
+      : activeTab === "m4-terminal"
+      ? "terminal"
+      : "php"
   );
   const [containerRunning, setContainerRunning] = useState(true);
   const [terminalSubView, setTerminalSubView] = useState<"terminal" | "docker">("terminal");
   const lastAutoplayIdRef = useRef(0);
+  const lastTermAutoplayIdRef = useRef(0);
 
   useEffect(() => {
     if (!burpAutoplay || burpAutoplay.id === lastAutoplayIdRef.current) return;
     lastAutoplayIdRef.current = burpAutoplay.id;
     setTab("poc5");
   }, [burpAutoplay]);
+
+  useEffect(() => {
+    if (!terminalAutoplay || terminalAutoplay.id === lastTermAutoplayIdRef.current) return;
+    lastTermAutoplayIdRef.current = terminalAutoplay.id;
+    setTab("terminal");
+    setTerminalSubView("terminal");
+  }, [terminalAutoplay]);
   const [selectedPhp, setSelectedPhp] = useState<
     "low" | "medium" | "high" | "impossible"
   >("low");
@@ -467,7 +485,7 @@ export function Member4Simulator({
                       : "border-hairline bg-surface text-secondary"
                   }`}
                 >
-                  Thiếu (Gốc)
+                  Không đính kèm
                 </button>
                 <button
                   type="button"
@@ -481,7 +499,7 @@ export function Member4Simulator({
                       : "border-hairline bg-surface text-secondary"
                   }`}
                 >
-                  Đủ Token
+                  Đính kèm user_token
                 </button>
               </div>
             </div>
@@ -592,23 +610,22 @@ export function Member4Simulator({
             </pre>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-ink">Thử payload:</span>
+              <span className="text-xs font-semibold text-ink">Payload kiểm thử:</span>
               {[
                 "1' OR 1=1",
                 "1' UNION SELECT 1,2 #",
                 "admin'--",
-                "100 (Hợp lệ)",
+                "100",
               ].map((txt) => (
                 <button
                   key={txt}
                   type="button"
                   onClick={() => {
-                    const clean = txt.replace(" (Hợp lệ)", "");
-                    setWafInput(clean);
-                    handleTestWaf(clean);
+                    setWafInput(txt);
+                    handleTestWaf(txt);
                   }}
                   className={`cursor-pointer rounded border px-2 py-0.5 font-mono text-xs transition-colors ${
-                    wafInput === txt.replace(" (Hợp lệ)", "")
+                    wafInput === txt
                       ? "border-ink bg-ink font-semibold text-canvas"
                       : "border-hairline bg-surface text-secondary"
                   }`}
@@ -780,35 +797,42 @@ export function Member4Simulator({
               onContainerRunningChange={setContainerRunning}
               externalWafLogs={wafAuditLogs}
               onWafTested={(val) => recordWafAudit(val)}
-              presets={[
+              externalCommand={terminalAutoplay}
+              stepGroups={[
                 {
-                  label: "cat impossible.php",
-                  command: "cat /var/www/html/vulnerabilities/sqli/source/impossible.php",
+                  id: "m4-s1",
+                  label: "Bước 01: cat -n 4 mức PHP",
+                  commands:
+                    buildStepTerminalCommands("m4-s1", { container, phpsessid: session }) ?? [],
                 },
                 {
-                  label: "diff low vs impossible",
+                  id: "m4-s4",
+                  label: "Bước 04: ModSecurity WAF",
+                  commands:
+                    buildStepTerminalCommands("m4-s4", { container, phpsessid: session }) ?? [],
+                },
+              ]}
+              presets={[
+                {
+                  label: "cat -n /var/www/html/vulnerabilities/sqli/source/impossible.php",
+                  command: `docker exec ${container} cat -n /var/www/html/vulnerabilities/sqli/source/impossible.php`,
+                },
+                {
+                  label: "diff -u low.php impossible.php",
                   command:
                     "diff -u /var/www/html/vulnerabilities/sqli/source/low.php /var/www/html/vulnerabilities/sqli/source/impossible.php",
                 },
                 {
-                  label: "apache2ctl -M | security2",
-                  command: "apache2ctl -M | grep security2",
+                  label: `docker exec ${container} apache2ctl -M | grep security2`,
+                  command: `docker exec ${container} apache2ctl -M | grep security2`,
                 },
                 {
-                  label: "tail modsec_audit.log",
-                  command: "tail -n 10 /var/log/apache2/modsec_audit.log",
+                  label: 'curl -i "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1\'%20OR%201=1"',
+                  command: `curl -i "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1'%20OR%201=1"`,
                 },
                 {
-                  label: "docker ps",
-                  command: "docker ps",
-                },
-              ]}
-              initialEntries={[
-                {
-                  command: "apache2ctl -M | grep security2",
-                  output:
-                    "Loaded Modules:\n headers_module (shared)\n php7_module (shared)\n security2_module (shared)  <-- ModSecurity v2.9 CRS Active",
-                  tone: "ok",
+                  label: `docker exec ${container} tail -n 10 /var/log/apache2/modsec_audit.log`,
+                  command: `docker exec ${container} tail -n 10 /var/log/apache2/modsec_audit.log`,
                 },
               ]}
             />

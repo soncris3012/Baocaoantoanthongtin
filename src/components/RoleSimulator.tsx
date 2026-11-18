@@ -1,6 +1,7 @@
 "use client";
 
 import { type BurpAutoplayRequest } from "@/components/simulators/BurpSuiteEmulator";
+import { type ExternalTerminalCommand } from "@/components/simulators/TerminalEmulator";
 import { Member1Simulator } from "@/components/simulators/Member1Simulator";
 import { Member2Simulator } from "@/components/simulators/Member2Simulator";
 import { Member3Simulator } from "@/components/simulators/Member3Simulator";
@@ -12,6 +13,7 @@ interface RoleSimulatorProps {
   workspaceState: LabWorkspaceState;
   focusedSimulatorKey?: string;
   burpAutoplay?: BurpAutoplayRequest | null;
+  terminalAutoplay?: ExternalTerminalCommand | null;
 }
 
 export function RoleSimulator({
@@ -19,6 +21,7 @@ export function RoleSimulator({
   workspaceState,
   focusedSimulatorKey,
   burpAutoplay,
+  terminalAutoplay,
 }: RoleSimulatorProps) {
   if (memberNumber === 1) {
     return (
@@ -26,6 +29,7 @@ export function RoleSimulator({
         key={focusedSimulatorKey || "m1"}
         containerRef={workspaceState.container_ref}
         activeTab={focusedSimulatorKey}
+        terminalAutoplay={terminalAutoplay}
       />
     );
   }
@@ -37,6 +41,7 @@ export function RoleSimulator({
         phpsessid={workspaceState.phpsessid}
         activeTab={focusedSimulatorKey}
         burpAutoplay={burpAutoplay}
+        terminalAutoplay={terminalAutoplay}
       />
     );
   }
@@ -47,6 +52,7 @@ export function RoleSimulator({
         containerRef={workspaceState.container_ref}
         phpsessid={workspaceState.phpsessid}
         activeTab={focusedSimulatorKey}
+        terminalAutoplay={terminalAutoplay}
       />
     );
   }
@@ -58,6 +64,7 @@ export function RoleSimulator({
       userToken={workspaceState.user_token}
       activeTab={focusedSimulatorKey}
       burpAutoplay={burpAutoplay}
+      terminalAutoplay={terminalAutoplay}
     />
   );
 }

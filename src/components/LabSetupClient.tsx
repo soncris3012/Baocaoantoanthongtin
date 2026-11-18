@@ -171,37 +171,40 @@ export function LabSetupClient() {
             containerRef={sandboxOs === "macos" ? "215d3a734374" : "dvwa"}
             containerRunning={sandboxRunning}
             onContainerRunningChange={setSandboxRunning}
+            stepGroups={[
+              {
+                id: "lab-init",
+                label: "Khởi tạo Container DVWA",
+                commands: [
+                  "docker --version",
+                  "docker pull vulnerables/web-dvwa",
+                  "docker run -d --name dvwa -p 8080:80 vulnerables/web-dvwa",
+                  "docker ps",
+                ],
+              },
+            ]}
             presets={[
               { label: "docker --version", command: "docker --version" },
               {
-                label: "docker pull dvwa",
+                label: "docker pull vulnerables/web-dvwa",
                 command: "docker pull vulnerables/web-dvwa",
               },
               {
-                label: "docker run dvwa",
+                label: "docker run -d --name dvwa -p 8080:80 vulnerables/web-dvwa",
                 command: "docker run -d --name dvwa -p 8080:80 vulnerables/web-dvwa",
               },
               { label: "docker ps -a", command: "docker ps -a" },
               {
-                label: sandboxRunning ? "docker stop" : "docker start",
+                label: `${sandboxRunning ? "docker stop" : "docker start"} ${
+                  sandboxOs === "macos" ? "215d3a734374" : "dvwa"
+                }`,
                 command: `${sandboxRunning ? "docker stop" : "docker start"} ${
                   sandboxOs === "macos" ? "215d3a734374" : "dvwa"
                 }`,
               },
               {
-                label: "docker exec bash",
+                label: `docker exec -it ${sandboxOs === "macos" ? "215d3a734374" : "dvwa"} bash`,
                 command: `docker exec -it ${sandboxOs === "macos" ? "215d3a734374" : "dvwa"} bash`,
-              },
-            ]}
-            initialEntries={[
-              {
-                command: "docker ps",
-                output: `CONTAINER ID   IMAGE                  COMMAND      CREATED       STATUS        PORTS                    NAMES\n${
-                  sandboxOs === "macos" ? "215d3a734374  " : "215d3a734374  "
-                } vulnerables/web-dvwa   "/main.sh"   2 hours ago   Up 2 hours    0.0.0.0:8080->80/tcp     ${
-                  sandboxOs === "macos" ? "epic_dijkstra" : "dvwa"
-                }`,
-                tone: "ok",
               },
             ]}
           />

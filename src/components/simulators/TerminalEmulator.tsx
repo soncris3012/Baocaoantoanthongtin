@@ -1,7 +1,17 @@
 "use client";
 
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Maximize2, Minimize2, Plus, Terminal as TerminalIcon, X } from "lucide-react";
+import {
+  Maximize2,
+  Minimize2,
+  Pause,
+  Play,
+  Plus,
+  RotateCcw,
+  Square,
+  Terminal as TerminalIcon,
+  X,
+} from "lucide-react";
 import { WindowControls } from "@/components/WindowBar";
 import { PHP_LEVEL_SOURCES } from "@/data/scenarioData";
 
@@ -14,10 +24,86 @@ export interface TerminalPreset {
   context?: ShellContext;
 }
 
+export interface TerminalStepGroup {
+  id: string;
+  label: string;
+  commands: string[];
+  context?: ShellContext;
+}
+
 export interface ExternalTerminalCommand {
   id: number;
-  command: string;
+  command?: string;
+  commands?: string[];
   context?: ShellContext;
+}
+
+export function buildStepTerminalCommands(
+  stepId: string,
+  vars: { container: string; phpsessid: string }
+): string[] | null {
+  const c = vars.container.trim() || (stepId.startsWith("m1-") ? "215d3a734374" : "dvwa");
+  const s = vars.phpsessid.trim() || "7nst0hrqrfmv744a5ouj7663b0";
+
+  switch (stepId) {
+    case "m1-s1":
+      return ["docker ps", "nmap -sV -p 8080 127.0.0.1"];
+    case "m1-s2":
+      return ["curl -is http://127.0.0.1:8080/login.php | head -n 15"];
+    case "m1-s3":
+      return [
+        `docker exec ${c} bash -c "printf 'ServerTokens Prod\\nServerSignature Off\\n' >> /etc/apache2/conf-available/security.conf && a2enconf security && service apache2 reload"`,
+        'curl -Is http://127.0.0.1:8080/login.php | grep -i "Server:"',
+      ];
+    case "m1-s4":
+      return [
+        `docker exec ${c} bash -c "a2enmod headers && printf 'Header edit Set-Cookie ^(.*)\\$ \\"\\$1; HttpOnly; SameSite=Strict\\"\\nHeader always set X-Content-Type-Options \\"nosniff\\"\\nHeader always set X-Frame-Options \\"SAMEORIGIN\\"\\n' >> /etc/apache2/conf-available/security.conf && service apache2 reload"`,
+        'curl -Is http://127.0.0.1:8080/login.php | grep -iE "(Server:|Set-Cookie:|X-Content-Type|X-Frame)"',
+      ];
+    case "m2-s3":
+      return [
+        `curl -s -b "security=low; PHPSESSID=${s}" "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1&Submit=Submit" | grep -o "First name: [^<]*"`,
+      ];
+    case "m2-s4":
+      return [
+        `docker exec ${c} grep -E "(%27|'|UNION|SELECT)" /var/log/apache2/access.log | tail -n 5`,
+      ];
+    case "m3-s1":
+      return [
+        `sqlmap -u "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1&Submit=Submit" --cookie="security=low; PHPSESSID=${s}" --dbs --batch`,
+        `sqlmap -u "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1&Submit=Submit" --cookie="security=low; PHPSESSID=${s}" -D dvwa --tables --batch`,
+        `sqlmap -u "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1&Submit=Submit" --cookie="security=low; PHPSESSID=${s}" -D dvwa -T users --dump --batch`,
+      ];
+    case "m3-s2":
+      return [
+        `docker exec -it ${c} mysql -u root -e "USE dvwa; SELECT user_id, user, password FROM users;"`,
+      ];
+    case "m3-s3":
+      return [
+        `docker exec -it ${c} php -r "echo defined('PASSWORD_ARGON2ID') ? 'Supported' : 'Use BCRYPT'; echo PHP_EOL;"`,
+        `docker exec -it ${c} php -r 'echo password_hash("password", PASSWORD_BCRYPT, ["cost" => 12]) . PHP_EOL;'`,
+        `docker exec -it ${c} mysql -u root -e "USE dvwa; UPDATE users SET password = '\\$2y\\$12\\$K9p8Q3vT2xL7wR4mN6zA1eH8cB5vD0fG2jK4lM6nP8qR0sT2uV4wX' WHERE user_id = 1; SELECT user_id, user, password FROM users WHERE user_id = 1;"`,
+      ];
+    case "m3-s4":
+      return [
+        `docker exec -it ${c} mysql -u root -e "CREATE USER IF NOT EXISTS 'dvwa_svc'@'localhost' IDENTIFIED BY 'SecureSvcPass2026!'; GRANT SELECT, INSERT, UPDATE ON dvwa.users TO 'dvwa_svc'@'localhost'; FLUSH PRIVILEGES; SHOW GRANTS FOR 'dvwa_svc'@'localhost';"`,
+      ];
+    case "m4-s1":
+      return [
+        `docker exec ${c} cat -n /var/www/html/vulnerabilities/sqli/source/low.php`,
+        `docker exec ${c} cat -n /var/www/html/vulnerabilities/sqli/source/medium.php`,
+        `docker exec ${c} cat -n /var/www/html/vulnerabilities/sqli/source/high.php`,
+        `docker exec ${c} cat -n /var/www/html/vulnerabilities/sqli/source/impossible.php`,
+      ];
+    case "m4-s4":
+      return [
+        `docker exec ${c} apache2ctl -M | grep security2`,
+        `curl -i "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1'%20OR%201=1"`,
+        `docker exec ${c} tail -n 10 /var/log/apache2/modsec_audit.log`,
+      ];
+    default:
+      return null;
+  }
 }
 
 export interface TerminalEntryInput {
@@ -88,6 +174,7 @@ interface TerminalEmulatorProps {
   externalAccessLogs?: AccessLogRecord[];
   externalWafLogs?: WafLogRecord[];
   presets?: TerminalPreset[];
+  stepGroups?: TerminalStepGroup[];
   initialEntries?: TerminalEntryInput[];
   externalCommand?: ExternalTerminalCommand | null;
 }
@@ -178,6 +265,7 @@ export function TerminalEmulator({
   externalAccessLogs,
   externalWafLogs,
   presets = [],
+  stepGroups = [],
   initialEntries = [],
   externalCommand,
 }: TerminalEmulatorProps) {
@@ -224,6 +312,18 @@ export function TerminalEmulator({
   const [isMinimized, setIsMinimized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Typewriter Queue Engine State
+  const [typeQueue, setTypeQueue] = useState<string[]>([]);
+  const [typeContext, setTypeContext] = useState<ShellContext | undefined>(undefined);
+  const [typeActiveLabel, setTypeActiveLabel] = useState<string | null>(null);
+  const [queueIdx, setQueueIdx] = useState(0);
+  const [charIdx, setCharIdx] = useState(0);
+  const [typePhase, setTypePhase] = useState<
+    "idle" | "typing" | "enter_pause" | "between_cmds" | "done"
+  >("idle");
+  const [typeSpeed, setTypeSpeed] = useState<"slow" | "normal" | "fast">("normal");
+  const [isTypePaused, setIsTypePaused] = useState(false);
+
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const lastExternalCmdIdRef = useRef<number>(0);
@@ -264,19 +364,8 @@ export function TerminalEmulator({
           : `2: root@${cleanContainer}: /var/www/html`,
       context: "container",
       cwd: "/var/www/html",
-      entries: [
-        {
-          id: 1001,
-          promptPrefix: `root@${cleanContainer.slice(0, 12)}`,
-          promptCwd: "/var/www/html",
-          promptSymbol: "#",
-          context: "container",
-          command: "whoami && apache2 -v | head -n 1",
-          output: `root\nServer version: Apache/2.4.25 (Debian)`,
-          tone: "normal",
-        },
-      ],
-      history: ["whoami && apache2 -v | head -n 1"],
+      entries: [],
+      history: [],
       historyIdx: -1,
       input: "",
     };
@@ -288,19 +377,8 @@ export function TerminalEmulator({
         title: "3: MariaDB [dvwa]>",
         context: "mariadb",
         cwd: "dvwa",
-        entries: [
-          {
-            id: 1002,
-            promptPrefix: "MariaDB [dvwa]",
-            promptCwd: "",
-            promptSymbol: ">",
-            context: "mariadb",
-            command: "SELECT VERSION();",
-            output: `+-------------------------+\n| VERSION()               |\n+-------------------------+\n| 10.1.26-MariaDB-0+deb9u1 |\n+-------------------------+\n1 row in set (0.00 sec)`,
-            tone: "ok",
-          },
-        ],
-        history: ["SELECT VERSION();"],
+        entries: [],
+        history: [],
         historyIdx: -1,
         input: "",
       });
@@ -386,7 +464,7 @@ export function TerminalEmulator({
     if (el) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [activeTab.entries.length, activeTab.id]);
+  }, [activeTab.entries.length, activeTab.id, activeTab.input]);
 
   useEffect(() => {
     if (!isFullscreen) return;
@@ -538,21 +616,21 @@ export function TerminalEmulator({
         tone: "normal",
         nextContext: tabContext,
         nextCwd: tabCwd,
-        output: `Danh sách lệnh hỗ trợ (${tabContext === "container" ? "Container Bash" : `${os.toUpperCase()} Shell`}):
+        output: `Danh sách lệnh (${tabContext === "container" ? "Container Bash" : `${os.toUpperCase()} Shell`}):
   Docker CLI:
     docker ps [-a] | docker images | docker stats --no-stream | docker top ${cleanContainer}
     docker stop ${cleanContainer} | docker start ${cleanContainer} | docker restart ${cleanContainer}
     docker logs --tail 20 ${cleanContainer} | docker inspect ${cleanContainer}
-    docker exec -it ${cleanContainer} bash      (Vào shell root của container)
-    docker exec -it ${cleanContainer} mysql     (Mở CLI MariaDB [dvwa]>)
-  Trinh sát, PoC & Phòng thủ:
+    docker exec -it ${cleanContainer} bash
+    docker exec -it ${cleanContainer} mysql
+  Lệnh thực thi trên Lab:
     nmap -sV -p 8080 127.0.0.1
     curl -is http://127.0.0.1:8080/login.php | head -n 15
     curl -s -b "security=low; PHPSESSID=${cleanSess}" "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1&Submit=Submit" | grep -o "First name: [^<]*"
     sqlmap -u "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1&Submit=Submit" --cookie="..." --dbs|--tables|--dump
-    a2enconf security && service apache2 reload   (hoặc 'patch apache')
-    a2enmod headers && service apache2 reload     (hoặc 'patch cookie')
-    cat /var/www/html/vulnerabilities/sqli/source/{low,impossible}.php
+    a2enconf security && service apache2 reload
+    a2enmod headers && service apache2 reload
+    cat -n /var/www/html/vulnerabilities/sqli/source/{low,medium,high,impossible}.php
     diff -u low.php impossible.php | apache2ctl -M | grep security2
     tail -n 10 /var/log/apache2/{access.log,modsec_audit.log}
   Hệ thống: ls -la | cd <dir> | pwd | whoami | ip a | ss -tulpn | ps aux | history | clear | exit`,
@@ -886,6 +964,15 @@ export function TerminalEmulator({
           nextCwd: "/var/www/html",
         };
       }
+      if (lower.includes("a2enmod headers") || lower.includes("header edit set-cookie")) {
+        updateCookie(true);
+        return {
+          output: `Enabling module headers.\nReloading Apache httpd web server: apache2.\n[✓] Đã kích hoạt Header edit Set-Cookie HttpOnly; SameSite=Strict & X-Content-Type-Options: nosniff, X-Frame-Options: SAMEORIGIN.`,
+          tone: "ok",
+          nextContext: tabContext,
+          nextCwd: tabCwd,
+        };
+      }
       if (lower.includes("a2enconf security") || lower.includes("servertokens prod")) {
         updateApache(true);
         return {
@@ -895,14 +982,78 @@ export function TerminalEmulator({
           nextCwd: tabCwd,
         };
       }
-      if (lower.includes("a2enmod headers") || lower.includes("httponly")) {
-        updateCookie(true);
+      if (lower.includes("php -r")) {
+        if (lower.includes("argon2id")) {
+          return {
+            output: "Use BCRYPT",
+            tone: "ok",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
         return {
-          output: `Enabling module headers.\nReloading Apache httpd web server: apache2.\n[✓] Đã kích hoạt Header edit Set-Cookie HttpOnly; SameSite=Strict & X-Content-Type-Options: nosniff.`,
+          output: "$2y$12$K9p8Q3vT2xL7wR4mN6zA1eH8cB5vD0fG2jK4lM6nP8qR0sT2uV4wX",
           tone: "ok",
           nextContext: tabContext,
           nextCwd: tabCwd,
         };
+      }
+      if (lower.includes("mysql") && lower.includes(" -e ")) {
+        if (lower.includes("create user") || lower.includes("grant ")) {
+          updateLeastPriv(true);
+          return {
+            output: `+--------------------------------------------------------------------------------+
+| Grants for dvwa_svc@localhost                                                  |
++--------------------------------------------------------------------------------+
+| GRANT USAGE ON *.* TO 'dvwa_svc'@'localhost' IDENTIFIED BY PASSWORD ...        |
+| GRANT SELECT, INSERT, UPDATE ON \`dvwa\`.\`users\` TO 'dvwa_svc'@'localhost'       |
++--------------------------------------------------------------------------------+`,
+            tone: "ok",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
+        if (lower.includes("update users")) {
+          updateBcrypt(true);
+          return {
+            output: `+---------+-------+--------------------------------------------------------------+
+| user_id | user  | password                                                     |
++---------+-------+--------------------------------------------------------------+
+|       1 | admin | $2y$12$K9p8Q3vT2xL7wR4mN6zA1eH8cB5vD0fG2jK4lM6nP8qR0sT2uV4wX |
++---------+-------+--------------------------------------------------------------+`,
+            tone: "ok",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
+        const adminHash = isBcrypt
+          ? "$2y$12$K9p8Q3vT2xL7wR4mN6zA1eH8cB5vD0fG2jK4lM6nP8qR0sT2uV4wX"
+          : "5f4dcc3b5aa765d61d8327deb882cf99";
+        return {
+          output: `+---------+---------+----------------------------------+
+| user_id | user    | password                         |
++---------+---------+----------------------------------+
+|       1 | admin   | ${adminHash} |
+|       2 | gordonb | e99a18c428cb38d5f260853678922e03 |
+|       3 | 1337    | 8d3533d75ae2c3966d7e0d4fcc69216b |
+|       4 | pablo   | 0d107d09f5bbe40cade3de5c71e9e9b7 |
+|       5 | smithy  | ${adminHash} |
++---------+---------+----------------------------------+`,
+          tone: isBcrypt ? "ok" : "warn",
+          nextContext: tabContext,
+          nextCwd: tabCwd,
+        };
+      }
+      if (lower.includes("cat ")) {
+        const matchedPhp = PHP_LEVEL_SOURCES.find((p) => lower.includes(`${p.level}.php`));
+        if (matchedPhp) {
+          return {
+            output: `// ${matchedPhp.title}\n${matchedPhp.code}`,
+            tone: matchedPhp.severity === "safe" ? "ok" : "warn",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
       }
       if (lower.includes("access.log")) {
         const lines = (externalAccessLogs ?? []).slice(0, 6).map(
@@ -926,6 +1077,14 @@ export function TerminalEmulator({
           nextCwd: tabCwd,
         };
       }
+      if (lower.includes("apache2ctl") || lower.includes("security2")) {
+        return {
+          output: `Loaded Modules:\n core_module (static)\n headers_module (${isCookiePatched ? "shared" : "disabled"})\n php7_module (shared)\n security2_module (shared)  <-- ModSecurity v2.9 CRS Active`,
+          tone: "ok",
+          nextContext: tabContext,
+          nextCwd: tabCwd,
+        };
+      }
       return {
         output: `[docker exec -> ${shortContainerId}] Thực thi hoàn tất.`,
         tone: "ok",
@@ -934,11 +1093,11 @@ export function TerminalEmulator({
       };
     }
 
-    // Container / Local apache & patch shortcuts
-    if (lower === "patch apache" || lower.includes("a2enconf security") || lower.includes("servertokens")) {
+    // Container Apache modules & config commands
+    if (lower.includes("a2enconf security") || lower.includes("servertokens prod")) {
       if (!isRunning) {
         return {
-          output: `Lỗi: Container ${cleanContainer} đang Stopped! Bấm Start container hoặc gõ 'docker start ${cleanContainer}'.`,
+          output: `Lỗi: Container ${cleanContainer} đang Stopped!`,
           tone: "error",
           nextContext: tabContext,
           nextCwd: tabCwd,
@@ -953,7 +1112,7 @@ export function TerminalEmulator({
       };
     }
 
-    if (lower === "patch cookie" || lower.includes("a2enmod headers")) {
+    if (lower.includes("a2enmod headers") || lower.includes("header edit set-cookie")) {
       if (!isRunning) {
         return {
           output: `Lỗi: Container ${cleanContainer} đang Stopped!`,
@@ -1102,6 +1261,16 @@ export function TerminalEmulator({
         const isUnion = /union\s+select/i.test(decodedId);
         const isOr = /'\s*or\s*'1'='1|or\s+1=1/i.test(decodedId);
         const isErr = decodedId.includes("'") && !isUnion && !isOr;
+        const hasSqlMeta = /('|--|#|\/\*|union|select|or\s+\d+=\d+)/i.test(decodedId);
+
+        if (username === "khanh" && hasSqlMeta) {
+          return {
+            output: `HTTP/1.1 403 Forbidden\nServer: Apache\nModSecurity: Access denied with code 403 (phase 2). Matched "SecRule 100001" on ARGS:id="${decodedId}"`,
+            tone: "error",
+            nextContext: tabContext,
+            nextCwd: tabCwd,
+          };
+        }
 
         if (lower.includes("grep")) {
           if (isErr) {
@@ -1300,20 +1469,154 @@ export function TerminalEmulator({
     );
   };
 
-  // Trigger commands sent externally from parent controls (e.g., SQLMap stage buttons / Docker "Open in Terminal")
-  const runCommandRef = useRef(runCommandInTab);
-  runCommandRef.current = runCommandInTab;
+  const startTypewriterQueue = (
+    cmds: string[],
+    preferredContext?: ShellContext,
+    label?: string
+  ) => {
+    const cleanList = cmds.map((c) => c.trim()).filter(Boolean);
+    if (cleanList.length === 0) return;
 
-  useEffect(() => {
-    if (!externalCommand || externalCommand.id === lastExternalCmdIdRef.current) return;
-    lastExternalCmdIdRef.current = externalCommand.id;
     setIsMinimized(false);
-    runCommandRef.current(externalCommand.command, externalCommand.context);
-  }, [externalCommand]);
+    if (preferredContext && preferredContext !== activeTab.context) {
+      const matched = tabs.find((t) => t.context === preferredContext);
+      if (matched) {
+        setActiveTabId(matched.id);
+      }
+    }
+    setTabs((prev) =>
+      prev.map((t) =>
+        preferredContext && t.context === preferredContext
+          ? { ...t, input: "" }
+          : t.id === activeTab.id
+          ? { ...t, input: "" }
+          : t
+      )
+    );
+
+    setTypeQueue(cleanList);
+    setTypeContext(preferredContext);
+    setTypeActiveLabel(label ?? null);
+    setQueueIdx(0);
+    setCharIdx(0);
+    setIsTypePaused(false);
+    setTypePhase("typing");
+  };
+
+  const stopTypewriterQueue = () => {
+    setTypeQueue([]);
+    setTypeContext(undefined);
+    setTypeActiveLabel(null);
+    setQueueIdx(0);
+    setCharIdx(0);
+    setIsTypePaused(false);
+    setTypePhase("idle");
+  };
+
+  const typingPct = useMemo(() => {
+    if (typeQueue.length === 0 || typePhase === "idle") return 0;
+    if (typePhase === "done") return 100;
+    const cmdLen = Math.max(1, typeQueue[queueIdx]?.length ?? 1);
+    const sub = typePhase === "typing" ? charIdx / cmdLen : 1;
+    return Math.min(99, Math.round(((queueIdx + sub) / typeQueue.length) * 100));
+  }, [typeQueue, typePhase, queueIdx, charIdx]);
 
   const setActiveInput = (val: string) => {
     setTabs((prev) => prev.map((t) => (t.id === activeTab.id ? { ...t, input: val } : t)));
   };
+
+  const typeHandlersRef = useRef({
+    runCommandInTab,
+    setActiveInput,
+    startTypewriterQueue,
+  });
+  typeHandlersRef.current = {
+    runCommandInTab,
+    setActiveInput,
+    startTypewriterQueue,
+  };
+
+  // Drive character-by-character typing simulation inside active Terminal input
+  useEffect(() => {
+    if (typePhase === "idle" || typePhase === "done" || isTypePaused || typeQueue.length === 0) {
+      return;
+    }
+
+    const currentCmd = typeQueue[queueIdx];
+    if (!currentCmd) {
+      setTypePhase("done");
+      return;
+    }
+
+    if (typePhase === "typing") {
+      const isLong = currentCmd.length > 80;
+      const charMs =
+        typeSpeed === "slow"
+          ? isLong
+            ? 38
+            : 60
+          : typeSpeed === "fast"
+          ? isLong
+            ? 9
+            : 14
+          : isLong
+          ? 20
+          : 32;
+
+      const t = setTimeout(() => {
+        const nextChar = charIdx + 1;
+        typeHandlersRef.current.setActiveInput(currentCmd.slice(0, nextChar));
+        if (nextChar >= currentCmd.length) {
+          setCharIdx(nextChar);
+          setTypePhase("enter_pause");
+        } else {
+          setCharIdx(nextChar);
+        }
+      }, charMs);
+
+      return () => clearTimeout(t);
+    }
+
+    if (typePhase === "enter_pause") {
+      const pauseMs = typeSpeed === "slow" ? 400 : typeSpeed === "fast" ? 140 : 260;
+      const t = setTimeout(() => {
+        typeHandlersRef.current.runCommandInTab(currentCmd, typeContext);
+        if (queueIdx + 1 < typeQueue.length) {
+          setTypePhase("between_cmds");
+        } else {
+          setTypePhase("done");
+        }
+      }, pauseMs);
+
+      return () => clearTimeout(t);
+    }
+
+    if (typePhase === "between_cmds") {
+      const waitMs = typeSpeed === "slow" ? 1100 : typeSpeed === "fast" ? 350 : 700;
+      const t = setTimeout(() => {
+        setQueueIdx((i) => i + 1);
+        setCharIdx(0);
+        setTypePhase("typing");
+      }, waitMs);
+
+      return () => clearTimeout(t);
+    }
+  }, [typePhase, queueIdx, charIdx, typeQueue, typeContext, typeSpeed, isTypePaused]);
+
+  // Trigger commands sent externally from parent controls via typewriter queue
+  useEffect(() => {
+    if (!externalCommand || externalCommand.id === lastExternalCmdIdRef.current) return;
+    lastExternalCmdIdRef.current = externalCommand.id;
+    const cmds =
+      externalCommand.commands && externalCommand.commands.length > 0
+        ? externalCommand.commands
+        : externalCommand.command
+        ? [externalCommand.command]
+        : [];
+    if (cmds.length > 0) {
+      typeHandlersRef.current.startTypewriterQueue(cmds, externalCommand.context);
+    }
+  }, [externalCommand]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -1473,7 +1776,24 @@ export function TerminalEmulator({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-[11px]">
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            {typeQueue.length > 0 && typePhase !== "idle" && (
+              <div className="flex items-center gap-2 rounded border border-white/15 bg-black/40 px-2 py-0.5 font-mono text-[10px]">
+                <span className="max-w-[140px] truncate text-emerald-300">
+                  {typeActiveLabel || `Lệnh ${Math.min(queueIdx + 1, typeQueue.length)}/${typeQueue.length}`}
+                </span>
+                <div className="h-1.5 w-16 overflow-hidden rounded-full bg-zinc-700">
+                  <div
+                    className={`h-full transition-all duration-150 ${
+                      typePhase === "done" ? "bg-emerald-400" : "bg-sky-400"
+                    }`}
+                    style={{ width: `${typingPct}%` }}
+                  />
+                </div>
+                <span className="font-bold text-white">{typingPct}%</span>
+              </div>
+            )}
+
             <span
               className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 font-semibold ${
                 isRunning
@@ -1524,6 +1844,18 @@ export function TerminalEmulator({
             </button>
           </div>
         </div>
+
+        {/* Title-adjacent Progress Line during Typewriter Execution */}
+        {typeQueue.length > 0 && typePhase !== "idle" && (
+          <div className="h-[2px] w-full bg-black/60">
+            <div
+              className={`h-full transition-all duration-150 ${
+                typePhase === "done" ? "bg-emerald-400" : "bg-sky-400"
+              }`}
+              style={{ width: `${typingPct}%` }}
+            />
+          </div>
+        )}
 
         {!isMinimized && (
           <>
@@ -1583,10 +1915,113 @@ export function TerminalEmulator({
               </button>
             </div>
 
-            {/* Quick Preset Bar */}
+            {/* Typewriter Step Simulation & Playback Strip */}
+            {(stepGroups.length > 0 || typePhase !== "idle") && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#18191e] px-3 py-1.5 font-sans">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {stepGroups.map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => startTypewriterQueue(g.commands, g.context, g.label)}
+                      className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                        typeActiveLabel === g.label && typePhase !== "idle"
+                          ? "border-emerald-500/60 bg-emerald-600 text-white"
+                          : "border-white/15 bg-white/5 text-zinc-200 hover:bg-white/15"
+                      }`}
+                    >
+                      <Play className="h-2.5 w-2.5" aria-hidden="true" />
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                  <div className="inline-flex rounded border border-white/10 bg-black/40 p-0.5">
+                    {(
+                      [
+                        { id: "slow", label: "Chậm" },
+                        { id: "normal", label: "Từ từ" },
+                        { id: "fast", label: "Nhanh" },
+                      ] as const
+                    ).map((sp) => (
+                      <button
+                        key={sp.id}
+                        type="button"
+                        onClick={() => setTypeSpeed(sp.id)}
+                        className={`cursor-pointer rounded px-1.5 py-0.5 ${
+                          typeSpeed === sp.id
+                            ? "bg-zinc-600 font-semibold text-white"
+                            : "text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        {sp.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {typePhase !== "idle" &&
+                    (typePhase === "done" ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            startTypewriterQueue(
+                              typeQueue,
+                              typeContext,
+                              typeActiveLabel ?? undefined
+                            )
+                          }
+                          className="inline-flex cursor-pointer items-center gap-1 rounded border border-white/15 bg-white/10 px-2 py-0.5 text-zinc-200 hover:bg-white/20"
+                        >
+                          <RotateCcw className="h-2.5 w-2.5" aria-hidden="true" />
+                          Chạy lại
+                        </button>
+                        <button
+                          type="button"
+                          onClick={stopTypewriterQueue}
+                          aria-label="Đóng thanh tiến trình gõ lệnh"
+                          className="inline-flex cursor-pointer items-center gap-1 rounded border border-white/10 bg-black/30 px-1.5 py-0.5 text-zinc-400 hover:text-white"
+                        >
+                          <X className="h-2.5 w-2.5" aria-hidden="true" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setIsTypePaused((p) => !p)}
+                          className="inline-flex cursor-pointer items-center gap-1 rounded border border-white/15 bg-white/10 px-2 py-0.5 text-zinc-200 hover:bg-white/20"
+                        >
+                          {isTypePaused ? (
+                            <>
+                              <Play className="h-2.5 w-2.5" aria-hidden="true" />
+                              Tiếp tục
+                            </>
+                          ) : (
+                            <>
+                              <Pause className="h-2.5 w-2.5" aria-hidden="true" />
+                              Tạm dừng
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={stopTypewriterQueue}
+                          className="inline-flex cursor-pointer items-center gap-1 rounded border border-rose-500/30 bg-rose-500/15 px-2 py-0.5 text-rose-200 hover:bg-rose-500/25"
+                        >
+                          <Square className="h-2.5 w-2.5" aria-hidden="true" />
+                          Dừng
+                        </button>
+                      </>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Machine Command Bar */}
             {presets.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5 border-b border-white/10 bg-black/40 px-3 py-2 font-sans">
-                <span className="text-[11px] font-semibold text-zinc-400">Lệnh nhanh:</span>
+              <div className="flex flex-wrap items-center gap-1.5 border-b border-white/10 bg-black/40 px-3 py-1.5 font-sans">
                 {presets.map((p) => (
                   <div
                     key={p.label}
@@ -1594,11 +2029,11 @@ export function TerminalEmulator({
                   >
                     <button
                       type="button"
-                      onClick={() => runCommandInTab(p.command, p.context)}
+                      onClick={() => startTypewriterQueue([p.command], p.context, p.label)}
                       className="cursor-pointer px-2 py-0.5 font-mono text-[11px] text-zinc-100 hover:bg-white/15"
-                      title={`Chạy ngay: ${p.command}`}
+                      title={p.command}
                     >
-                      {p.label}
+                      $ {p.label}
                     </button>
                     <button
                       type="button"
@@ -1607,7 +2042,7 @@ export function TerminalEmulator({
                         inputRef.current?.focus();
                       }}
                       className="cursor-pointer border-l border-white/15 px-1.5 py-0.5 text-[10px] text-zinc-400 hover:bg-white/15 hover:text-white"
-                      title="Điền vào dòng lệnh để sửa tay trước khi Enter"
+                      title="Chèn vào dòng lệnh"
                     >
                       ⇥
                     </button>
@@ -1629,12 +2064,14 @@ export function TerminalEmulator({
                 fullscreenMode ? "flex-1" : "h-[360px]"
               }`}
             >
-              <div className="mb-3 text-[11px] text-zinc-400">
+              <div className="mb-3 font-mono text-[11px] text-zinc-500">
                 {activeTab.context === "host"
-                  ? `Phiên ${os === "macos" ? "macOS zsh" : "Ubuntu GNOME Terminal"} — gõ lệnh trực tiếp (Tab gợi ý · ↑/↓ lịch sử · Ctrl+L xóa màn hình · gõ 'help' để xem toàn bộ lệnh).`
+                  ? os === "macos"
+                    ? "Last login: Wed Nov 18 09:00:12 on ttys001"
+                    : "Welcome to Ubuntu 24.04.1 LTS (GNU/Linux 6.8.0-48-generic x86_64)"
                   : activeTab.context === "container"
-                  ? `Đang ở bên trong shell root của container ${shortContainerId} (${containerDisplayName}). Gõ 'cat ...', 'a2enconf security', 'ps aux' hoặc 'exit' để ra Host.`
-                  : `Đang kết nối MariaDB CLI trong container ${shortContainerId}. Gõ câu lệnh SQL kết thúc bằng ';' hoặc 'exit' để thoát.`}
+                  ? `root@${shortContainerId}:${activeTab.cwd}#`
+                  : "Server version: 10.1.26-MariaDB-0+deb9u1 Debian 9.1"}
               </div>
 
               <div className="space-y-3">
@@ -1750,8 +2187,8 @@ export function TerminalEmulator({
                     autoCapitalize="none"
                     autoComplete="off"
                     aria-label="Dòng lệnh Terminal"
-                    placeholder="Gõ lệnh bằng tay (vd: docker ps, docker exec -it dvwa bash, curl ..., help)..."
-                    className="relative z-10 w-full bg-transparent font-mono text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
+                    placeholder=""
+                    className="relative z-10 w-full bg-transparent font-mono text-xs text-zinc-100 focus:outline-none"
                   />
                 </div>
 

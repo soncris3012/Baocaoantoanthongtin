@@ -26,6 +26,10 @@ import {
   type BurpAutoplayRequest,
   type BurpWalkthroughId,
 } from "@/components/simulators/BurpSuiteEmulator";
+import {
+  buildStepTerminalCommands,
+  type ExternalTerminalCommand,
+} from "@/components/simulators/TerminalEmulator";
 import { StepInlineRunner } from "@/components/StepInlineRunner";
 import { WindowControls } from "@/components/WindowBar";
 import { useWorkspace } from "@/components/WorkspaceProvider";
@@ -71,6 +75,8 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
   const [nameDraft, setNameDraft] = useState(member.display_name);
   const [focusedSimKey, setFocusedSimKey] = useState<string | undefined>(undefined);
   const [burpAutoplay, setBurpAutoplay] = useState<BurpAutoplayRequest | null>(null);
+  const [terminalAutoplay, setTerminalAutoplay] =
+    useState<ExternalTerminalCommand | null>(null);
   const [copiedAllCmds, setCopiedAllCmds] = useState(false);
   const [openPitfalls, setOpenPitfalls] = useState<Record<string, boolean>>({});
   const [minimizedOutputs, setMinimizedOutputs] = useState<Record<string, boolean>>({});
@@ -213,6 +219,23 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
   const handleRunBurpWalkthrough = (walkthroughId: BurpWalkthroughId) => {
     setFocusedSimKey(memberNumber === 2 ? "m2-burp" : "m4-poc5-waf");
     setBurpAutoplay({ id: Date.now(), walkthroughId });
+    const el = document.getElementById("simulator-section");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const handleRunTerminalWalkthrough = (cmds: string[]) => {
+    setFocusedSimKey(
+      memberNumber === 1
+        ? "m1-recon"
+        : memberNumber === 2
+        ? "m2-curl-log"
+        : memberNumber === 3
+        ? "m3-sqlmap"
+        : "m4-terminal"
+    );
+    setTerminalAutoplay({ id: Date.now(), commands: cmds });
     const el = document.getElementById("simulator-section");
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -559,6 +582,24 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                       </button>
                     )}
 
+                    {(() => {
+                      const termCmds = buildStepTerminalCommands(step.id, {
+                        container: liveVars.container,
+                        phpsessid: liveVars.phpsessid,
+                      });
+                      if (!termCmds) return null;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => handleRunTerminalWalkthrough(termCmds)}
+                          className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                        >
+                          <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                          Chạy trực tiếp trên Terminal
+                        </button>
+                      );
+                    })()}
+
                     {step.simulator_key && (
                       <button
                         type="button"
@@ -680,6 +721,7 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                     onToggleComplete={() => toggleStepCompletion(memberNumber, step.id)}
                     onOpenAdvancedSim={handleJumpToSimulator}
                     onRunBurpWalkthrough={handleRunBurpWalkthrough}
+                    onRunTerminalWalkthrough={handleRunTerminalWalkthrough}
                   />
 
                   <div className="grid gap-4 border-t border-hairline pt-4 md:grid-cols-2">
@@ -792,6 +834,7 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
           }}
           focusedSimulatorKey={focusedSimKey}
           burpAutoplay={burpAutoplay}
+          terminalAutoplay={terminalAutoplay}
         />
       </section>
 
