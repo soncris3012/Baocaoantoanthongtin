@@ -144,10 +144,15 @@ export function Member3Simulator({
   const [saltNonce, setSaltNonce] = useState(1);
 
   // MariaDB Interactive Console
-  const [sqlInput, setSqlInput] = useState(
-    "SELECT user_id, user, password FROM users;"
-  );
+  const [sqlInput, setSqlInput] = useState("");
   const [sqlOutput, setSqlOutput] = useState<string | null>(null);
+  const sqlTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (sqlTimerRef.current) clearInterval(sqlTimerRef.current);
+    };
+  }, []);
 
   const container = containerRef.trim() || "dvwa";
   const session = phpsessid.trim() || "7nst0hrqrfmv744a5ouj7663b0";
@@ -254,6 +259,21 @@ export function Member3Simulator({
       e.preventDefault();
       runSqlCommand();
     }
+  };
+
+  const animateSqlPreset = (query: string) => {
+    if (sqlTimerRef.current) clearInterval(sqlTimerRef.current);
+    setSqlOutput(null);
+    setSqlInput("");
+    let idx = 0;
+    sqlTimerRef.current = setInterval(() => {
+      idx += 1;
+      setSqlInput(query.slice(0, idx));
+      if (idx >= query.length) {
+        if (sqlTimerRef.current) clearInterval(sqlTimerRef.current);
+        setTimeout(() => runSqlCommand(query), 180);
+      }
+    }, 28);
   };
 
   const md5Demo = deterministicPseudoMd5(labPassword);
@@ -638,10 +658,7 @@ export function Member3Simulator({
                   <button
                     key={preset}
                     type="button"
-                    onClick={() => {
-                      setSqlInput(preset);
-                      runSqlCommand(preset);
-                    }}
+                    onClick={() => animateSqlPreset(preset)}
                     className="cursor-pointer rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-700"
                   >
                     {preset.split(" ")[0]} {preset.split(" ")[1]}

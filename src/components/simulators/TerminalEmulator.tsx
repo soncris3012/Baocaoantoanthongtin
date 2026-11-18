@@ -487,14 +487,17 @@ export function TerminalEmulator({
   const [queueIdx, setQueueIdx] = useState(0);
   const [charIdx, setCharIdx] = useState(0);
   const [typePhase, setTypePhase] = useState<
-    "idle" | "typing" | "enter_pause" | "between_cmds" | "done"
+    "idle" | "typing" | "enter_pause" | "streaming_out" | "between_cmds" | "done"
   >("idle");
   const [typeSpeed, setTypeSpeed] = useState<"slow" | "normal" | "fast">("normal");
   const [isTypePaused, setIsTypePaused] = useState(false);
+  const [streamOutLines, setStreamOutLines] = useState<string[]>([]);
+  const [streamOutIdx, setStreamOutIdx] = useState(0);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const lastExternalCmdIdRef = useRef<number>(0);
+  const streamingEntryIdRef = useRef<number | null>(null);
 
   const makeInitialTabs = (): TerminalTab[] => {
     const mappedEntries: TerminalLineEntry[] = initialEntries.map((item, idx) => {
@@ -617,22 +620,13 @@ export function TerminalEmulator({
     [cleanContainer, cleanSess, cleanToken]
   );
 
-  const ghostSuggestion = useMemo(() => {
-    const val = activeTab.input;
-    if (!val || val.endsWith(" ")) return "";
-    const match = autocompletePool.find(
-      (c) => c.toLowerCase().startsWith(val.toLowerCase()) && c.length > val.length
-    );
-    return match ? match.slice(val.length) : "";
-  }, [activeTab.input, autocompletePool]);
-
   // Keep viewport pinned to bottom ONLY inside the internal scroll box (never page scroll)
   useEffect(() => {
     const el = viewportRef.current;
     if (el) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [activeTab.entries.length, activeTab.id, activeTab.input]);
+  }, [activeTab.entries.length, activeTab.id, activeTab.input, streamOutIdx]);
 
   useEffect(() => {
     if (!isFullscreen) return;
@@ -1637,31 +1631,132 @@ export function TerminalEmulator({
     );
   };
 
+  const beginStreamingCommandInTab = (
+    rawCmd: string,
+    preferredContext?: ShellContext
+  ): { entryId: number | null; lines: string[] } => {
+    const trimmed = rawCmd.trim();
+    if (!trimmed) return { entryId: null, lines: [] };
+
+    const targetTab =
+      (preferredContext && preferredContext !== activeTab.context
+        ? tabs.find((t) => t.context === preferredContext)
+        : undefined) ?? activeTab;
+
+    if (targetTab.id !== activeTab.id) {
+      setActiveTabId(targetTab.id);
+    }
+
+    const effectiveCtx = preferredContext ?? targetTab.context;
+    const effectiveCwd =
+      effectiveCtx === targetTab.context
+        ? targetTab.cwd
+        : effectiveCtx === "container"
+        ? "/var/www/html"
+        : effectiveCtx === "mariadb"
+        ? "dvwa"
+        : "~";
+
+    const res = executeSingleCommand(trimmed, effectiveCtx, effectiveCwd, targetTab.history);
+    const nextHistory = [trimmed, ...targetTab.history.filter((c) => c !== trimmed)].slice(0, 30);
+
+    if (res.clearTab) {
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.id === targetTab.id
+            ? { ...t, entries: [], history: nextHistory, historyIdx: -1, input: "" }
+            : t
+        )
+      );
+      return { entryId: null, lines: [] };
+    }
+
+    const entryId = Date.now() + Math.floor(Math.random() * 1000);
+    const prompt = getPromptParts(os, username, hostname, cleanContainer, effectiveCtx, effectiveCwd);
+    const newEntry: TerminalLineEntry = {
+      id: entryId,
+      promptPrefix: prompt.prefix,
+      promptCwd: prompt.cwdLabel,
+      promptSymbol: prompt.symbol,
+      context: effectiveCtx,
+      command: trimmed,
+      output: "",
+      tone: res.tone,
+    };
+
+    const updatedTitle =
+      res.nextContext !== targetTab.context
+        ? res.nextContext === "mariadb"
+          ? "MariaDB [dvwa]>"
+          : res.nextContext === "container"
+          ? `root@${shortContainerId}: ${res.nextCwd}`
+          : os === "macos"
+          ? `zsh — ${hostname}`
+          : `${username}@${hostname}: ~`
+        : targetTab.title;
+
+    setTabs((prev) =>
+      prev.map((t) =>
+        t.id === targetTab.id
+          ? {
+              ...t,
+              title: updatedTitle,
+              context: res.nextContext,
+              cwd: res.nextCwd,
+              entries: [...t.entries, newEntry],
+              history: nextHistory,
+              historyIdx: -1,
+              input: "",
+            }
+          : t
+      )
+    );
+
+    return {
+      entryId,
+      lines: res.output ? res.output.split("\n") : [],
+    };
+  };
+
+  const updateStreamingEntryOutput = (entryId: number, outputText: string) => {
+    setTabs((prev) =>
+      prev.map((t) => ({
+        ...t,
+        entries: t.entries.map((e) => (e.id === entryId ? { ...e, output: outputText } : e)),
+      }))
+    );
+  };
+
   const startTypewriterQueue = (
     cmds: string[],
     preferredContext?: ShellContext,
-    label?: string
+    label?: string,
+    clearEntries = false
   ) => {
     const cleanList = cmds.map((c) => c.trim()).filter(Boolean);
     if (cleanList.length === 0) return;
 
     setIsMinimized(false);
-    if (preferredContext && preferredContext !== activeTab.context) {
-      const matched = tabs.find((t) => t.context === preferredContext);
-      if (matched) {
-        setActiveTabId(matched.id);
-      }
+    const targetTab =
+      (preferredContext && preferredContext !== activeTab.context
+        ? tabs.find((t) => t.context === preferredContext)
+        : undefined) ?? activeTab;
+
+    if (targetTab.id !== activeTab.id) {
+      setActiveTabId(targetTab.id);
     }
+
     setTabs((prev) =>
       prev.map((t) =>
-        preferredContext && t.context === preferredContext
-          ? { ...t, input: "" }
-          : t.id === activeTab.id
-          ? { ...t, input: "" }
+        t.id === targetTab.id
+          ? { ...t, input: "", entries: clearEntries ? [] : t.entries }
           : t
       )
     );
 
+    streamingEntryIdRef.current = null;
+    setStreamOutLines([]);
+    setStreamOutIdx(0);
     setTypeQueue(cleanList);
     setTypeContext(preferredContext);
     setTypeActiveLabel(label ?? null);
@@ -1672,6 +1767,9 @@ export function TerminalEmulator({
   };
 
   const stopTypewriterQueue = () => {
+    streamingEntryIdRef.current = null;
+    setStreamOutLines([]);
+    setStreamOutIdx(0);
     setTypeQueue([]);
     setTypeContext(undefined);
     setTypeActiveLabel(null);
@@ -1684,7 +1782,14 @@ export function TerminalEmulator({
   const completeCurrentCommandAndPause = () => {
     const currentCmd = typeQueue[queueIdx];
     if (!currentCmd) return;
-    runCommandInTab(currentCmd, typeContext);
+    if (typePhase === "streaming_out" && streamingEntryIdRef.current !== null) {
+      updateStreamingEntryOutput(streamingEntryIdRef.current, streamOutLines.join("\n"));
+      streamingEntryIdRef.current = null;
+      setStreamOutLines([]);
+      setStreamOutIdx(0);
+    } else {
+      runCommandInTab(currentCmd, typeContext);
+    }
     if (queueIdx + 1 < typeQueue.length) {
       setQueueIdx((i) => i + 1);
       setCharIdx(0);
@@ -1700,21 +1805,30 @@ export function TerminalEmulator({
     if (typeQueue.length === 0 || typePhase === "idle") return 0;
     if (typePhase === "done") return 100;
     const cmdLen = Math.max(1, typeQueue[queueIdx]?.length ?? 1);
-    const sub = typePhase === "typing" ? charIdx / cmdLen : 1;
+    let sub = 1;
+    if (typePhase === "typing") {
+      sub = (charIdx / cmdLen) * 0.65;
+    } else if (typePhase === "enter_pause") {
+      sub = 0.68;
+    } else if (typePhase === "streaming_out") {
+      sub = 0.68 + (streamOutIdx / Math.max(1, streamOutLines.length)) * 0.32;
+    }
     return Math.min(99, Math.round(((queueIdx + sub) / typeQueue.length) * 100));
-  }, [typeQueue, typePhase, queueIdx, charIdx]);
+  }, [typeQueue, typePhase, queueIdx, charIdx, streamOutIdx, streamOutLines.length]);
 
   const setActiveInput = (val: string) => {
     setTabs((prev) => prev.map((t) => (t.id === activeTab.id ? { ...t, input: val } : t)));
   };
 
   const typeHandlersRef = useRef({
-    runCommandInTab,
+    beginStreamingCommandInTab,
+    updateStreamingEntryOutput,
     setActiveInput,
     startTypewriterQueue,
   });
   typeHandlersRef.current = {
-    runCommandInTab,
+    beginStreamingCommandInTab,
+    updateStreamingEntryOutput,
     setActiveInput,
     startTypewriterQueue,
   };
@@ -1763,8 +1877,13 @@ export function TerminalEmulator({
     if (typePhase === "enter_pause") {
       const pauseMs = typeSpeed === "slow" ? 400 : typeSpeed === "fast" ? 140 : 260;
       const t = setTimeout(() => {
-        typeHandlersRef.current.runCommandInTab(currentCmd, typeContext);
-        if (queueIdx + 1 < typeQueue.length) {
+        const started = typeHandlersRef.current.beginStreamingCommandInTab(currentCmd, typeContext);
+        if (started.entryId !== null && started.lines.length > 0) {
+          streamingEntryIdRef.current = started.entryId;
+          setStreamOutLines(started.lines);
+          setStreamOutIdx(0);
+          setTypePhase("streaming_out");
+        } else if (queueIdx + 1 < typeQueue.length) {
           setTypePhase("between_cmds");
         } else {
           setTypePhase("done");
@@ -1774,9 +1893,35 @@ export function TerminalEmulator({
       return () => clearTimeout(t);
     }
 
+    if (typePhase === "streaming_out") {
+      const streamMs = typeSpeed === "slow" ? 65 : typeSpeed === "fast" ? 16 : 36;
+      const t = setTimeout(() => {
+        const nextIdx = Math.min(streamOutLines.length, streamOutIdx + 2);
+        if (streamingEntryIdRef.current !== null) {
+          typeHandlersRef.current.updateStreamingEntryOutput(
+            streamingEntryIdRef.current,
+            streamOutLines.slice(0, nextIdx).join("\n")
+          );
+        }
+        setStreamOutIdx(nextIdx);
+        if (nextIdx >= streamOutLines.length) {
+          streamingEntryIdRef.current = null;
+          if (queueIdx + 1 < typeQueue.length) {
+            setTypePhase("between_cmds");
+          } else {
+            setTypePhase("done");
+          }
+        }
+      }, streamMs);
+
+      return () => clearTimeout(t);
+    }
+
     if (typePhase === "between_cmds") {
       const waitMs = typeSpeed === "slow" ? 1100 : typeSpeed === "fast" ? 350 : 700;
       const t = setTimeout(() => {
+        setStreamOutLines([]);
+        setStreamOutIdx(0);
         setQueueIdx((i) => i + 1);
         setCharIdx(0);
         setTypePhase("typing");
@@ -1784,7 +1929,7 @@ export function TerminalEmulator({
 
       return () => clearTimeout(t);
     }
-  }, [typePhase, queueIdx, charIdx, typeQueue, typeContext, typeSpeed, isTypePaused]);
+  }, [typePhase, queueIdx, charIdx, streamOutIdx, streamOutLines, typeQueue, typeContext, typeSpeed, isTypePaused]);
 
   // Trigger commands sent externally from parent controls via typewriter queue
   useEffect(() => {
@@ -1797,7 +1942,7 @@ export function TerminalEmulator({
         ? [externalCommand.command]
         : [];
     if (cmds.length > 0) {
-      typeHandlersRef.current.startTypewriterQueue(cmds, externalCommand.context);
+      typeHandlersRef.current.startTypewriterQueue(cmds, externalCommand.context, undefined, true);
     }
   }, [externalCommand]);
 
@@ -1810,8 +1955,16 @@ export function TerminalEmulator({
 
     if (e.key === "Tab") {
       e.preventDefault();
-      if (ghostSuggestion) {
-        setActiveInput(activeTab.input + ghostSuggestion);
+      if (typePhase === "idle" || typePhase === "done") {
+        const val = activeTab.input;
+        if (val && !val.endsWith(" ")) {
+          const match = autocompletePool.find(
+            (c) => c.toLowerCase().startsWith(val.toLowerCase()) && c.length > val.length
+          );
+          if (match) {
+            setActiveInput(match);
+          }
+        }
       }
       return;
     }
@@ -2138,7 +2291,7 @@ export function TerminalEmulator({
                     <button
                       key={g.id}
                       type="button"
-                      onClick={() => startTypewriterQueue(g.commands, g.context, g.label)}
+                      onClick={() => startTypewriterQueue(g.commands, g.context, g.label, true)}
                       className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium transition-colors ${
                         typeActiveLabel === g.label && typePhase !== "idle"
                           ? "border-emerald-500/60 bg-emerald-600 text-white"
@@ -2184,7 +2337,8 @@ export function TerminalEmulator({
                             startTypewriterQueue(
                               typeQueue,
                               typeContext,
-                              typeActiveLabel ?? undefined
+                              typeActiveLabel ?? undefined,
+                              true
                             )
                           }
                           className="inline-flex cursor-pointer items-center gap-1 rounded border border-white/15 bg-white/10 px-2 py-0.5 text-zinc-200 hover:bg-white/20"
@@ -2253,30 +2407,15 @@ export function TerminalEmulator({
             {presets.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 border-b border-white/10 bg-black/40 px-3 py-1.5 font-sans">
                 {presets.map((p) => (
-                  <div
+                  <button
                     key={p.label}
-                    className="inline-flex items-center overflow-hidden rounded border border-white/15 bg-white/5"
+                    type="button"
+                    onClick={() => startTypewriterQueue([p.command], p.context, p.label, false)}
+                    className="cursor-pointer rounded border border-white/15 bg-white/5 px-2 py-0.5 font-mono text-[11px] text-zinc-100 hover:bg-white/15"
+                    title={p.command}
                   >
-                    <button
-                      type="button"
-                      onClick={() => startTypewriterQueue([p.command], p.context, p.label)}
-                      className="cursor-pointer px-2 py-0.5 font-mono text-[11px] text-zinc-100 hover:bg-white/15"
-                      title={p.command}
-                    >
-                      $ {p.label}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveInput(p.command);
-                        inputRef.current?.focus();
-                      }}
-                      className="cursor-pointer border-l border-white/15 px-1.5 py-0.5 text-[10px] text-zinc-400 hover:bg-white/15 hover:text-white"
-                      title="Chèn vào dòng lệnh"
-                    >
-                      ⇥
-                    </button>
-                  </div>
+                    $ {p.label}
+                  </button>
                 ))}
               </div>
             )}
@@ -2403,7 +2542,7 @@ export function TerminalEmulator({
                 ))}
               </div>
 
-              {/* Active Prompt Line with Inline Ghost Autocomplete */}
+              {/* Active Prompt Line */}
               <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-white/10 pt-2.5">
                 <span
                   className={
@@ -2438,41 +2577,30 @@ export function TerminalEmulator({
                 )}
                 <span className="text-zinc-300">{currentPrompt.symbol}</span>
 
-                <div className="relative min-w-[200px] flex-1">
-                  {ghostSuggestion && (
-                    <div
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre font-mono text-xs leading-normal"
-                    >
-                      <span className="opacity-0">{activeTab.input}</span>
-                      <span className="text-zinc-500">{ghostSuggestion}</span>
-                    </div>
-                  )}
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={activeTab.input}
-                    onChange={(e) => setActiveInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    spellCheck={false}
-                    autoCapitalize="none"
-                    autoComplete="off"
-                    aria-label="Dòng lệnh Terminal"
-                    placeholder=""
-                    className="relative z-10 w-full bg-transparent font-mono text-xs text-zinc-100 focus:outline-none"
-                  />
-                </div>
+                {typePhase !== "idle" && typePhase !== "done" ? (
+                  <div className="min-w-[200px] flex-1 whitespace-pre-wrap break-all font-mono text-xs text-zinc-100">
+                    {activeTab.input}
+                    <span className="ml-0.5 inline-block h-3.5 w-2 animate-pulse bg-emerald-400 align-middle" />
+                  </div>
+                ) : (
+                  <div className="relative min-w-[200px] flex-1">
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={activeTab.input}
+                      onChange={(e) => setActiveInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      spellCheck={false}
+                      autoCapitalize="none"
+                      autoComplete="off"
+                      aria-label="Dòng lệnh Terminal"
+                      placeholder=""
+                      className="relative z-10 w-full bg-transparent font-mono text-xs text-zinc-100 focus:outline-none"
+                    />
+                  </div>
+                )}
 
                 <div className="flex items-center gap-1.5 font-sans">
-                  {ghostSuggestion && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveInput(activeTab.input + ghostSuggestion)}
-                      className="cursor-pointer rounded border border-white/15 bg-white/10 px-1.5 py-0.5 text-[10px] text-zinc-300 hover:bg-white/20"
-                    >
-                      Tab ↹
-                    </button>
-                  )}
                   <button
                     type="button"
                     onClick={() => runCommandInTab(activeTab.input)}

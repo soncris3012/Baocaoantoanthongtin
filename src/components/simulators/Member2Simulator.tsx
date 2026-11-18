@@ -103,7 +103,7 @@ export function Member2Simulator({
   const [curlId, setCurlId] = useState("1");
   const [regexFilter, setRegexFilter] = useState("First name: [^<]*");
   const [showRawHtml, setShowRawHtml] = useState(false);
-  const [curlExecuted, setCurlExecuted] = useState(true);
+  const [curlExecuted, setCurlExecuted] = useState(false);
 
   const [logSearch, setLogSearch] = useState("");
   const [liveLogs, setLiveLogs] = useState<AccessLogItem[]>(INITIAL_LOG_LINES);

@@ -262,9 +262,25 @@ const M4_S2_STEPS: WalkStepSpec[] = [
   {
     target: "repeater-tab-1",
     label: "Xem Tab 1 (security=low)",
-    detail: "Quan sát request cũ ở mức security=low đang dính lỗi SQL syntax MariaDB.",
-    purpose: "Làm đối chứng nền: khi Cookie đặt security=low, tham số id=1' làm sập truy vấn SELECT và rò lỗi MariaDB.",
+    detail: "Chuyển sang Tab 1 ở mức security=low để tái lập lỗi gốc.",
+    purpose: "Làm đối chứng nền: kiểm chứng trước ở mức security=low để thấy sự khác biệt với mức Impossible.",
     action: "select-tab-1",
+  },
+  {
+    target: "inspector-id",
+    label: "Gõ id = 1'",
+    detail: "Gõ dấu nháy đơn (') vào tham số id trong Inspector.",
+    purpose: "Kiểm chứng ở mức Low xem ký tự nháy đơn có phá vỡ truy vấn MariaDB hay không.",
+    action: "focus-target",
+    typeField: "inspector-id",
+    typeValue: "1'",
+  },
+  {
+    target: "btn-repeater-send",
+    label: "Bấm Send (Low)",
+    detail: "Gửi id=1' ở mức security=low -> Response rò lỗi SQL syntax MariaDB.",
+    purpose: "Xác nhận mức Low bị lỗi SQL Injection & lộ thông báo lỗi CSDL trước khi đối chiếu với Impossible.",
+    action: "send-repeater",
   },
   {
     target: "repeater-tab-2",
@@ -912,15 +928,15 @@ export function BurpSuiteEmulator({
   const [portInput, setPortInput] = useState("8081");
   const [interceptOn, setInterceptOn] = useState(true);
   const [browserOpen, setBrowserOpen] = useState(true);
-  const [browserUrl, setBrowserUrl] = useState("http://localtest.me:8080/vulnerabilities/sqli/");
-  const [browserIdInput, setBrowserIdInput] = useState("1'");
+  const [browserUrl, setBrowserUrl] = useState("");
+  const [browserIdInput, setBrowserIdInput] = useState("");
   const [browserBanner, setBrowserBanner] = useState<{
     type: "info" | "warn" | "err" | "ok";
     text: string;
   } | null>(null);
   const [interceptBuffer, setInterceptBuffer] = useState<string>(
     buildHttpRequest({
-      idVal: "1'",
+      idVal: "1",
       includeToken: false,
       userToken,
       securityLevel: "low",
@@ -932,122 +948,116 @@ export function BurpSuiteEmulator({
   const initialTabs: RepeaterTabItem[] = useMemo(() => {
     if (mode === "poc5") {
       const r1 = buildHttpRequest({
-        idVal: "1'",
+        idVal: "1",
         includeToken: false,
         userToken,
         securityLevel: "low",
         phpsessid,
       });
-      const res1 = simulateDvwaHttpResponse(r1, phpsessid, userToken);
 
       const r2 = buildHttpRequest({
-        idVal: "1'",
+        idVal: "1",
         includeToken: false,
         userToken,
         securityLevel: "impossible",
         phpsessid,
       });
-      const res2 = simulateDvwaHttpResponse(r2, phpsessid, userToken);
 
       const r3 = buildHttpRequest({
-        idVal: "1'",
+        idVal: "1",
         includeToken: true,
         userToken,
         securityLevel: "impossible",
         phpsessid,
       });
-      const res3 = simulateDvwaHttpResponse(r3, phpsessid, userToken);
 
       return [
         {
           id: 1,
           title: "1",
           rawRequest: r1,
-          rawResponse: res1.rawResponse,
-          statusCode: res1.statusCode,
-          latencyMs: res1.latencyMs,
-          history: [{ request: r1, response: res1.rawResponse, statusCode: res1.statusCode, latencyMs: res1.latencyMs }],
+          rawResponse: "",
+          statusCode: 0,
+          latencyMs: 0,
+          history: [],
           historyCursor: 0,
         },
         {
           id: 2,
           title: "2",
           rawRequest: r2,
-          rawResponse: res2.rawResponse,
-          statusCode: res2.statusCode,
-          latencyMs: res2.latencyMs,
-          history: [{ request: r2, response: res2.rawResponse, statusCode: res2.statusCode, latencyMs: res2.latencyMs }],
+          rawResponse: "",
+          statusCode: 0,
+          latencyMs: 0,
+          history: [],
           historyCursor: 0,
         },
         {
           id: 3,
           title: "3",
           rawRequest: r3,
-          rawResponse: res3.rawResponse,
-          statusCode: res3.statusCode,
-          latencyMs: res3.latencyMs,
-          history: [{ request: r3, response: res3.rawResponse, statusCode: res3.statusCode, latencyMs: res3.latencyMs }],
+          rawResponse: "",
+          statusCode: 0,
+          latencyMs: 0,
+          history: [],
           historyCursor: 0,
         },
       ];
     }
 
     const req1 = buildHttpRequest({
-      idVal: "1'",
+      idVal: "1",
       includeToken: false,
       userToken,
       securityLevel: "low",
       phpsessid,
     });
-    const out1 = simulateDvwaHttpResponse(req1, phpsessid, userToken);
 
     const req2 = buildHttpRequest({
-      idVal: "' OR '1'='1",
+      idVal: "1",
       includeToken: false,
       userToken,
       securityLevel: "low",
       phpsessid,
     });
-    const out2 = simulateDvwaHttpResponse(req2, phpsessid, userToken);
 
     const req3 = buildHttpRequest({
-      idVal: "1' UNION SELECT user, password FROM users -- -",
+      idVal: "1",
       includeToken: false,
       userToken,
       securityLevel: "low",
       phpsessid,
     });
-    const out3 = simulateDvwaHttpResponse(req3, phpsessid, userToken);
 
     return [
       {
         id: 1,
         title: "1",
         rawRequest: req1,
-        rawResponse: out1.rawResponse,
-        statusCode: out1.statusCode,
-        latencyMs: out1.latencyMs,
-        history: [{ request: req1, response: out1.rawResponse, statusCode: out1.statusCode, latencyMs: out1.latencyMs }],
+        rawResponse: "",
+        statusCode: 0,
+        latencyMs: 0,
+        history: [],
         historyCursor: 0,
       },
       {
         id: 2,
         title: "2",
         rawRequest: req2,
-        rawResponse: out2.rawResponse,
-        statusCode: out2.statusCode,
-        latencyMs: out2.latencyMs,
-        history: [{ request: req2, response: out2.rawResponse, statusCode: out2.statusCode, latencyMs: out2.latencyMs }],
+        rawResponse: "",
+        statusCode: 0,
+        latencyMs: 0,
+        history: [],
         historyCursor: 0,
       },
       {
         id: 3,
         title: "3",
         rawRequest: req3,
-        rawResponse: out3.rawResponse,
-        statusCode: out3.statusCode,
-        latencyMs: out3.latencyMs,
-        history: [{ request: req3, response: out3.rawResponse, statusCode: out3.statusCode, latencyMs: out3.latencyMs }],
+        rawResponse: "",
+        statusCode: 0,
+        latencyMs: 0,
+        history: [],
         historyCursor: 0,
       },
     ];
@@ -1640,21 +1650,32 @@ Connection: close`;
       setInspectorOpen(true);
       setReqViewMode("raw");
       setResViewMode("pretty");
+      setRepeaterTabs((prev) =>
+        prev.map((t) => ({ ...t, rawResponse: "", statusCode: 0, latencyMs: 0, history: [] }))
+      );
       const t1 = repeaterTabs.find((x) => x.id === 1) ?? repeaterTabs[0];
       if (t1) {
         setActiveTabId(t1.id);
-        syncTabSnapshotToParent(t1);
+        syncTabSnapshotToParent({ ...t1, rawResponse: "", statusCode: 0, latencyMs: 0 });
       }
     } else if (id === "m4-s3") {
       setActiveModule("repeater");
       setInspectorOpen(true);
       setReqViewMode("raw");
       setResViewMode("pretty");
+      setRepeaterTabs((prev) =>
+        prev.map((t) => ({ ...t, rawResponse: "", statusCode: 0, latencyMs: 0, history: [] }))
+      );
       const t3 = repeaterTabs.find((x) => x.id === 3) ?? repeaterTabs[0];
       if (t3) {
         setActiveTabId(t3.id);
-        syncTabSnapshotToParent(t3);
+        syncTabSnapshotToParent({ ...t3, rawResponse: "", statusCode: 0, latencyMs: 0 });
       }
+    }
+
+    const first = getWalkthroughSteps(id)[0];
+    if (first?.typeField) {
+      applyWalkFieldValue(first.typeField, "");
     }
 
     setWalkId(id);
@@ -1680,6 +1701,10 @@ Connection: close`;
     }
     executeWalkAction(current.action);
     if (stepIdx + 1 < walkSteps.length) {
+      const nextStep = walkSteps[stepIdx + 1];
+      if (nextStep?.typeField) {
+        applyWalkFieldValue(nextStep.typeField, "");
+      }
       setStepIdx((i) => i + 1);
       setTypedChars(0);
       setPhase("gliding");
@@ -1786,6 +1811,10 @@ Connection: close`;
         setPhase("observing");
       } else if (phase === "observing") {
         if (stepIdx + 1 < steps.length) {
+          const nextStep = steps[stepIdx + 1];
+          if (nextStep?.typeField) {
+            handlersRef.current.applyWalkFieldValue(nextStep.typeField, "");
+          }
           setStepIdx((i) => i + 1);
           setTypedChars(0);
           setPhase("gliding");
@@ -2872,6 +2901,10 @@ Connection: close`;
                         {isSending ? (
                           <div className="py-12 text-center font-mono text-xs text-[#ff6633]">
                             Waiting for response from localtest.me:8080...
+                          </div>
+                        ) : !currentTab.rawResponse ? (
+                          <div className="py-12 text-center font-mono text-xs text-zinc-500">
+                            Chưa gửi gói tin — nhập tham số và bấm Send để nhận HTTP Response.
                           </div>
                         ) : (
                           <>

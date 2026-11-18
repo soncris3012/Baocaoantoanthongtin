@@ -623,18 +623,18 @@ export function DvwaWebEmulator({
   // Users DB & Setup/Login/Brute/CSRF state
   const [usersDb, setUsersDb] = useState<DvwaUserRecord[]>(DEFAULT_DVWA_USERS);
   const [setupLogs, setSetupLogs] = useState<string[] | null>(null);
-  const [loginUser, setLoginUser] = useState("admin");
-  const [loginPass, setLoginPass] = useState("password");
+  const [loginUser, setLoginUser] = useState("");
+  const [loginPass, setLoginPass] = useState("");
   const [loginMsg, setLoginMsg] = useState<string | null>(null);
 
   // Brute Force
-  const [bruteUser, setBruteUser] = useState("admin");
-  const [brutePass, setBrutePass] = useState("password");
+  const [bruteUser, setBruteUser] = useState("");
+  const [brutePass, setBrutePass] = useState("");
   const [bruteFails, setBruteFails] = useState(0);
   const [bruteResult, setBruteResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   // Command Injection
-  const [execInput, setExecInput] = useState("127.0.0.1");
+  const [execInput, setExecInput] = useState("");
   const [execOutput, setExecOutput] = useState<string | null>(null);
 
   // CSRF
@@ -677,7 +677,7 @@ export function DvwaWebEmulator({
     message?: string;
   } | null>(null);
 
-  const [blindInput, setBlindInput] = useState("1");
+  const [blindInput, setBlindInput] = useState("");
   const [blindOutput, setBlindOutput] = useState<string | null>(null);
 
   // Weak Session IDs
@@ -1288,6 +1288,10 @@ export function DvwaWebEmulator({
     setIsMinimized(false);
     setModalMode(null);
     setLoggedInUser("admin");
+    const first = DVWA_WALKTHROUGHS[id].steps[0];
+    if (first?.typeField) {
+      applyWalkField(first.typeField, "");
+    }
     setWalkId(id);
     setStepIdx(0);
     setTypedChars(0);
@@ -1311,6 +1315,10 @@ export function DvwaWebEmulator({
     }
     executeWalkStepAction(currentWalkStep);
     if (stepIdx + 1 < currentSteps.length) {
+      const nextStep = currentSteps[stepIdx + 1];
+      if (nextStep?.typeField) {
+        applyWalkField(nextStep.typeField, "");
+      }
       setStepIdx((i) => i + 1);
       setTypedChars(0);
       setWalkPhase("gliding");
@@ -1393,6 +1401,10 @@ export function DvwaWebEmulator({
         setWalkPhase("observing");
       } else if (walkPhase === "observing") {
         if (stepIdx + 1 < steps.length) {
+          const nextStep = steps[stepIdx + 1];
+          if (nextStep?.typeField) {
+            walkHandlersRef.current.applyWalkField(nextStep.typeField, "");
+          }
           setStepIdx((i) => i + 1);
           setTypedChars(0);
           setWalkPhase("gliding");
