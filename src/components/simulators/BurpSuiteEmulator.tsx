@@ -1706,7 +1706,6 @@ Connection: close`;
     { id: "logger", label: "Logger" },
   ];
 
-  const cursorFlipLeft = cursorPos.x > cursorPos.containerWidth - 260;
   const cursorGlideMs = speed === "slow" ? 1200 : speed === "fast" ? 450 : 850;
 
   const renderBurpWindow = (fullscreenMode: boolean) => (
@@ -1716,8 +1715,8 @@ Connection: close`;
         fullscreenMode ? "h-full w-full" : ""
       }`}
     >
-      {/* Virtual Animated Mouse Cursor Overlay */}
-      {walkId && phase !== "idle" && phase !== "done" && currentWalkStep && (
+      {/* Virtual Animated Mouse Cursor Overlay (Pointer + Click Ripple only) */}
+      {walkId && phase !== "idle" && phase !== "done" && (
         <div
           aria-hidden="true"
           style={{
@@ -1729,12 +1728,10 @@ Connection: close`;
           }}
           className="pointer-events-none absolute z-40"
         >
-          {/* Click ripple */}
           {phase === "acting" && (
             <span className="absolute -left-3 -top-3 h-7 w-7 rounded-full border-2 border-[#ff6633] bg-[#ff6633]/25 animate-ping" />
           )}
 
-          {/* Crisp Desktop Pointer SVG */}
           <svg
             width="22"
             height="22"
@@ -1751,24 +1748,12 @@ Connection: close`;
               strokeLinejoin="round"
             />
           </svg>
-
-          {/* Edge-Aware Floating Action Label */}
-          <div
-            className={`absolute top-5 whitespace-nowrap rounded-md border border-[#ff6633]/70 bg-[#18191d]/95 px-2.5 py-1 font-sans text-[11px] font-semibold text-white shadow-lg ${
-              cursorFlipLeft ? "right-2" : "left-4"
-            }`}
-          >
-            <span className="mr-1.5 font-mono font-bold text-[#ff885e]">
-              {progressPct}%
-            </span>
-            <span>{currentWalkStep.label}</span>
-          </div>
         </div>
       )}
 
       {/* 1. Native Desktop Title Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#383a40] bg-[#2b2d31] px-3 py-2 text-xs">
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex min-w-0 items-center gap-2.5">
           <WindowControls
             onClose={() => {
               if (fullscreenMode) {
@@ -1801,7 +1786,32 @@ Connection: close`;
           </span>
         </div>
 
-        <div className="flex items-center gap-3 text-[11px] text-zinc-400">
+        <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-zinc-400">
+          {walkId && phase !== "idle" && (
+            <div className="flex items-center gap-2 rounded border border-[#3c3f47] bg-[#1e1f22] px-2 py-0.5">
+              <div className="h-2 w-24 overflow-hidden rounded-full border border-[#3c3f47] bg-[#18191c] sm:w-32">
+                <div
+                  className={`h-full transition-all duration-300 ${
+                    phase === "done"
+                      ? "bg-emerald-400"
+                      : "bg-gradient-to-r from-[#ff6633] to-amber-400"
+                  }`}
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+              <span
+                className={`font-mono text-[11px] font-bold ${
+                  phase === "done" ? "text-emerald-300" : "text-[#ff885e]"
+                }`}
+              >
+                {progressPct}%
+              </span>
+              <span className="font-mono text-[10.5px] text-zinc-400">
+                {Math.min(stepIdx + 1, walkSteps.length)}/{walkSteps.length}
+              </span>
+            </div>
+          )}
+
           <span className="hidden font-mono sm:inline">Memory: 384MB / 2.0GB</span>
           <button
             type="button"
@@ -1827,15 +1837,137 @@ Connection: close`;
         </div>
       </div>
 
-      {/* 2. Menu Bar */}
+      {/* Thin Full-Width Top Progress Line */}
+      {walkId && phase !== "idle" && (
+        <div className="h-[2px] w-full bg-[#18191c]">
+          <div
+            className={`h-full transition-all duration-300 ${
+              phase === "done"
+                ? "bg-emerald-400"
+                : "bg-gradient-to-r from-[#ff6633] to-amber-400"
+            }`}
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      )}
+
+      {/* 2. Menu Bar + Compact Walkthrough Controls */}
       {!isMinimized && (
         <>
-          <div className="flex items-center gap-4 border-b border-[#32343a] bg-[#25262a] px-3 py-1 text-[11px] text-zinc-300">
-            {["Burp", "Project", "Intruder", "Repeater", "Window", "Help"].map((menu) => (
-              <span key={menu} className="cursor-default hover:text-white">
-                {menu}
-              </span>
-            ))}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#32343a] bg-[#25262a] px-3 py-1.5 text-[11px] text-zinc-300">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="flex shrink-0 items-center gap-3.5">
+                {["Burp", "Project", "Intruder", "Repeater", "Window", "Help"].map((menu) => (
+                  <span key={menu} className="cursor-default hover:text-white">
+                    {menu}
+                  </span>
+                ))}
+              </div>
+              {walkId && phase !== "idle" && (
+                <span className="hidden truncate border-l border-[#3c3f47] pl-3 text-zinc-200 lg:inline">
+                  {phase === "done"
+                    ? "Đã hoàn thành mô phỏng trên Burp Suite (100%)."
+                    : currentWalkStep?.detail}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(mode === "poc2"
+                ? ([
+                    { id: "m2-s1", label: "Bước 01" },
+                    { id: "m2-s2", label: "Bước 02" },
+                    { id: "m2-full", label: "Trọn bộ" },
+                  ] as const)
+                : ([
+                    { id: "m4-s2", label: "Bước 02 (302)" },
+                    { id: "m4-s3", label: "Bước 03 (+Token)" },
+                    { id: "m4-full", label: "Trọn bộ" },
+                  ] as const)
+              ).map((preset) => {
+                const isSelected = walkId === preset.id && phase !== "idle";
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => startWalkthrough(preset.id)}
+                    className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2 py-0.5 text-[10.5px] font-medium transition-colors ${
+                      isSelected
+                        ? "border-[#ff6633] bg-[#ff6633]/20 font-semibold text-white"
+                        : "border-[#3c3f47] bg-[#2b2d31] text-zinc-200 hover:border-[#ff6633]/60 hover:text-white"
+                    }`}
+                  >
+                    <Play className="h-2.5 w-2.5 text-[#ff6633]" aria-hidden="true" />
+                    <span>{preset.label}</span>
+                  </button>
+                );
+              })}
+
+              <div className="ml-1 inline-flex items-center gap-0.5 rounded border border-[#3c3f47] bg-[#1e1f22] p-0.5">
+                {(
+                  [
+                    { id: "slow", label: "Chậm" },
+                    { id: "normal", label: "Từ từ" },
+                    { id: "fast", label: "Nhanh" },
+                  ] as const
+                ).map((sp) => (
+                  <button
+                    key={sp.id}
+                    type="button"
+                    onClick={() => setSpeed(sp.id)}
+                    className={`cursor-pointer rounded px-1.5 py-0.5 font-mono text-[10px] transition-colors ${
+                      speed === sp.id
+                        ? "bg-[#ff6633] font-bold text-white"
+                        : "text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    {sp.label}
+                  </button>
+                ))}
+              </div>
+
+              {walkId && phase !== "idle" && (
+                <>
+                  {phase !== "done" ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsPaused((p) => !p)}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded border border-[#3c3f47] bg-[#2b2d31] px-2 py-0.5 text-[10.5px] text-zinc-200 hover:bg-[#383a40]"
+                    >
+                      {isPaused ? (
+                        <>
+                          <Play className="h-2.5 w-2.5 text-emerald-400" aria-hidden="true" />
+                          <span>Tiếp tục</span>
+                        </>
+                      ) : (
+                        <>
+                          <Pause className="h-2.5 w-2.5 text-amber-300" aria-hidden="true" />
+                          <span>Tạm dừng</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => startWalkthrough(walkId)}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-300 hover:bg-emerald-500/25"
+                    >
+                      <RotateCcw className="h-2.5 w-2.5" aria-hidden="true" />
+                      <span>Chạy lại</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={stopWalkthrough}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded border border-[#3c3f47] bg-[#2b2d31] px-2 py-0.5 text-[10.5px] text-zinc-300 hover:bg-rose-600/20 hover:text-rose-200"
+                  >
+                    <Square className="h-2.5 w-2.5" aria-hidden="true" />
+                    <span>{phase === "done" ? "Đóng" : "Dừng"}</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* 3. Main Module Tab Bar */}
@@ -1866,143 +1998,6 @@ Connection: close`;
                 </button>
               );
             })}
-          </div>
-
-          {/* 3.5 Guided Step-by-Step Walkthrough Toolbar & % Progress Strip */}
-          <div className="border-b border-[#383a40] bg-[#212328] px-3 py-2 text-xs">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="font-mono text-[11px] font-bold text-[#ff885e]">
-                  Chạy mô phỏng trực quan:
-                </span>
-                {(mode === "poc2"
-                  ? ([
-                      { id: "m2-s1", label: "Bước 01 · Proxy 8081 & localtest.me" },
-                      { id: "m2-s2", label: "Bước 02 · Intercept & SQLi PoC 2" },
-                      { id: "m2-full", label: "Chạy trọn bộ PoC 2" },
-                    ] as const)
-                  : ([
-                      { id: "m4-s2", label: "Bước 02 · PoC 5 Gốc (302)" },
-                      { id: "m4-s3", label: "Bước 03 · PoC 5 + Token" },
-                      { id: "m4-full", label: "Chạy trọn bộ PoC 5" },
-                    ] as const)
-                ).map((preset) => {
-                  const isSelected = walkId === preset.id && phase !== "idle";
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => startWalkthrough(preset.id)}
-                      className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                        isSelected
-                          ? "border-[#ff6633] bg-[#ff6633]/20 font-semibold text-white"
-                          : "border-[#3c3f47] bg-[#2b2d31] text-zinc-200 hover:border-[#ff6633]/60 hover:text-white"
-                      }`}
-                    >
-                      <Play className="h-2.5 w-2.5 text-[#ff6633]" aria-hidden="true" />
-                      <span>{preset.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex items-center gap-1.5 text-[11px]">
-                <span className="text-zinc-400">Tốc độ:</span>
-                {(
-                  [
-                    { id: "slow", label: "Chậm" },
-                    { id: "normal", label: "Từ từ" },
-                    { id: "fast", label: "Nhanh" },
-                  ] as const
-                ).map((sp) => (
-                  <button
-                    key={sp.id}
-                    type="button"
-                    onClick={() => setSpeed(sp.id)}
-                    className={`cursor-pointer rounded border px-2 py-0.5 font-mono text-[10.5px] transition-colors ${
-                      speed === sp.id
-                        ? "border-[#ff6633] bg-[#ff6633] font-bold text-white"
-                        : "border-[#3c3f47] bg-[#2b2d31] text-zinc-300 hover:text-white"
-                    }`}
-                  >
-                    {sp.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {walkId && phase !== "idle" && (
-              <div className="mt-2 rounded border border-[#383a40] bg-[#16171a] px-2.5 py-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="rounded bg-[#ff6633] px-2 py-0.5 font-mono text-[11px] font-bold text-white">
-                      {progressPct}%
-                    </span>
-                    <span className="font-mono text-[11px] text-zinc-400">
-                      Thao tác {Math.min(stepIdx + 1, walkSteps.length)}/{walkSteps.length}
-                    </span>
-                    <span className="truncate font-medium text-zinc-100">
-                      {phase === "done"
-                        ? "Đã hoàn thành toàn bộ thao tác mô phỏng trên Burp Suite (100%)."
-                        : currentWalkStep?.detail}
-                    </span>
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    {phase !== "done" && (
-                      <button
-                        type="button"
-                        onClick={() => setIsPaused((p) => !p)}
-                        className="inline-flex cursor-pointer items-center gap-1 rounded border border-[#3c3f47] bg-[#2b2d31] px-2 py-0.5 text-[11px] text-zinc-200 hover:bg-[#383a40]"
-                      >
-                        {isPaused ? (
-                          <>
-                            <Play className="h-2.5 w-2.5 text-emerald-400" aria-hidden="true" />
-                            <span>Tiếp tục</span>
-                          </>
-                        ) : (
-                          <>
-                            <Pause className="h-2.5 w-2.5 text-amber-300" aria-hidden="true" />
-                            <span>Tạm dừng</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-
-                    {phase === "done" && (
-                      <button
-                        type="button"
-                        onClick={() => startWalkthrough(walkId)}
-                        className="inline-flex cursor-pointer items-center gap-1 rounded border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/25"
-                      >
-                        <RotateCcw className="h-2.5 w-2.5" aria-hidden="true" />
-                        <span>Chạy lại</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={stopWalkthrough}
-                      className="inline-flex cursor-pointer items-center gap-1 rounded border border-[#3c3f47] bg-[#2b2d31] px-2 py-0.5 text-[11px] text-zinc-300 hover:bg-rose-600/20 hover:text-rose-200"
-                    >
-                      <Square className="h-2.5 w-2.5" aria-hidden="true" />
-                      <span>{phase === "done" ? "Đóng" : "Dừng"}</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#2b2d31]">
-                  <div
-                    className={`h-full transition-all duration-300 ${
-                      phase === "done"
-                        ? "bg-emerald-400"
-                        : "bg-gradient-to-r from-[#ff6633] to-amber-400"
-                    }`}
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           {/* 4. Active Module Content */}
