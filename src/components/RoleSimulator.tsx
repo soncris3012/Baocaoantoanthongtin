@@ -49,6 +49,7 @@ export function RoleSimulator({
   return (
     <Member4Simulator
       key={focusedSimulatorKey || "m4"}
+      containerRef={workspaceState.container_ref}
       phpsessid={workspaceState.phpsessid}
       userToken={workspaceState.user_token}
       activeTab={focusedSimulatorKey}

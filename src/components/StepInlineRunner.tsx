@@ -46,6 +46,10 @@ export function StepInlineRunner({
   const [hasRun, setHasRun] = useState(false);
   const [visibleLineCount, setVisibleLineCount] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [quickCmd, setQuickCmd] = useState("");
+  const [quickEntries, setQuickEntries] = useState<
+    Array<{ id: number; cmd: string; out: string }>
+  >([]);
   const streamTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const container =
@@ -419,6 +423,39 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
     }
   };
 
+  const handleRunQuickCmd = () => {
+    const trimmed = quickCmd.trim();
+    if (!trimmed) return;
+    const lower = trimmed.toLowerCase();
+    if (lower === "clear") {
+      setQuickEntries([]);
+      setQuickCmd("");
+      return;
+    }
+
+    let out = `shell: '${trimmed}'. Hỗ trợ nhanh: docker ps, docker ps -a, docker images, whoami, pwd, id, hostname, curl -Is http://127.0.0.1:8080/login.php, clear`;
+    if (lower === "help" || lower === "?") {
+      out = "Lệnh nhanh: docker ps | docker ps -a | docker images | whoami | id | pwd | hostname | curl -Is http://127.0.0.1:8080/login.php | clear";
+    } else if (lower.startsWith("docker ps")) {
+      out = `CONTAINER ID   IMAGE                  STATUS       PORTS                    NAMES\n${container.padEnd(14, " ")} vulnerables/web-dvwa   Up 2 hours   0.0.0.0:8080->80/tcp     ${memberNumber === 1 ? "epic_dijkstra" : "dvwa"}`;
+    } else if (lower === "docker images") {
+      out = `REPOSITORY             TAG       IMAGE ID       SIZE\nvulnerables/web-dvwa   latest    715061c61096   712MB`;
+    } else if (lower === "whoami") {
+      out = memberNumber === 1 ? "soncris" : memberNumber === 2 ? "hung" : memberNumber === 3 ? "quyet" : "khanh";
+    } else if (lower === "id") {
+      out = memberNumber === 1 ? "uid=501(soncris) gid=20(staff)" : "uid=1000(ubuntu) groups=27(sudo),999(docker)";
+    } else if (lower === "pwd") {
+      out = memberNumber === 1 ? "/Users/soncris" : `/home/${memberNumber === 2 ? "hung" : memberNumber === 3 ? "quyet" : "khanh"}`;
+    } else if (lower === "hostname") {
+      out = memberNumber === 1 ? "MacBook-Pro" : "ubuntu-vm";
+    } else if (lower.startsWith("curl")) {
+      out = `HTTP/1.1 200 OK\nServer: Apache/2.4.25 (Debian)\nSet-Cookie: PHPSESSID=${sess}; path=/\nContent-Type: text/html;charset=utf-8`;
+    }
+
+    setQuickEntries((prev) => [...prev, { id: Date.now(), cmd: trimmed, out }]);
+    setQuickCmd("");
+  };
+
   const displayedOutput = fullLines.slice(0, visibleLineCount).join("\n");
 
   return (
@@ -611,6 +648,47 @@ msg "Phat hien dau hieu bat thuong trong tham so id - Ngan chan boi ModSecurity"
                     </span>
                   </div>
                 )}
+              </div>
+
+              {/* Compact interactive manual input bar */}
+              {quickEntries.length > 0 && (
+                <div className="space-y-1.5 rounded border border-zinc-800/80 bg-[#05070a] p-2.5">
+                  {quickEntries.map((qe) => (
+                    <div key={qe.id} className="space-y-0.5">
+                      <div className="text-zinc-300">
+                        <span className="text-emerald-400">{hostPrompt}</span> {qe.cmd}
+                      </div>
+                      <pre className="whitespace-pre-wrap text-[11px] text-emerald-300">
+                        {qe.out}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2 rounded border border-zinc-800/80 bg-[#0d1117] px-3 py-1.5">
+                <span className="text-emerald-400">{hostPrompt}</span>
+                <input
+                  type="text"
+                  value={quickCmd}
+                  onChange={(e) => setQuickCmd(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleRunQuickCmd();
+                    }
+                  }}
+                  aria-label="Gõ thêm lệnh nhanh"
+                  placeholder="Gõ thêm lệnh tại đây: docker ps, whoami, pwd, clear..."
+                  className="min-w-[180px] flex-1 bg-transparent font-mono text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleRunQuickCmd}
+                  className="cursor-pointer rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[11px] font-semibold text-zinc-200 hover:bg-zinc-700"
+                >
+                  Enter ↵
+                </button>
               </div>
 
               {/* Bottom Action Footer */}

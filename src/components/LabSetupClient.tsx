@@ -7,15 +7,20 @@ import {
   Download,
   KeyRound,
   RefreshCw,
+  Terminal,
   Wrench,
 } from "lucide-react";
 import { CodeBlock } from "@/components/CodeBlock";
 import { WindowControls } from "@/components/WindowBar";
+import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
+import { TerminalEmulator } from "@/components/simulators/TerminalEmulator";
 import { useWorkspace } from "@/components/WorkspaceProvider";
 import { LAB_MAINTENANCE_COMMANDS, UBUNTU_SETUP_COMMANDS } from "@/data/scenarioData";
 
 export function LabSetupClient() {
   const { snapshot, seedSupabase } = useWorkspace();
+  const [sandboxOs, setSandboxOs] = useState<"macos" | "ubuntu">("ubuntu");
+  const [sandboxRunning, setSandboxRunning] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [seedFeedback, setSeedFeedback] = useState<{
     ok: boolean;
@@ -112,6 +117,102 @@ export function LabSetupClient() {
               </p>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Interactive Terminal + Docker Desktop Lab Sandbox */}
+      <section className="rounded-lg border border-hairline bg-surface p-5 sm:p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <Terminal className="h-4 w-4 text-accent" aria-hidden="true" />
+              Thực hành Trực tiếp: Terminal Gõ Tay &amp; Docker Container DVWA
+            </h2>
+            <p className="mt-1 text-xs text-muted sm:text-sm">
+              Gõ trực tiếp các lệnh <code className="font-mono text-ink">docker ps</code>,{" "}
+              <code className="font-mono text-ink">docker stop</code>,{" "}
+              <code className="font-mono text-ink">docker start</code>,{" "}
+              <code className="font-mono text-ink">docker exec -it ... bash</code> và quan sát trạng thái container đồng bộ ngay trên Docker Desktop.
+            </p>
+          </div>
+
+          <div className="inline-flex rounded-md border border-hairline bg-subtle p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setSandboxOs("ubuntu")}
+              className={`cursor-pointer rounded px-3 py-1 font-medium transition-colors ${
+                sandboxOs === "ubuntu"
+                  ? "bg-surface font-semibold text-ink shadow-sm"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              Ubuntu VM (--name dvwa)
+            </button>
+            <button
+              type="button"
+              onClick={() => setSandboxOs("macos")}
+              className={`cursor-pointer rounded px-3 py-1 font-medium transition-colors ${
+                sandboxOs === "macos"
+                  ? "bg-surface font-semibold text-ink shadow-sm"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              macOS (Sơn · 215d3a734374)
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <TerminalEmulator
+            key={sandboxOs}
+            os={sandboxOs}
+            username={sandboxOs === "macos" ? "soncris" : "hung"}
+            hostname={sandboxOs === "macos" ? "MacBook-Pro" : "ubuntu-vm"}
+            containerRef={sandboxOs === "macos" ? "215d3a734374" : "dvwa"}
+            containerRunning={sandboxRunning}
+            onContainerRunningChange={setSandboxRunning}
+            presets={[
+              { label: "docker --version", command: "docker --version" },
+              {
+                label: "docker pull dvwa",
+                command: "docker pull vulnerables/web-dvwa",
+              },
+              {
+                label: "docker run dvwa",
+                command: "docker run -d --name dvwa -p 8080:80 vulnerables/web-dvwa",
+              },
+              { label: "docker ps -a", command: "docker ps -a" },
+              {
+                label: sandboxRunning ? "docker stop" : "docker start",
+                command: `${sandboxRunning ? "docker stop" : "docker start"} ${
+                  sandboxOs === "macos" ? "215d3a734374" : "dvwa"
+                }`,
+              },
+              {
+                label: "docker exec bash",
+                command: `docker exec -it ${sandboxOs === "macos" ? "215d3a734374" : "dvwa"} bash`,
+              },
+            ]}
+            initialEntries={[
+              {
+                command: "docker ps",
+                output: `CONTAINER ID   IMAGE                  COMMAND      CREATED       STATUS        PORTS                    NAMES\n${
+                  sandboxOs === "macos" ? "215d3a734374  " : "215d3a734374  "
+                } vulnerables/web-dvwa   "/main.sh"   2 hours ago   Up 2 hours    0.0.0.0:8080->80/tcp     ${
+                  sandboxOs === "macos" ? "epic_dijkstra" : "dvwa"
+                }`,
+                tone: "ok",
+              },
+            ]}
+          />
+
+          <DockerDesktopEmulator
+            platform={sandboxOs}
+            containerId="215d3a734374"
+            containerName={sandboxOs === "macos" ? "epic_dijkstra" : "dvwa"}
+            running={sandboxRunning}
+            onRunningChange={setSandboxRunning}
+          />
         </div>
       </section>
 

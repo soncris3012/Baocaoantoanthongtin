@@ -13,10 +13,13 @@ import {
   XCircle,
 } from "lucide-react";
 import { BurpSuiteEmulator, type BurpPacketEvent } from "@/components/simulators/BurpSuiteEmulator";
+import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
+import { TerminalEmulator } from "@/components/simulators/TerminalEmulator";
 import { WindowControls } from "@/components/WindowBar";
 import { PHP_LEVEL_SOURCES } from "@/data/scenarioData";
 
 interface Props {
+  containerRef?: string;
   phpsessid: string;
   userToken: string;
   activeTab?: string;
@@ -60,10 +63,17 @@ function renderHighlightedCode(
   });
 }
 
-export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
-  const [tab, setTab] = useState<"php" | "poc5" | "waf">(
+export function Member4Simulator({
+  containerRef = "dvwa",
+  phpsessid,
+  userToken,
+  activeTab,
+}: Props) {
+  const [tab, setTab] = useState<"php" | "poc5" | "waf" | "terminal">(
     activeTab === "m4-poc5-waf" ? "poc5" : "php"
   );
+  const [containerRunning, setContainerRunning] = useState(true);
+  const [terminalSubView, setTerminalSubView] = useState<"terminal" | "docker">("terminal");
   const [selectedPhp, setSelectedPhp] = useState<
     "low" | "medium" | "high" | "impossible"
   >("low");
@@ -90,6 +100,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
     },
   ]);
 
+  const container = containerRef.trim() || "dvwa";
   const session = phpsessid.trim() || "7nst0hrqrfmv744a5ouj7663b0";
   const currentPhp =
     PHP_LEVEL_SOURCES.find((p) => p.level === selectedPhp) ?? PHP_LEVEL_SOURCES[0];
@@ -234,6 +245,7 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
             { id: "php" as const, label: "1. PHP 4 Cấp độ" },
             { id: "poc5" as const, label: "2. PoC 5 Đối chứng" },
             { id: "waf" as const, label: "3. WAF ModSecurity" },
+            { id: "terminal" as const, label: "4. Terminal & Docker (dvwa)" },
           ].map((t) => (
             <button
               key={t.id}
@@ -707,6 +719,96 @@ export function Member4Simulator({ phpsessid, userToken, activeTab }: Props) {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {tab === "terminal" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-hairline bg-subtle p-2.5">
+            <span className="text-xs font-semibold text-ink">
+              Kiểm toán mã nguồn &amp; ModSecurity trên máy Khánh (Ubuntu VM 3 · {container})
+            </span>
+            <div className="inline-flex rounded border border-hairline bg-surface p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setTerminalSubView("terminal")}
+                className={`cursor-pointer rounded px-2.5 py-1 font-medium ${
+                  terminalSubView === "terminal"
+                    ? "bg-ink font-semibold text-canvas"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                Ubuntu Terminal (bash)
+              </button>
+              <button
+                type="button"
+                onClick={() => setTerminalSubView("docker")}
+                className={`cursor-pointer rounded px-2.5 py-1 font-medium ${
+                  terminalSubView === "docker"
+                    ? "bg-ink font-semibold text-canvas"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                Docker Container ({container})
+              </button>
+            </div>
+          </div>
+
+          {terminalSubView === "terminal" ? (
+            <TerminalEmulator
+              os="ubuntu"
+              username="khanh"
+              hostname="ubuntu-vm"
+              containerRef={container}
+              phpsessid={session}
+              userToken={activeToken}
+              containerRunning={containerRunning}
+              onContainerRunningChange={setContainerRunning}
+              externalWafLogs={wafAuditLogs}
+              onWafTested={(val) => recordWafAudit(val)}
+              presets={[
+                {
+                  label: "cat impossible.php",
+                  command: "cat /var/www/html/vulnerabilities/sqli/source/impossible.php",
+                },
+                {
+                  label: "diff low vs impossible",
+                  command:
+                    "diff -u /var/www/html/vulnerabilities/sqli/source/low.php /var/www/html/vulnerabilities/sqli/source/impossible.php",
+                },
+                {
+                  label: "apache2ctl -M | security2",
+                  command: "apache2ctl -M | grep security2",
+                },
+                {
+                  label: "tail modsec_audit.log",
+                  command: "tail -n 10 /var/log/apache2/modsec_audit.log",
+                },
+                {
+                  label: "docker ps",
+                  command: "docker ps",
+                },
+              ]}
+              initialEntries={[
+                {
+                  command: "apache2ctl -M | grep security2",
+                  output:
+                    "Loaded Modules:\n headers_module (shared)\n php7_module (shared)\n security2_module (shared)  <-- ModSecurity v2.9 CRS Active",
+                  tone: "ok",
+                },
+              ]}
+            />
+          ) : (
+            <DockerDesktopEmulator
+              platform="ubuntu"
+              containerId="215d3a734374"
+              containerName={container}
+              running={containerRunning}
+              onRunningChange={setContainerRunning}
+              wafLogs={wafAuditLogs}
+              onOpenExternalTerminal={() => setTerminalSubView("terminal")}
+            />
+          )}
         </div>
       )}
     </div>

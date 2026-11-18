@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Bug, Database, FileSearch, Play, RotateCcw } from "lucide-react";
 import { BurpSuiteEmulator } from "@/components/simulators/BurpSuiteEmulator";
+import { DockerDesktopEmulator } from "@/components/simulators/DockerDesktopEmulator";
+import { TerminalEmulator } from "@/components/simulators/TerminalEmulator";
 import { WindowControls } from "@/components/WindowBar";
 
 interface Props {
@@ -61,9 +63,10 @@ const INITIAL_LOG_LINES: AccessLogItem[] = [
 ];
 
 export function Member2Simulator({ containerRef, phpsessid, activeTab }: Props) {
-  const [tab, setTab] = useState<"burp" | "logs">(
+  const [tab, setTab] = useState<"burp" | "logs" | "docker">(
     activeTab === "m2-curl-log" ? "logs" : "burp"
   );
+  const [containerRunning, setContainerRunning] = useState(true);
   const [sentPayload, setSentPayload] = useState("1'");
 
   const [curlId, setCurlId] = useState("1");
@@ -205,7 +208,7 @@ export function Member2Simulator({ containerRef, phpsessid, activeTab }: Props) 
           </p>
         </div>
 
-        <div className="inline-flex rounded-md border border-hairline bg-subtle p-0.5 text-xs">
+        <div className="inline-flex flex-wrap rounded-md border border-hairline bg-subtle p-0.5 text-xs">
           <button
             type="button"
             onClick={() => setTab("burp")}
@@ -229,17 +232,28 @@ export function Member2Simulator({ containerRef, phpsessid, activeTab }: Props) 
                 : "text-muted hover:text-ink"
             }`}
           >
-            <span>2. cURL + grep &amp; access.log</span>
+            <span>2. Ubuntu Terminal &amp; access.log</span>
             {newLogCount > 0 && (
               <span className="rounded bg-accent px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
                 +{newLogCount}
               </span>
             )}
           </button>
+          <button
+            type="button"
+            onClick={() => setTab("docker")}
+            className={`cursor-pointer rounded px-3 py-1 font-medium transition-colors ${
+              tab === "docker"
+                ? "bg-surface font-semibold text-ink shadow-sm"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            3. Docker Container (dvwa)
+          </button>
         </div>
       </div>
 
-      {tab === "burp" ? (
+      {tab === "burp" && (
         <div className="space-y-4">
           <BurpSuiteEmulator
             mode="poc2"
@@ -294,8 +308,50 @@ export function Member2Simulator({ containerRef, phpsessid, activeTab }: Props) 
             </p>
           </div>
         </div>
-      ) : (
+      )}
+
+      {tab === "logs" && (
         <div className="space-y-4">
+          <TerminalEmulator
+            os="ubuntu"
+            username="hung"
+            hostname="ubuntu-vm"
+            containerRef={container}
+            phpsessid={session}
+            containerRunning={containerRunning}
+            onContainerRunningChange={setContainerRunning}
+            externalAccessLogs={liveLogs}
+            onCurlLogged={(idParam, ua) => recordLogEntry(idParam, ua)}
+            presets={[
+              {
+                label: "curl + grep admin",
+                command: `curl -s -b "security=low; PHPSESSID=${session}" "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1&Submit=Submit" | grep -o "First name: [^<]*"`,
+              },
+              {
+                label: "curl SQLi 1'",
+                command: `curl -s -b "security=low; PHPSESSID=${session}" "http://127.0.0.1:8080/vulnerabilities/sqli/?id=1'&Submit=Submit"`,
+              },
+              {
+                label: "grep access.log",
+                command: `docker exec ${container} grep -E "(%27|UNION|SELECT)" /var/log/apache2/access.log`,
+              },
+              {
+                label: "docker ps",
+                command: "docker ps",
+              },
+            ]}
+            initialEntries={[
+              {
+                command: `docker exec ${container} grep -E "(%27|UNION|SELECT)" /var/log/apache2/access.log`,
+                output: INITIAL_LOG_LINES.map(
+                  (l) =>
+                    `${l.ip} - - [${l.timestamp}] "${l.method} ${l.uri} HTTP/1.1" ${l.status} ${l.bytes} "-" "${l.ua}"`
+                ).join("\n"),
+                tone: "warn",
+              },
+            ]}
+          />
+
           {/* cURL + grep section */}
           <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800/80 pb-2">
@@ -447,6 +503,18 @@ export function Member2Simulator({ containerRef, phpsessid, activeTab }: Props) 
             </div>
           </div>
         </div>
+      )}
+
+      {tab === "docker" && (
+        <DockerDesktopEmulator
+          platform="ubuntu"
+          containerId="215d3a734374"
+          containerName={container}
+          running={containerRunning}
+          onRunningChange={setContainerRunning}
+          accessLogs={liveLogs}
+          onOpenExternalTerminal={() => setTab("logs")}
+        />
       )}
     </div>
   );
