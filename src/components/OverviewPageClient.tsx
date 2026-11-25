@@ -416,9 +416,9 @@ export function OverviewPageClient() {
           <div className="rounded-md border border-hairline bg-subtle p-3.5">
             <div className="font-mono text-[11px] text-muted">Độ trễ Phụ trội (OFF vs BLOCKING)</div>
             <div className="mt-1 font-mono text-lg font-bold text-ink">
-              +0.692 ms TB (p95: 2.072ms)
+              +0.709 ms TB (p95: 2.16ms)
             </div>
-            <p className="mt-1 text-muted">0.853 ms (không WAF) lên 1.545 ms (có WAF) · Kiểm chứng trên 300 request lặp 3 lượt.</p>
+            <p className="mt-1 text-muted">0.928 ms (không WAF) lên 1.637 ms (có WAF) · Kiểm chứng trên 300 request lặp 3 lượt.</p>
           </div>
 
           <div className="rounded-md border border-hairline bg-subtle p-3.5">
@@ -426,15 +426,15 @@ export function OverviewPageClient() {
             <div className="mt-1 font-mono text-lg font-bold text-ink">
               :8080 Proxy · :8888 Admin
             </div>
-            <p className="mt-1 text-muted">Port :8080 trả 404 mọi API quản trị; chỉ IP qua Proxy và 0 payload độc hại lọt xuống backend (150/300 hits).</p>
+            <p className="mt-1 text-muted">Port :8080 trả 404 mọi API quản trị; 0 payload độc hại lọt xuống target_web VULNERABLE/HARDENED (150/300 hits).</p>
           </div>
 
           <div className="rounded-md border border-hairline bg-subtle p-3.5">
             <div className="font-mono text-[11px] text-muted">Kiểm thử Đơn vị &amp; Phòng thủ Chủ động</div>
             <div className="mt-1 font-mono text-lg font-bold text-accent">
-              9/9 Pytest Passed
+              13/13 Pytest Passed
             </div>
-            <p className="mt-1 text-muted">Vượt kiểm thử Sliding vs Fixed Window, XFF anti-spoofing, Auto-Ban TTL 300s &amp; Log Masking.</p>
+            <p className="mt-1 text-muted">test_sqli, test_xss, test_proxy, test_defense + Auto-Ban TTL 300s &amp; Log Masking.</p>
           </div>
         </div>
       </section>

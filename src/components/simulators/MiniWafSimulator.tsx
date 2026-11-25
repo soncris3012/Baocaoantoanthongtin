@@ -351,7 +351,7 @@ function inspectSimulatedRequest(params: {
 const VERIFIED_PYTHON_BENCHMARK = {
   datasetSize: 100,
   iterations: 3,
-  off: { backendHits: 300, meanMs: 0.853, medianMs: 0.797, p95Ms: 1.142 },
+  off: { backendHits: 300, meanMs: 0.928, medianMs: 0.859, p95Ms: 1.404 },
   monitor: { backendHits: 100, monitoredLogged: 50 },
   blocking: {
     tp: 50,
@@ -362,11 +362,11 @@ const VERIFIED_PYTHON_BENCHMARK = {
     recallTprPct: 100.0,
     fprPct: 0.0,
     f1Pct: 100.0,
-    meanMs: 1.545,
-    medianMs: 1.648,
-    p95Ms: 2.072,
-    deltaMeanMs: 0.692,
-    deltaP95Ms: 0.93,
+    meanMs: 1.637,
+    medianMs: 1.693,
+    p95Ms: 2.16,
+    deltaMeanMs: 0.709,
+    deltaP95Ms: 0.756,
     backendHits: 150,
   },
   groups: [
@@ -381,6 +381,7 @@ export function MiniWafSimulator() {
   const [subTab, setSubTab] = useState<"inspect" | "defense" | "dashboard" | "benchmark">("inspect");
   const [wafMode, setWafMode] = useState<WafMode>("BLOCKING");
   const [upstreamTarget, setUpstreamTarget] = useState<UpstreamTarget>("student_portal");
+  const [portalSecurityMode, setPortalSecurityMode] = useState<"VULNERABLE" | "HARDENED">("VULNERABLE");
   const [rateAlgo, setRateAlgo] = useState<RateAlgo>("sliding");
 
   // Tab 1 states (zero pre-executed output)
@@ -705,36 +706,61 @@ export function MiniWafSimulator() {
 
         <div>
           <div className="mb-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
-            2. Upstream (backend_net: internal=true)
+            2. Upstream (Sơn · backend_net internal)
           </div>
-          <div className="inline-flex rounded border border-hairline bg-surface p-0.5">
-            {[
-              { id: "student_portal" as const, label: "Portal Điểm (:8000)" },
-              { id: "dvwa" as const, label: "DVWA (:80)" },
-            ].map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => {
-                  setUpstreamTarget(u.id);
-                  setReqPath(u.id === "student_portal" ? "/search" : "/vulnerabilities/sqli/");
-                  setInspectionResult(null);
-                }}
-                className={`cursor-pointer rounded px-2.5 py-1 font-mono text-[11px] font-semibold ${
-                  upstreamTarget === u.id
-                    ? "bg-ink text-canvas"
-                    : "text-muted hover:text-ink"
-                }`}
-              >
-                {u.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-1.5">
+            <div className="inline-flex rounded border border-hairline bg-surface p-0.5">
+              {[
+                { id: "student_portal" as const, label: "Portal (:8000)" },
+                { id: "dvwa" as const, label: "DVWA (:80)" },
+              ].map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => {
+                    setUpstreamTarget(u.id);
+                    setReqPath(u.id === "student_portal" ? "/search" : "/vulnerabilities/sqli/");
+                    setInspectionResult(null);
+                  }}
+                  className={`cursor-pointer rounded px-2 py-1 font-mono text-[11px] font-semibold ${
+                    upstreamTarget === u.id
+                      ? "bg-ink text-canvas"
+                      : "text-muted hover:text-ink"
+                  }`}
+                >
+                  {u.label}
+                </button>
+              ))}
+            </div>
+            {upstreamTarget === "student_portal" && (
+              <div className="inline-flex rounded border border-hairline bg-surface p-0.5">
+                {(["VULNERABLE", "HARDENED"] as const).map((pm) => (
+                  <button
+                    key={pm}
+                    type="button"
+                    onClick={() => {
+                      setPortalSecurityMode(pm);
+                      setInspectionResult(null);
+                    }}
+                    className={`cursor-pointer rounded px-2 py-1 font-mono text-[10px] font-semibold ${
+                      portalSecurityMode === pm
+                        ? pm === "HARDENED"
+                          ? "bg-emerald-600 text-white"
+                          : "bg-amber-600 text-white"
+                        : "text-muted hover:text-ink"
+                    }`}
+                  >
+                    {pm}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         <div>
           <div className="mb-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
-            3. Thuật toán Rate Limit
+            3. Rate Limit (Quyết · protection/)
           </div>
           <div className="inline-flex rounded border border-hairline bg-surface p-0.5">
             {[
@@ -761,10 +787,10 @@ export function MiniWafSimulator() {
       {/* 4 Subsystem Navigation Tabs */}
       <div className="inline-flex flex-wrap rounded-md border border-hairline bg-subtle p-0.5 text-xs">
         {[
-          { id: "inspect" as const, label: "1. Proxy & Inspection Engine (Hùng)" },
-          { id: "defense" as const, label: "2. Rate Limit & Auto-Ban (Sơn)" },
-          { id: "dashboard" as const, label: "3. Dashboard :8888 & Masking (Quyết)" },
-          { id: "benchmark" as const, label: "4. Benchmark 100 Mẫu (Khánh)" },
+          { id: "inspect" as const, label: "1. Web 2 Chế độ & Proxy (Sơn) + Inspection (Hùng)" },
+          { id: "defense" as const, label: "2. Rate Limit & Auto-Ban (Quyết)" },
+          { id: "dashboard" as const, label: "3. DB, Masking & Dashboard :8888 (Quyết)" },
+          { id: "benchmark" as const, label: "4. Tests & Benchmark 100 Mẫu (Khánh)" },
         ].map((t) => (
           <button
             key={t.id}
@@ -953,12 +979,16 @@ export function MiniWafSimulator() {
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div className="rounded border border-zinc-800 bg-[#05070a] p-2.5">
                     <div className="font-sans font-bold text-zinc-300 mb-1">
-                      Chuyển tiếp Upstream ({upstreamTarget === "student_portal" ? "Portal :8000" : "DVWA :80"})
+                      Chuyển tiếp Upstream ({upstreamTarget === "student_portal" ? `Portal :8000 · ${portalSecurityMode}` : "DVWA :80"})
                     </div>
                     <div className={inspectionResult.upstreamReached ? "text-emerald-300" : "text-rose-300"}>
-                      {inspectionResult.upstreamReached
-                        ? "200 OK · Chuyển tiếp sạch + Xóa Server/X-Powered-By + Gắn HttpOnly; SameSite=Lax & X-Frame-Options: DENY"
-                        : "403 Forbidden · Ngắt kết nối tại tầng biên (0 gói tin chạm máy chủ đích!)"}
+                      {!inspectionResult.upstreamReached
+                        ? "403 Forbidden · Ngắt kết nối tại tầng biên (0 gói tin chạm máy chủ đích!)"
+                        : wafMode === "OFF" && upstreamTarget === "student_portal"
+                        ? portalSecurityMode === "HARDENED"
+                          ? "WAF OFF nhưng target_web ở chế độ HARDENED -> Prepared Statement (?) + Escaping HTML + Sandbox bảo vệ tận gốc!"
+                          : "CẢNH BÁO: WAF OFF và target_web đang ở chế độ VULNERABLE -> Lộ lỗi SQLi/XSS/Traversal trực tiếp!"
+                        : "200 OK · Chuyển tiếp sạch + Xóa Server/X-Powered-By + Gắn HttpOnly; SameSite=Lax & X-Frame-Options: DENY"}
                     </div>
                   </div>
                   <div className="rounded border border-zinc-800 bg-[#05070a] p-2.5">
@@ -1218,7 +1248,7 @@ export function MiniWafSimulator() {
                 Kiểm định Khoa học 100 Mẫu (Confusion Matrix &amp; Latency Overhead)
               </div>
               <p className="mt-1 text-xs text-muted">
-                Chạy kiểm thử trực tiếp trên trình duyệt và đối chiếu số liệu thực nghiệm từ FastAPI ASGITransport Benchmark (`benchmark/run_benchmark.py --iterations 3`).
+                Chạy kiểm thử trực tiếp trên trình duyệt và đối chiếu số liệu thực nghiệm từ FastAPI ASGITransport Benchmark (<code className="font-mono text-ink">python -m tests.benchmark --iterations 3</code>).
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

@@ -520,12 +520,12 @@ export function LabSetupClient() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <CodeBlock
-            label="Chạy Unit Test (9/9) & Benchmark 100 Mẫu bằng Python (.venv)"
+            label="Chạy Unit Test (13/13: test_sqli, test_xss, test_proxy) & Benchmark 100 Mẫu"
             shell="zsh / bash"
             code={`unzip mini-waf-project.zip -d mini-waf-project && cd mini-waf-project
 python3 -m venv .venv && .venv/bin/pip install -r waf/requirements.txt
 .venv/bin/pytest -v
-PYTHONPATH=. .venv/bin/python -m benchmark.run_benchmark --iterations 3`}
+PYTHONPATH=. .venv/bin/python -m tests.benchmark --iterations 3`}
             explanation="Đo trực tiếp Confusion Matrix (Precision, Recall, F1, TPR, FPR) và Latency Overhead giữa hai chế độ WAF OFF và BLOCKING."
           />
           <CodeBlock

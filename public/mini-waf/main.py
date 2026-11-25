@@ -1,6 +1,7 @@
 """
 main.py - Dual-Plane Entrypoint for Mini-WAF.
-Runs the Reverse Proxy on port 8080 and the isolated Admin Dashboard on port 8888 concurrently.
+Owned by Sơn: boots Reverse Proxy (:8080 from waf/proxy/server.py) and
+isolated Admin Dashboard (:8888 from waf/monitoring/dashboard.py) concurrently.
 """
 
 from __future__ import annotations
@@ -11,7 +12,8 @@ import os
 import uvicorn
 
 from waf.monitoring.dashboard import create_admin_app
-from waf.proxy.forward import WafRuntime, create_proxy_app
+from waf.proxy.forward import WafRuntime
+from waf.proxy.server import create_proxy_app
 
 
 def build_apps(db_path: str | None = None) -> tuple[object, object, WafRuntime]:

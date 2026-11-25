@@ -4,38 +4,42 @@ import { MiniWafSimulator } from "@/components/simulators/MiniWafSimulator";
 
 export default function MiniWafPage() {
   const artifacts = [
-    { file: "mini-waf-project.zip", desc: "Toàn bộ dự án Python FastAPI + Docker Compose + Tests + Benchmark" },
-    { file: "SPECIFICATION_V2.md", desc: "Đặc tả hợp nhất giải quyết 5 điểm phản biện kỹ thuật" },
-    { file: "docker-compose.yml", desc: "Điều phối mạng frontend_net / backend_net internal=true + CIS flags" },
-    { file: "rules.json", desc: "Bộ quy tắc Anomaly Scoring (SQLi, XSS, LFI, Scanner UA)" },
-    { file: "dataset.json", desc: "100 mẫu chuẩn hóa (50 tấn công đa kỹ thuật + 50 hợp lệ biên)" },
-    { file: "run_benchmark.py", desc: "Script đo TPR/FPR/Precision/Recall/F1 và p95 Latency Overhead" },
+    { file: "mini-waf-project.zip", desc: "Toàn bộ dự án Python FastAPI + Target Web + Docker Compose + Tests" },
+    { file: "SPECIFICATION_V2.md", desc: "Đặc tả hợp nhất V2 & Ma trận phân công 4 thành viên" },
+    { file: "docker-compose.yml", desc: "Sơn: Điều phối frontend_net / backend_net internal=true + CIS" },
+    { file: "rules.json", desc: "Hùng: Bộ quy tắc Anomaly Scoring (SQLi, XSS, LFI, Scanner UA)" },
+    { file: "dataset.json", desc: "Khánh: 100 mẫu chuẩn hóa Ground Truth (50 tấn công + 50 hợp lệ)" },
+    { file: "run_benchmark.py", desc: "Khánh: Wrapper chạy tests/benchmark.py đo TPR/FPR/Precision/Recall/F1/p95" },
   ];
 
   const memberAssignments = [
     {
-      member: "1. Sơn (Nhóm trưởng)",
-      scope: "Kiến trúc Docker Cô lập & Lõi Reverse Proxy (:8080) + Active Defense",
-      files: "docker-compose.yml, waf/Dockerfile, waf/main.py, waf/proxy/forward.py, waf/protection/*",
-      highlights: "Dual-plane ASGI (:8080 Proxy / 127.0.0.1:8888 Admin), X-Forwarded-For anti-spoofing, Fixed vs Sliding Window (deque), Auto-Ban TTL 300s & Server Header Scrubbing.",
+      member: "1. Sơn (Nhóm trưởng) — Web Demo 2 chế độ & Reverse Proxy",
+      scope: "Sở hữu ứng dụng Web (:8000), cửa ngõ Reverse Proxy (:8080) & hạ tầng Docker",
+      files: "target_web/, main.py, proxy/server.py, proxy/forward.py, docker-compose.yml",
+      highlights:
+        "Thiết kế Website Quản lý Sinh viên với 2 chế độ VULNERABLE / HARDENED (Prepared Statements, Output Escaping, Path Sandbox), lập trình Reverse Proxy bất đồng bộ (FastAPI + HTTPX), cô lập backend_net internal=true không mở cổng 8000 ra Host.",
     },
     {
-      member: "2. Hùng",
-      scope: "Lõi Kiểm tra Sâu (Inspection Engine) & Kiểm thử Red Team Anti-Evasion",
-      files: "waf/inspection/parser.py, normalizer.py, sql_lexer.py, engine.py, waf/rules.json",
-      highlights: "Giải mã URL 3 tầng + HTML entity + NFKC + xử lý bình luận /*!...*/ & UN/**/ION, bảo toàn HPP (?id=1&id=...), SQL Lexical Tokenizer cho O'Brien/D'Angelo.",
+      member: "2. Hùng — Bộ não Phân tích Nội dung (Inspection Engine)",
+      scope: "Sở hữu toàn bộ lõi giải mã, chuẩn hóa chống bypass & phát hiện tấn công",
+      files: "inspection/parser.py, normalizer.py, sqli.py, xss.py, traversal.py, engine.py",
+      highlights:
+        "Chuẩn hóa URL decode 3 lớp, HTML entity, NFKC, tách bình luận SQL (/*!50000...*/, UN/**/ION), bảo toàn HPP & JSON lồng nhau, nhận diện SQLi/XSS/Path Traversal bằng Regex tuyến tính + SQL Lexical Tokenizer với 0% chặn nhầm tên O'Brien.",
     },
     {
-      member: "3. Quyết",
-      scope: "CSDL SQLite WAL, Admin Dashboard (:8888) & Cảnh báo Telegram Bảo mật",
-      files: "waf/database/*, waf/monitoring/logger.py, dashboard.py, telegram_alert.py, dashboard.html",
-      highlights: "PRAGMA journal_mode=WAL, che giấu Cookie/Authorization/password (***MASKED***), Dashboard tách cổng xác thực Admin & nút Unban, Telegram bất đồng bộ không lộ PII.",
+      member: "3. Quyết — Phòng thủ Hành vi & Trung tâm Giám sát",
+      scope: "Sở hữu tầng bảo vệ lưu lượng, quyết định hành vi, SQLite WAL, Dashboard & Telegram",
+      files: "protection/ (rate_limit.py, blacklist.py, decision.py), database/, monitoring/",
+      highlights:
+        "Thuật toán Fixed vs Sliding Window Rate Limit (deque), Auto-Ban TTL 300s, chống giả mạo X-Forwarded-For, che dữ liệu nhạy cảm (***MASKED***) trong log SQLite, Dashboard tách cổng :8888 kèm nút Unban & Telegram bất đồng bộ.",
     },
     {
-      member: "4. Khánh",
-      scope: "Ứng dụng Mục tiêu (Website Quản lý Điểm) & Đo kiểm Khoa học (Benchmark)",
-      files: "target_web/app.py, benchmark/dataset.json, benchmark/run_benchmark.py, tests/*",
-      highlights: "Target Web hỗ trợ toggle vulnerable vs secure (Prepared Statements + Path Guard), đo TP/FP/TN/FN, Precision/Recall/F1 và Latency Overhead OFF vs BLOCKING.",
+      member: "4. Khánh — Kiểm thử Xâm nhập & Đo kiểm Khoa học",
+      scope: "Sở hữu toàn bộ bộ test tự động, dữ liệu Ground Truth & kiểm chứng đối chứng",
+      files: "tests/ (test_sqli.py, test_xss.py, test_proxy.py, benchmark.py), dataset.json",
+      highlights:
+        "Thực nghiệm đối chứng Nmap/Burp/SQLMap (Không WAF OFF vs Có WAF BLOCKING vs HARDENED), chạy 13/13 Pytest và benchmark 100 mẫu đo Precision 100%, Recall 100%, FPR 0%, F1 100%, Mean/Median/p95 Latency.",
     },
   ];
 

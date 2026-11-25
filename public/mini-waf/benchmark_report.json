@@ -10,9 +10,9 @@
     "recall_tpr_pct": 0.0,
     "fpr_pct": 0.0,
     "f1_pct": 0.0,
-    "latency_mean_ms": 0.853,
-    "latency_median_ms": 0.797,
-    "latency_p95_ms": 1.142,
+    "latency_mean_ms": 0.928,
+    "latency_median_ms": 0.859,
+    "latency_p95_ms": 1.404,
     "group_stats": {
       "SQLi Basic": {
         "total": 15,
@@ -343,9 +343,9 @@
     "recall_tpr_pct": 0.0,
     "fpr_pct": 0.0,
     "f1_pct": 0.0,
-    "latency_mean_ms": 1.852,
-    "latency_median_ms": 1.765,
-    "latency_p95_ms": 2.317,
+    "latency_mean_ms": 2.046,
+    "latency_median_ms": 1.943,
+    "latency_p95_ms": 2.845,
     "group_stats": {
       "SQLi Basic": {
         "total": 15,
@@ -677,9 +677,9 @@
     "recall_tpr_pct": 100.0,
     "fpr_pct": 0.0,
     "f1_pct": 100.0,
-    "latency_mean_ms": 1.545,
-    "latency_median_ms": 1.648,
-    "latency_p95_ms": 2.072,
+    "latency_mean_ms": 1.637,
+    "latency_median_ms": 1.693,
+    "latency_p95_ms": 2.16,
     "group_stats": {
       "SQLi Basic": {
         "total": 15,
@@ -751,8 +751,8 @@
     "backend_hits": 150
   },
   "latency_overhead_ms": {
-    "delta_mean_ms": 0.692,
-    "delta_p95_ms": 0.93
+    "delta_mean_ms": 0.709,
+    "delta_p95_ms": 0.756
   },
   "active_defense_check": {
     "rate_limited_429_hits": 3,
