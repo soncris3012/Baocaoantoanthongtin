@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Download, Layers, ShieldCheck, Terminal } from "lucide-react";
+import { ArrowLeft, Download, Globe, Layers, ShieldCheck, Terminal } from "lucide-react";
 import { MiniWafSimulator } from "@/components/simulators/MiniWafSimulator";
 
 export default function MiniWafPage() {
@@ -55,6 +55,13 @@ export default function MiniWafPage() {
         </Link>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/mini-waf?tab=portal"
+            className="inline-flex items-center gap-1.5 rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/20"
+          >
+            <Globe className="h-3.5 w-3.5" aria-hidden="true" />
+            Mở Web Quản lý Điểm Trực tiếp
+          </Link>
           <Link
             href="/mo-phong"
             className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-subtle px-3 py-1.5 text-xs font-semibold text-ink hover:bg-canvas"

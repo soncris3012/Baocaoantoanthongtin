@@ -1,501 +1,694 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  CheckCircle2,
+  Bell,
+  ChevronLeft,
+  ChevronRight,
+  Gauge,
+  Globe,
   Pause,
   Play,
   RotateCcw,
-  Shield,
   ShieldAlert,
   ShieldCheck,
-  SkipForward,
   Terminal,
-  UserCheck,
+  Unlock,
 } from "lucide-react";
+import {
+  type PortalDriverCommand,
+  StudentPortalEmulator,
+} from "@/components/simulators/StudentPortalEmulator";
 import { WindowControls } from "@/components/WindowBar";
+import type { PortalSecurityMode, WafMode } from "@/lib/miniWafEngine";
 
-export interface ScenarioBeatSpec {
+export interface ScenarioStageSpec {
   id: string;
   beatNumber: 1 | 2 | 3 | 4;
-  ownerLabel: string;
-  ownerMember: 1 | 2 | 3 | 4;
-  title: string;
-  filesOwned: string;
-  initialState: {
-    wafMode: "OFF" | "MONITOR" | "BLOCKING";
-    portalMode: "VULNERABLE" | "HARDENED";
-    backendExposed: boolean;
-    bannedIp: string | null;
-    telegramCount: number;
-    backendHitsDelta: number;
-  };
-  afterState: {
-    wafMode: "OFF" | "MONITOR" | "BLOCKING";
-    portalMode: "VULNERABLE" | "HARDENED";
-    backendExposed: boolean;
-    bannedIp: string | null;
-    telegramCount: number;
-    backendHitsDelta: number;
-  };
-  terminalOs: "macOS (zsh)" | "Ubuntu VM (bash)";
+  stageCode: string;
+  ownerMember: "Sơn" | "Hùng" | "Quyết" | "Khánh";
+  phaseTitle: string;
+  stageTitle: string;
+  topologySummary: string;
+  wafMode: WafMode;
+  portalMode: PortalSecurityMode;
+  ipBanned?: boolean;
   prompt: string;
   command: string;
-  streamOutput: string[];
-  httpResponsePreview: string;
-  defenseTalkingPoint: string;
+  outputLines: string[];
+  talkingPoint: string;
+  codeReference: string;
+  portalDriver?: {
+    page: "search" | "login" | "comments" | "download";
+    input: string;
+  };
+  adminEvent: {
+    time: string;
+    ip: string;
+    action: "ALLOWED" | "BLOCKED" | "RATE_LIMITED" | "BANNED" | "INFO";
+    detail: string;
+  };
+  telegramAlert?: string;
 }
 
-export const MINI_WAF_SCENARIO_BEATS: ScenarioBeatSpec[] = [
+export const MINI_WAF_SCENARIO_STAGES: ScenarioStageSpec[] = [
+  // ===================== NHIP 1: SON =====================
   {
-    id: "beat-1",
+    id: "1A",
     beatNumber: 1,
-    ownerLabel: "Nhịp 1 · Sơn & Khánh",
-    ownerMember: 1,
-    title: "Cô lập Cổng 8000, Chứng minh Lỗ hổng Gốc (WAF OFF · VULNERABLE) & Đối chứng HARDENED",
-    filesOwned: "target_web/, waf/main.py, proxy/server.py, proxy/forward.py, docker-compose.yml",
-    initialState: {
-      wafMode: "OFF",
-      portalMode: "VULNERABLE",
-      backendExposed: false,
-      bannedIp: null,
-      telegramCount: 0,
-      backendHitsDelta: 0,
-    },
-    afterState: {
-      wafMode: "OFF",
-      portalMode: "VULNERABLE",
-      backendExposed: false,
-      bannedIp: null,
-      telegramCount: 0,
-      backendHitsDelta: 14,
-    },
-    terminalOs: "macOS (zsh)",
-    prompt: "son@macbook:~/mini-waf-project$",
+    stageCode: "1A",
+    ownerMember: "Sơn",
+    phaseTitle: "Nhịp 1 — Sơn: Kiến trúc Proxy & Web 2 chế độ",
+    stageTitle: "Khởi chạy Stack & Cô lập mạng Web :8000",
+    topologySummary: "Client -> Reverse Proxy :8080 (server_header=False) -> internal:8000",
+    wafMode: "OFF",
+    portalMode: "VULNERABLE",
+    prompt: "son@mini-waf:~/mini-waf-project$",
     command:
-      "docker ps --format '{{.Names}}\\t{{.Ports}}' && nmap -sV -p 8080,8000 127.0.0.1 && sqlmap -u \"http://127.0.0.1:8080/grades?masv=SV001\" --dump --batch",
-    streamOutput: [
-      "miniwaf-proxy       0.0.0.0:8080->8080/tcp, 127.0.0.1:8888->8888/tcp",
-      "miniwaf-target-web  8000/tcp   (Mạng nội bộ backend_net: internal=true — KHÔNG lộ port ra Host)",
-      "",
-      "PORT     STATE    SERVICE",
-      "8080/tcp open     http    Mini-WAF Reverse Proxy",
-      "8000/tcp closed   irdmi   (Không thể truy cập trực tiếp từ bên ngoài!)",
-      "",
-      "[INFO] Testing GET parameter 'masv' via Proxy (WAF_MODE=OFF | target_web=VULNERABLE)...",
-      "[INFO] Backend SQLite payload confirmed: masv=SV001' UNION SELECT username,password,role,1 FROM accounts--",
-      "Table: accounts | Records dumped: 2",
-      "| admin | portal_admin_2026 | lecturer |",
-      "| sv001 | student123        | student  |",
-      "",
-      "[Đối chứng HARDENED] Khi bật APP_SECURITY_MODE=HARDENED (Prepared Statement ?):",
-      "curl -s \"http://127.0.0.1:8080/grades?masv=1'\" -> {\"query\":\"1'\",\"count\":0,\"students\":[]} (0 lỗi SQL)",
+      "docker compose up -d && curl -sI http://127.0.0.1:8080/search?q=SV001 | grep -iE 'HTTP|server'",
+    outputLines: [
+      "[+] Network mini-waf-internal (internal: true)   Created",
+      "[+] Container target-student-portal (172.28.0.10:8000) Started",
+      "[+] Container mini-waf-proxy (:8080) & admin (:8888)   Started",
+      "HTTP/1.1 200 OK",
+      "# Header Server đã được proxy/server.py stripping (server_header=False)",
+      "$ curl --connect-timeout 2 http://172.28.0.10:8000/  # Thử nối tắt bỏ qua WAF",
+      "curl: (28) Connection timed out — Docker internal: true đã cô lập hoàn toàn!",
     ],
-    httpResponsePreview: `HTTP/1.1 200 OK (WAF=OFF · target_web=VULNERABLE)
-Server: StudentPortal-Apache-Dev/2.4.25 (Debian)
-X-Powered-By: Python-Legacy/3.11
-Set-Cookie: portal_session=demo-session-token   <-- Chưa có HttpOnly; SameSite=Lax
-
-[{"masv":"SV001","fullname":"Nguyen Van An",...}, ("admin","portal_admin_2026")]`,
-    defenseTalkingPoint:
-      "Sơn giải thích 2 lớp: (1) Container target_web (:8000) nằm trong backend_net: internal=true nên không mở cổng ra Host; (2) Web demo có 2 chế độ VULNERABLE vs HARDENED giúp chứng minh khi WAF tắt, code nối chuỗi bị SQLMap trích xuất dữ liệu ngay, còn bật HARDENED (Prepared Statements + Output Escaping + Path Sandbox) sẽ chặn được ngay trong lõi ứng dụng.",
+    talkingPoint:
+      "Mở đầu trên Website Quản lý Điểm Sinh viên thực: cổng 8000 bị khóa trong Docker internal: true để kẻ tấn công không thể đi đường tắt vượt WAF, đồng thời Proxy xóa header Server để chống Fingerprint.",
+    codeReference: "docker-compose.yml, waf/main.py (server_header=False), waf/proxy/forward.py",
+    portalDriver: { page: "search", input: "SV001" },
+    adminEvent: {
+      time: "14:00:08",
+      ip: "198.51.100.77",
+      action: "ALLOWED",
+      detail: "GET /search?q=SV001 -> 200 OK (WAF=OFF Baseline)",
+    },
   },
   {
-    id: "beat-2",
+    id: "1B",
+    beatNumber: 1,
+    stageCode: "1B",
+    ownerMember: "Sơn",
+    phaseTitle: "Nhịp 1 — Sơn: Kiến trúc Proxy & Web 2 chế độ",
+    stageTitle: "Khai thác Web chế độ VULNERABLE khi WAF OFF",
+    topologySummary: "WAF OFF -> Web VULNERABLE (nối chuỗi SQL f-string) -> Lộ dữ liệu",
+    wafMode: "OFF",
+    portalMode: "VULNERABLE",
+    prompt: "son@mini-waf:~/mini-waf-project$",
+    command: "curl -s \"http://127.0.0.1:8080/search?q=%27%20OR%20%271%27%3D%271--\"",
+    outputLines: [
+      "[Target APP_SECURITY_MODE=VULNERABLE | SQL executed:]",
+      "SELECT masv, fullname, class_name, gpa FROM students WHERE fullname LIKE '%' OR '1'='1--%'",
+      "[!] HTTP 200 OK — Trả về toàn bộ 5 hồ sơ điểm + dump bảng accounts:",
+      "    - SV001 | Nguyen Van An   | GPA 8.6",
+      "    - SV002 | Patrick O'Brien | GPA 9.1",
+      "    - leaked_table accounts: admin | portal_admin_2026 | role=lecturer",
+    ],
+    talkingPoint:
+      "Quan sát trên trình duyệt bên trái: khi WAF OFF và Web chạy nhánh VULNERABLE (nối chuỗi trực tiếp), chỉ 1 chuỗi ' OR '1'='1-- đã kéo toàn bộ bảng điểm và mật khẩu giảng viên ra màn hình.",
+    codeReference: "target_web/app.py (APP_SECURITY_MODE=VULNERABLE)",
+    portalDriver: { page: "search", input: "' OR '1'='1--" },
+    adminEvent: {
+      time: "14:00:26",
+      ip: "198.51.100.77",
+      action: "INFO",
+      detail: "WAF=OFF: Payload SQLi đi thẳng tới Target VULNERABLE (Lộ DB!)",
+    },
+  },
+  {
+    id: "1C",
+    beatNumber: 1,
+    stageCode: "1C",
+    ownerMember: "Sơn",
+    phaseTitle: "Nhịp 1 — Sơn: Kiến trúc Proxy & Web 2 chế độ",
+    stageTitle: "Bật Secure Coding HARDENED (Prepared Statement)",
+    topologySummary: "WAF OFF -> Web HARDENED (SELECT ... WHERE username = ?) -> 401",
+    wafMode: "OFF",
+    portalMode: "HARDENED",
+    prompt: "son@mini-waf:~/mini-waf-project$",
+    command:
+      "APP_SECURITY_MODE=HARDENED curl -s -X POST http://127.0.0.1:8080/login -d \"user=admin' OR '1'='1--&pass=wrong\"",
+    outputLines: [
+      "[Target APP_SECURITY_MODE=HARDENED]",
+      "SQL: SELECT id, username, role FROM accounts WHERE username = ? AND password = ?",
+      "Params bound safely as literal strings: (\"admin' OR '1'='1--\", \"wrong\")",
+      "HTTP/1.1 401 Unauthorized — Khẳng định phòng thủ chiều sâu (Defense-in-Depth) ngay tại ứng dụng!",
+      "# Ngoài ra HTML Escape & realpath() cũng khóa Stored XSS và Path Traversal tại tầng Web.",
+    ],
+    talkingPoint:
+      "Nhờ Web tự code có 2 chế độ, ta chứng minh được gốc rễ lỗ hổng: cùng payload đó, chuyển Target sang HARDENED là câu lệnh SQL tham số hóa (Prepared Statement) vô hiệu hóa ngay dù WAF đang OFF.",
+    codeReference: "target_web/app.py (HARDENED: Parameterized SQLite + html.escape + realpath)",
+    portalDriver: { page: "login", input: "admin' OR '1'='1--" },
+    adminEvent: {
+      time: "14:00:44",
+      ip: "198.51.100.77",
+      action: "INFO",
+      detail: "POST /login -> Web HARDENED chặn SQLi Login bằng Prepared Statement (401)",
+    },
+  },
+
+  // ===================== NHIP 2: HUNG =====================
+  {
+    id: "2A",
     beatNumber: 2,
-    ownerLabel: "Nhịp 2 · Sơn & Quyết",
-    ownerMember: 3,
-    title: "Bật Mini-WAF BLOCKING, Chặn SQLMap, Sliding Window 429 & Auto-Ban + Telegram",
-    filesOwned: "protection/rate_limit.py, blacklist.py, decision.py, database/, monitoring/",
-    initialState: {
-      wafMode: "BLOCKING",
-      portalMode: "VULNERABLE",
-      backendExposed: false,
-      bannedIp: null,
-      telegramCount: 0,
-      backendHitsDelta: 0,
-    },
-    afterState: {
-      wafMode: "BLOCKING",
-      portalMode: "VULNERABLE",
-      backendExposed: false,
-      bannedIp: "198.51.100.77",
-      telegramCount: 3,
-      backendHitsDelta: 0,
-    },
-    terminalOs: "Ubuntu VM (bash)",
-    prompt: "quyet@ubuntu-vm2:~/mini-waf-project$",
+    stageCode: "2A",
+    ownerMember: "Hùng",
+    phaseTitle: "Nhịp 2 — Hùng: Chuẩn hóa & Bộ não Inspection Engine",
+    stageTitle: "Bật WAF BLOCKING: Lột trần Comment Inline UN/**/ION",
+    topologySummary: "WAF BLOCKING (:8080) che chắn cho Web VULNERABLE (:8000)",
+    wafMode: "BLOCKING",
+    portalMode: "VULNERABLE",
+    prompt: "hung@mini-waf:~/mini-waf-project$",
     command:
-      "curl -s -X POST http://127.0.0.1:8888/api/mode -H 'X-Admin-Token: miniwaf-admin-2026' -d '{\"mode\":\"BLOCKING\"}' && sqlmap -u \"http://127.0.0.1:8080/grades?masv=SV001\" --dump --batch && curl -i \"http://127.0.0.1:8080/search?q=SV001\"",
-    streamOutput: [
-      "{\"ok\":true,\"mode\":\"BLOCKING\"}",
-      "",
-      "[Mini-WAF Inspection] Triggered SCN-01 (+3 UA sqlmap) + SQL-01 (+2) + SQL-03 (+6) => Score 11 >= 5 -> 403 BLOCKED",
-      "[CRITICAL] HTTP error 403 Forbidden detected — all tested parameters do not appear injectable.",
-      "[!] 0 gói tin độc hại chạm tới target_web (:8000)! Server headers bị xóa tự động.",
-      "",
-      "[Sliding Window Burst Test] > 30 req/10s (collections.deque):",
-      "HTTP/1.1 429 Too Many Requests | Retry-After: 10 | Action: RATE_LIMITED",
-      "",
-      "[Auto-Ban Tracker] IP 198.51.100.77 chạm ngưỡng 3 lần BLOCKED trong 60s -> Khóa O(1) TTL=300s!",
-      "[SQLite WAL] INSERT masked log: masv=***MASKED*** (không lưu password/Cookie thô)",
-      "[Telegram Async Task] Đã gửi cảnh báo rút gọn (chỉ gửi Loại, IP, Rule ID, Action).",
+      "curl -i \"http://127.0.0.1:8080/search?q=1%27%20UN/**/ION%20SEL/**/ECT%201,2--\"",
+    outputLines: [
+      "[waf/inspection/normalizer.py] Dual-track Normalization:",
+      "  - Track 1 (spaced)   : 1' un ion sel ect 1,2--",
+      "  - Track 2 (collapsed): 1' union select 1,2--",
+      "[waf/inspection/sqli.py] SQL Lexical Token Fingerprint: [k=UNION, k=SELECT, c=--]",
+      "  -> Matched: SQL-01 (+2), SQL-03 (+6), SQL-05 (+6) | Total Score = 14 >= 5",
+      "HTTP/1.1 403 Forbidden — Blocked by Mini-WAF (Upstream :8000 không hề nhận request!)",
     ],
-    httpResponsePreview: `HTTP/1.1 403 Forbidden
-X-WAF-Protected-By: Mini-WAF-v2
-Content-Type: application/json
-
-{"action":"BLOCK","rule_id":"SQL-03","rule_ids":["SCN-01","SQL-01","SQL-03"],"anomaly_score":11,"client_ip":"198.51.100.77"}`,
-    defenseTalkingPoint:
-      "Quyết giải thích: (1) Sliding Window (deque) vá lỗi đột biến gấp đôi ở ranh giới khung giờ của Fixed Window; (2) Chỉ tin X-Forwarded-For từ proxy tin cậy (TRUSTED_PROXIES) chống giả mạo IP; (3) Log SQLite chế độ WAL che toàn bộ password/Cookie/Bearer (***MASKED***), và Telegram chạy asyncio.create_task chỉ báo siêu dữ liệu để không tăng độ trễ proxy và không làm rò PII.",
+    talkingPoint:
+      "Chuyển lại Web về VULNERABLE nhưng bật WAF=BLOCKING. Kẻ tấn công chèn comment /**/ giữa từ khóa UNION SELECT để qua mặt regex thô, nhưng Track 2 (collapsed) của Mini-WAF nối liền lại và chấm 14 điểm -> chặn 403.",
+    codeReference: "waf/inspection/normalizer.py, waf/inspection/sqli.py (Dual-Track + Lexer)",
+    portalDriver: { page: "search", input: "1' UN/**/ION SEL/**/ECT 1,2--" },
+    adminEvent: {
+      time: "14:01:10",
+      ip: "198.51.100.77",
+      action: "BLOCKED",
+      detail: "[SQL-01, SQL-03, SQL-05] Score=14 -> GET /search?q=1' UN/**/ION...",
+    },
+    telegramAlert: "[Mini-WAF ALERT] Chặn SQLi Comment Bypass từ 198.51.100.77 (Score 14)",
   },
   {
-    id: "beat-3",
+    id: "2B",
+    beatNumber: 2,
+    stageCode: "2B",
+    ownerMember: "Hùng",
+    phaseTitle: "Nhịp 2 — Hùng: Chuẩn hóa & Bộ não Inspection Engine",
+    stageTitle: "Chặn Double URL Encoding & Stored XSS <img onerror>",
+    topologySummary: "3-Pass unquote_plus + HTML Entity Decode -> Bắt XSS & SQLi mã hóa kép",
+    wafMode: "BLOCKING",
+    portalMode: "VULNERABLE",
+    prompt: "hung@mini-waf:~/mini-waf-project$",
+    command:
+      "curl -i \"http://127.0.0.1:8080/comments?msg=%26lt%3Bimg%20src%3Dx%20onerror%3Dalert(1)%26gt%3B\"",
+    outputLines: [
+      "[waf/inspection/normalizer.py] Pass 1 URL decode -> &lt;img src=x onerror=alert(1)&gt;",
+      "[waf/inspection/normalizer.py] HTML Entity unescape -> <img src=x onerror=alert(1)>",
+      "[waf/inspection/xss.py] Triggered Rule XSS-01 (+5): HTML event handler 'onerror='",
+      "HTTP/1.1 403 Forbidden — Chặn Stored XSS ngay tại cổng :8080 trước khi ghi DB!",
+    ],
+    talkingPoint:
+      "Nếu kẻ tấn công bọc payload bằng mã hóa URL nhiều lớp (%2527) hoặc HTML Entity (&lt;img...), vòng lặp giải mã tối đa 3 pass + html.unescape sẽ đưa mọi biến thể về dạng nguyên thủy trước khi quét.",
+    codeReference: "waf/inspection/normalizer.py, waf/inspection/xss.py (XSS-01)",
+    portalDriver: { page: "comments", input: "<img src=x onerror=alert(1)>" },
+    adminEvent: {
+      time: "14:01:32",
+      ip: "198.51.100.77",
+      action: "BLOCKED",
+      detail: "[XSS-01] Score=5 -> /comments (onerror=alert(1))",
+    },
+  },
+  {
+    id: "2C",
+    beatNumber: 2,
+    stageCode: "2C",
+    ownerMember: "Hùng",
+    phaseTitle: "Nhịp 2 — Hùng: Chuẩn hóa & Bộ não Inspection Engine",
+    stageTitle: "Chặn Path Traversal (....//) & Kiểm tra HPP (?q=SV001&q=...)",
+    topologySummary: "Parser hợp nhất mảng tham số HPP + Rút gọn ....// -> ../../",
+    wafMode: "BLOCKING",
+    portalMode: "VULNERABLE",
+    prompt: "hung@mini-waf:~/mini-waf-project$",
+    command:
+      "curl -i \"http://127.0.0.1:8080/download?file=....//....//etc/passwd\"",
+    outputLines: [
+      "[waf/inspection/parser.py] Extracted URI + Query array + JSON keys + Headers",
+      "[waf/inspection/traversal.py] Collapsed '....//' -> '../../etc/passwd'",
+      "  -> Matched LFI-01 (+5): Path Traversal / Nhóm tệp hệ thống nhạy cảm",
+      "HTTP/1.1 403 Forbidden — Tránh rò rỉ tệp /etc/passwd ngay khi Web ở chế độ VULNERABLE.",
+    ],
+    talkingPoint:
+      "Với kỹ thuật chèn lồng ....// (khi app xóa ../ một lần vẫn còn ../) hoặc HTTP Parameter Pollution (?q=SV001&q=' OR 1=1), Parser tách đủ toàn bộ giá trị khóa lặp để Rule Engine bắt trọn không sót.",
+    codeReference: "waf/inspection/parser.py, waf/inspection/traversal.py (LFI-01)",
+    portalDriver: { page: "download", input: "....//....//etc/passwd" },
+    adminEvent: {
+      time: "14:01:55",
+      ip: "198.51.100.77",
+      action: "BLOCKED",
+      detail: "[LFI-01] Score=5 -> /download?file=....//etc/passwd",
+    },
+  },
+
+  // ===================== NHIP 3: QUYET =====================
+  {
+    id: "3A",
     beatNumber: 3,
-    ownerLabel: "Nhịp 3 · Quyết & Hùng",
-    ownerMember: 2,
-    title: "Unban trên Dashboard :8888, Chặn Bypass (Double Encode / /**/) & Cho qua Tên O'Brien",
-    filesOwned: "inspection/parser.py, normalizer.py, sqli.py, xss.py, traversal.py, engine.py",
-    initialState: {
-      wafMode: "BLOCKING",
-      portalMode: "VULNERABLE",
-      backendExposed: false,
-      bannedIp: "198.51.100.77",
-      telegramCount: 3,
-      backendHitsDelta: 0,
-    },
-    afterState: {
-      wafMode: "BLOCKING",
-      portalMode: "VULNERABLE",
-      backendExposed: false,
-      bannedIp: null,
-      telegramCount: 5,
-      backendHitsDelta: 1,
-    },
-    terminalOs: "Ubuntu VM (bash)",
-    prompt: "hung@ubuntu-vm1:~/mini-waf-project$",
+    stageCode: "3A",
+    ownerMember: "Quyết",
+    phaseTitle: "Nhịp 3 — Quyết: Phòng thủ Hành vi, Anti-Spoof & Dashboard",
+    stageTitle: "Sliding Window Rate Limit & Chống giả mạo X-Forwarded-For",
+    topologySummary: "Peer 203.0.113.9 ngoài trusted_proxies -> Bỏ qua XFF giả -> Đếm deque 60s",
+    wafMode: "BLOCKING",
+    portalMode: "VULNERABLE",
+    prompt: "quyet@mini-waf:~/mini-waf-project$",
     command:
-      "curl -s -X POST http://127.0.0.1:8888/api/unban -H 'X-Admin-Token: miniwaf-admin-2026' -d '{\"ip\":\"198.51.100.77\"}' && curl -s -o /dev/null -w \"DoubleEncode:%{http_code} \" \"http://127.0.0.1:8080/search?q=1%2527%2520OR%25201%253D1--\" && curl -s -o /dev/null -w \"CommentSplit:%{http_code} \" \"http://127.0.0.1:8080/search?q=1'%20UN/**/ION%20SEL/**/ECT%201,2--\" && curl -s \"http://127.0.0.1:8080/search?q=O'Brien\"",
-    streamOutput: [
-      "[Dashboard :8888 Unban] {\"ok\":true,\"ip\":\"198.51.100.77\",\"removed\":true}",
-      "",
-      "[Probe 1: Double-URL Encoding %2527%2520OR%25201%253D1--]",
-      "  normalizer.py pass 1 -> %27%20OR%201%3D1-- | pass 2 -> ' OR 1=1--",
-      "  sqli.py -> SQL-01(+2), SQL-02(+5), SQL-05(+6) => Score=13 >= 5 => DoubleEncode:403 BLOCKED",
-      "",
-      "[Probe 2: SQL Comment Split UN/**/ION SEL/**/ECT]",
-      "  normalizer.py collapsed -> 1' union select 1,2--",
-      "  sqli.py -> SQL-01(+2), SQL-03(+6), SQL-05(+6) => Score=14 >= 5 => CommentSplit:403 BLOCKED",
-      "",
-      "[Probe 3: Benign Name Input q=O'Brien]",
-      "  sqli.py -> Chi khop SQL-01 (+2) | SQL Lexical Grammar [w'w] => No SQL syntax! (Score=2 < 5)",
-      "  => Forward 200 OK tới target_web (:8000) & Hardened Response Headers!",
-      "  Body: {\"query\":\"O'Brien\",\"count\":1,\"students\":[{\"masv\":\"SV002\",\"fullname\":\"Patrick O'Brien\",\"gpa\":9.1}]}",
+      "for i in $(seq 1 32); do curl -s -o /dev/null -w \"%{http_code} \" -H \"X-Forwarded-For: 10.0.0.$i\" http://127.0.0.1:8080/search?q=SV001; done",
+    outputLines: [
+      "[waf/protection/rate_limit.py] Peer IP = 203.0.113.9 (KHÔNG nằm trong trusted_proxies)",
+      "[Anti-Spoof] Bỏ qua 32 header X-Forwarded-For giả mạo 10.0.0.1 .. 10.0.0.32!",
+      "Req #01..#30 -> 200 OK (Sliding Window 60s: 30/30)",
+      "Req #31     -> HTTP 429 Too Many Requests | Retry-After: 59s",
+      "Req #32     -> HTTP 429 Too Many Requests (Chống tràn ranh giới phút Fixed Window!)",
     ],
-    httpResponsePreview: `HTTP/1.1 200 OK (q=O'Brien Allowed Cleanly!)
-X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
-Referrer-Policy: no-referrer
-X-WAF-Protected-By: Mini-WAF-v2
-(Đã xóa Server & X-Powered-By từ máy chủ đích)
-
-{"query":"O'Brien","count":1,"students":[{"masv":"SV002","fullname":"Patrick O'Brien","class_name":"AT19A","gpa":9.1}]}`,
-    defenseTalkingPoint:
-      "Hùng giải thích cơ chế chống bypass & tránh chặn nhầm: (1) normalizer.py tạo đồng thời bản spaced (tránh SELECT/**/FROM dính chữ) và collapsed (bắt UN/**/ION), giải mã URL tối đa 3 vòng, HTML entity và \u0027 trong JSON; (2) Kết hợp Anomaly Scoring + SQL Lexical Tokenizer giúp phân biệt chính xác tên sinh viên O'Brien (+2 < ngưỡng 5 -> cho qua) với câu SQLi thực thụ (' OR 1=1 -> +7 -> BLOCK).",
+    talkingPoint:
+      "Nếu dùng Fixed Window đơn thuần hoặc tin tưởng mù quáng X-Forwarded-For, kẻ tấn công dễ dàng đổi IP giả mỗi request hoặc đánh vào giây 59–01. Mini-WAF chỉ tin XFF từ trusted proxy và đo trượt chính xác bằng deque.",
+    codeReference: "waf/protection/rate_limit.py (SlidingWindowLimiter + Anti-Spoof)",
+    portalDriver: { page: "search", input: "SV001" },
+    adminEvent: {
+      time: "14:02:18",
+      ip: "203.0.113.9",
+      action: "RATE_LIMITED",
+      detail: "Sliding Window 31/30 trong 60s -> HTTP 429 (Đã bỏ qua XFF giả mạo)",
+    },
+    telegramAlert: "[Mini-WAF ALERT] Vượt ngưỡng Sliding Window: 203.0.113.9 -> HTTP 429",
   },
   {
-    id: "beat-4",
-    beatNumber: 4,
-    ownerLabel: "Nhịp 4 · Khánh & Sơn",
-    ownerMember: 4,
-    title: "Chạy 13 Pytest Tự động & Benchmark 100 Mẫu (Precision / Recall / F1 / Mean-Median-p95)",
-    filesOwned: "tests/test_sqli.py, tests/test_xss.py, tests/test_proxy.py, tests/benchmark.py, dataset.json",
-    initialState: {
-      wafMode: "BLOCKING",
-      portalMode: "VULNERABLE",
-      backendExposed: false,
-      bannedIp: null,
-      telegramCount: 5,
-      backendHitsDelta: 0,
-    },
-    afterState: {
-      wafMode: "BLOCKING",
-      portalMode: "HARDENED",
-      backendExposed: false,
-      bannedIp: null,
-      telegramCount: 5,
-      backendHitsDelta: 0,
-    },
-    terminalOs: "Ubuntu VM (bash)",
-    prompt: "khanh@ubuntu-vm3:~/mini-waf-project$",
+    id: "3B",
+    beatNumber: 3,
+    stageCode: "3B",
+    ownerMember: "Quyết",
+    phaseTitle: "Nhịp 3 — Quyết: Phòng thủ Hành vi, Anti-Spoof & Dashboard",
+    stageTitle: "Auto-Ban TTL 300s & Masking Dữ liệu Nhạy cảm trong Log",
+    topologySummary: "3 vi phạm / 120s -> Khóa IP 300s + Che password/token -> Gửi Telegram",
+    wafMode: "BLOCKING",
+    portalMode: "VULNERABLE",
+    ipBanned: true,
+    prompt: "quyet@mini-waf:~/mini-waf-project$",
     command:
-      ".venv/bin/pytest -v tests/test_sqli.py tests/test_xss.py tests/test_proxy.py tests/test_defense.py && PYTHONPATH=. .venv/bin/python -m tests.benchmark --iterations 3",
-    streamOutput: [
-      "tests/test_defense.py (4/4)  PASSED · Sliding Window, Auto-Ban TTL, XFF Guard, Masking, Headers",
-      "tests/test_proxy.py   (2/2)  PASSED · VULNERABLE vs HARDENED, :8080/:8888 Auth, Unban E2E",
-      "tests/test_sqli.py    (4/4)  PASSED · Evasion, HPP, Nested JSON, O'Brien Allow, Soft UA",
-      "tests/test_xss.py     (3/3)  PASSED · XSS Tags/Events, Traversal ....//, Math 5 < 10 Allow",
-      "============================== 13 passed in 0.38s ==============================",
-      "",
-      "=== Mini-WAF Benchmark Report (100 samples x 3 iters = 300 req/mode) ===",
-      "WAF OFF      : Backend Hits=300 | Mean=0.928ms | Median=0.859ms | p95=1.404ms",
-      "WAF MONITOR  : Detected=50/50   | Backend Hits=100 (Detection-only baseline)",
-      "WAF BLOCKING : TP=50  FP=0  TN=50  FN=0",
-      "               Precision=100.0% | Recall(TPR)=100.0% | FPR=0.0% | F1=100.0%",
-      "               Mean=1.637ms | Median=1.693ms | p95=2.160ms | Overhead Delta=+0.709ms",
-      "Backend Shielding: Chỉ 150 request hợp lệ đi tới target_web (0 payload độc hại lọt qua!)",
+      "curl -i -X POST http://127.0.0.1:8080/login -H \"Authorization: Bearer eyJhbGci...\" -d \"user=admin'--&pass=SuperSecret99\"",
+    outputLines: [
+      "[waf/protection/blacklist.py] Vi phạm lần 3/3 -> Kích hoạt AUTO-BAN IP 203.0.113.9 (TTL: 300s)",
+      "[waf/monitoring/logger.py] Che dữ liệu nhạy cảm trước khi INSERT INTO waf_events (SQLite WAL):",
+      "  snippet: \"Bearer ***MASKED*** | user=admin'--&pass=***MASKED***\"",
+      "HTTP/1.1 403 Forbidden [BAN-403] — Toàn bộ truy cập tiếp theo bị ngắt tức thì (< 0.2ms)!",
     ],
-    httpResponsePreview: `Bảng Kết luận Thực nghiệm & Defense-in-Depth:
-1. WAF OFF + VULNERABLE  -> 300/300 chạm backend (Lộ dữ liệu SQLi / XSS / Traversal)
-2. WAF BLOCKING (:8080)  -> TPR=100.0% | FPR=0.0% | Precision=100% | F1=100% | Δt=+0.709ms
-3. Kết hợp HARDENED code -> Vá ảo tầng biên + Prepared Statements ở DB = Bảo vệ toàn vẹn`,
-    defenseTalkingPoint:
-      "Khánh chốt phần phản biện khoa học: Không khẳng định WAF bảo vệ 100% tuyệt đối thay cho lập trình an toàn. Nhóm đo độc lập khả năng phát hiện (MONITOR) và ngăn chặn (BLOCKING), chứng minh trên 100 mẫu có nhãn (gồm ca khó O'Brien, D'Angelo, 5 < 10) với đầy đủ TP/FP/TN/FN, Precision/Recall/F1 và mean/median/p95 latency, đồng thời đối chứng trực tiếp khi bật Web target sang chế độ HARDENED.",
+    talkingPoint:
+      "Kẻ tấn công thử dò mật khẩu kèm SQLi đủ 3 lần sẽ bị khóa IP tự động 300s ngay trước proxy (< 0.2ms). Đặc biệt mọi Bearer token hay password đều được mask thành ***MASKED*** trước khi ghi vào SQLite để chính log WAF không làm lộ mật khẩu.",
+    codeReference: "waf/protection/blacklist.py, waf/monitoring/logger.py (mask_sensitive_text)",
+    portalDriver: { page: "login", input: "admin'--" },
+    adminEvent: {
+      time: "14:02:40",
+      ip: "203.0.113.9",
+      action: "BANNED",
+      detail: "AUTO-BAN TTL 300s | Logged: Bearer ***MASKED*** | pass=***MASKED***",
+    },
+    telegramAlert: "[Mini-WAF BAN] Khóa IP 203.0.113.9 trong 300s (3/3 vi phạm) — Xem Admin :8888",
+  },
+  {
+    id: "3C",
+    beatNumber: 3,
+    stageCode: "3C",
+    ownerMember: "Quyết",
+    phaseTitle: "Nhịp 3 — Quyết: Phòng thủ Hành vi, Anti-Spoof & Dashboard",
+    stageTitle: "Mở khóa từ Admin :8888 & Xác minh O'Brien không False Positive",
+    topologySummary: "Operator Unban trên :8888 -> Sinh viên hợp lệ O'Brien truy cập 200 OK",
+    wafMode: "BLOCKING",
+    portalMode: "VULNERABLE",
+    ipBanned: false,
+    prompt: "quyet@mini-waf:~/mini-waf-project$",
+    command:
+      "curl -s -X POST http://127.0.0.1:8888/api/unban/203.0.113.9 && curl -i \"http://127.0.0.1:8080/search?q=O%27Brien\"",
+    outputLines: [
+      "[Admin :8888] Xác thực cookie miniwaf_session (HttpOnly) -> Đã Unban IP 203.0.113.9",
+      "[waf/inspection/sqli.py] Inspect q=\"O'Brien\":",
+      "  - SQL-01 (+2): Phát hiện 1 dấu nháy đơn hợp lệ",
+      "  - SQL Lexical Check: KHÔNG có UNION / OR / Tautology / Comment -> Score = 2 < Threshold 5",
+      "HTTP/1.1 200 OK -> Trả về hồ sơ: SV002 | Patrick O'Brien | D22CQCN01 | GPA 9.1!",
+    ],
+    talkingPoint:
+      "WAF tồi sẽ chặn nhầm tên họ O'Brien hoặc phép so sánh 5 < 10. Nhờ cơ chế chấm điểm ngữ nghĩa (Risk Scoring +2 < ngưỡng 5), tên O'Brien đi qua mượt mà hiển thị đúng trên Web, còn người quản trị vẫn mở khóa khẩn cấp ngay từ :8888.",
+    codeReference: "waf/monitoring/dashboard.py (Admin :8888), waf/inspection/engine.py (Score Threshold)",
+    portalDriver: { page: "search", input: "O'Brien" },
+    adminEvent: {
+      time: "14:03:02",
+      ip: "203.0.113.9",
+      action: "ALLOWED",
+      detail: "Operator Unban OK | GET /search?q=O'Brien -> Score=2 (<5) -> 200 OK (0 FP)",
+    },
+  },
+
+  // ===================== NHIP 4: KHANH =====================
+  {
+    id: "4A",
+    beatNumber: 4,
+    stageCode: "4A",
+    ownerMember: "Khánh",
+    phaseTitle: "Nhịp 4 — Khánh: Kiểm thử Xâm nhập & Benchmark Khoa học",
+    stageTitle: "Đối chứng công cụ rà quét tự động (SQLMap / Nmap) bị chặn 100%",
+    topologySummary: "SQLMap Probe -> Kết hợp SCN-01 (+3) + SQL-03 (+6) -> Chặn đứng mọi payload",
+    wafMode: "BLOCKING",
+    portalMode: "VULNERABLE",
+    prompt: "khanh@mini-waf:~/mini-waf-project$",
+    command:
+      "sqlmap -u \"http://127.0.0.1:8080/search?q=SV001\" --batch --dbs",
+    outputLines: [
+      "[*] starting SQLMap against http://127.0.0.1:8080/search?q=SV001",
+      "[WAF Hit] User-Agent: sqlmap/* (SCN-01 +3) + UNION/Boolean probes (SQL-02/03/05 +6)",
+      "[WARNING] HTTP error codes detected during run: 403 (Forbidden) - 18/18 payloads",
+      "[CRITICAL] all tested parameters do not appear to be injectable (Mini-WAF blocked all probes).",
+    ],
+    talkingPoint:
+      "Kiểm chứng bằng chính SQLMap như kịch bản Red-Team ban đầu: thay vì kéo được hash mật khẩu như lúc WAF OFF, 100% probe bị WAF cắt ngay với HTTP 403 mà không chạm được tới SQLite.",
+    codeReference: "tests/test_proxy.py, Ground Truth SQLMap verification",
+    portalDriver: { page: "search", input: "' UNION SELECT sql,2,3,4 FROM sqlite_master--" },
+    adminEvent: {
+      time: "14:03:25",
+      ip: "198.51.100.77",
+      action: "BLOCKED",
+      detail: "[SCN-01, SQL-03, SQL-05] Chặn toàn bộ lượt dò quét SQLMap (18/18 -> 403)",
+    },
+  },
+  {
+    id: "4B",
+    beatNumber: 4,
+    stageCode: "4B",
+    ownerMember: "Khánh",
+    phaseTitle: "Nhịp 4 — Khánh: Kiểm thử Xâm nhập & Benchmark Khoa học",
+    stageTitle: "Chạy bộ Kiểm thử Hồi quy Tự động Pytest (13/13 Test Cases)",
+    topologySummary: "FastAPI ASGITransport E2E Verification across 4 Test Suites",
+    wafMode: "BLOCKING",
+    portalMode: "HARDENED",
+    prompt: "khanh@mini-waf:~/mini-waf-project$",
+    command: ".venv/bin/pytest -v tests/",
+    outputLines: [
+      "tests/test_defense.py::test_sliding_window_rate_limit_and_spoof_protection PASSED",
+      "tests/test_defense.py::test_auto_ban_and_log_masking                     PASSED",
+      "tests/test_proxy.py::test_dual_target_vulnerable_vs_hardened_and_monitor   PASSED",
+      "tests/test_sqli.py::test_sqli_evasion_and_benign_obrien_passes             PASSED",
+      "tests/test_xss.py::test_xss_and_path_traversal_blocked_vs_benign_math      PASSED",
+      "========================= 13 passed in 0.39s =========================",
+    ],
+    talkingPoint:
+      "Toàn bộ logic proxy, 2 chế độ Web, các ca né lọc SQLi/XSS/LFI và phòng thủ hành vi đều có unit + integration test tự động chạy sạch 13/13 bằng pytest, không kiểm thử thủ công cảm tính.",
+    codeReference: "tests/ (test_proxy.py, test_sqli.py, test_xss.py, test_defense.py)",
+    portalDriver: { page: "comments", input: "5 < 10 va gpa > 8.0" },
+    adminEvent: {
+      time: "14:03:48",
+      ip: "127.0.0.1",
+      action: "INFO",
+      detail: "Pytest Suite completed: 13 passed in 0.39s (0 failed)",
+    },
+  },
+  {
+    id: "4C",
+    beatNumber: 4,
+    stageCode: "4C",
+    ownerMember: "Khánh",
+    phaseTitle: "Nhịp 4 — Khánh: Kiểm thử Xâm nhập & Benchmark Khoa học",
+    stageTitle: "Đo kiểm Khoa học 100 Mẫu (Precision / Recall / Latency p95)",
+    topologySummary: "50 Attack + 50 Benign Edge Cases × 3 Loops = 300 Requests",
+    wafMode: "BLOCKING",
+    portalMode: "HARDENED",
+    prompt: "khanh@mini-waf:~/mini-waf-project$",
+    command: "python3 -m tests.benchmark",
+    outputLines: [
+      "[Ground Truth: 100 samples (50 Attack + 50 Benign Edge Cases) x 3 iterations]",
+      "-------------------------------------------------------------------------",
+      "Confusion Matrix  | TP = 50 | FP = 0 | TN = 50 | FN = 0",
+      "Quality Metrics   | Precision = 100.00% | Recall = 100.00% | FPR = 0.00% | F1 = 100.00%",
+      "OFF Baseline      | Backend Hits = 300 | Mean = 0.928 ms | p95 = 1.404 ms",
+      "BLOCKING Mode     | Backend Hits = 150 | Mean = 1.637 ms (+0.709 ms) | p95 = 2.160 ms",
+      "=========================================================================",
+    ],
+    talkingPoint:
+      "Kết thúc thuyết trình bằng số liệu thực nghiệm đo bằng script trên 100 mẫu thật: TP=50, FP=0, F1=100%, và chi phí phụ trội của toàn bộ Proxy + Inspection Engine chỉ tốn +0.709 ms trung bình (p95 = 2.160 ms).",
+    codeReference: "tests/benchmark.py (Real AsyncClient Benchmark on FastAPI App)",
+    adminEvent: {
+      time: "14:04:10",
+      ip: "127.0.0.1",
+      action: "INFO",
+      detail: "Benchmark 100x3 done: F1=100.00%, FPR=0.00%, p95=2.160ms",
+    },
   },
 ];
 
 interface MiniWafScenarioPlayerProps {
   initialBeat?: number;
-  onSyncTopology?: (state: {
-    wafMode: "OFF" | "MONITOR" | "BLOCKING";
-    portalMode: "VULNERABLE" | "HARDENED";
-  }) => void;
+  onSyncTopology?: (state: { wafMode: WafMode; portalMode: PortalSecurityMode }) => void;
 }
 
 export function MiniWafScenarioPlayer({
   initialBeat,
   onSyncTopology,
 }: MiniWafScenarioPlayerProps) {
-  const [viewMode, setViewMode] = useState<"beats" | "member">("beats");
-  const [memberFilter, setMemberFilter] = useState<1 | 2 | 3 | 4>(1);
-  const [selectedBeatIdx, setSelectedBeatIdx] = useState(() => {
-    if (initialBeat && initialBeat >= 1 && initialBeat <= 4) return initialBeat - 1;
-    return 0;
+  const [memberFilter, setMemberFilter] = useState<"ALL" | "Sơn" | "Hùng" | "Quyết" | "Khánh">("ALL");
+  const [paceMode, setPaceMode] = useState<"slow" | "normal">("slow");
+  const [activeIdx, setActiveIdx] = useState<number>(0);
+
+  // Playback state starts completely clean until explicitly clicked
+  const [status, setStatus] = useState<"idle" | "typing" | "streaming" | "paused" | "done">("idle");
+  const [autoSequence, setAutoSequence] = useState(false);
+  const [typedChars, setTypedChars] = useState(0);
+  const [shownLines, setShownLines] = useState(0);
+  const [portalCommand, setPortalCommand] = useState<PortalDriverCommand | null>(null);
+  const cmdCounterRef = useRef(0);
+
+  const visibleStages = useMemo(() => {
+    if (memberFilter === "ALL") return MINI_WAF_SCENARIO_STAGES;
+    return MINI_WAF_SCENARIO_STAGES.filter((s) => s.ownerMember === memberFilter);
+  }, [memberFilter]);
+
+  const currentStage = visibleStages[activeIdx] ?? MINI_WAF_SCENARIO_STAGES[0];
+  const latestSyncRef = useRef(onSyncTopology);
+  useEffect(() => {
+    latestSyncRef.current = onSyncTopology;
   });
 
-  const [runPhase, setRunPhase] = useState<"idle" | "typing" | "streaming" | "done">("idle");
-  const [isPaused, setIsPaused] = useState(false);
-  const [typedChars, setTypedChars] = useState(0);
-  const [visibleLines, setVisibleLines] = useState(0);
-  const [autoAdvanceQueue, setAutoAdvanceQueue] = useState(false);
-  const [completedBeats, setCompletedBeats] = useState<Record<string, boolean>>({});
-  const [explainOpen, setExplainOpen] = useState(false);
-
-  const visibleBeats = useMemo(() => {
-    if (viewMode === "beats") return MINI_WAF_SCENARIO_BEATS;
-    return MINI_WAF_SCENARIO_BEATS.filter((b) => b.ownerMember === memberFilter);
-  }, [viewMode, memberFilter]);
-
-  const currentBeat = visibleBeats[selectedBeatIdx] ?? visibleBeats[0];
-
-  const liveTopology =
-    runPhase === "done" || runPhase === "streaming"
-      ? currentBeat.afterState
-      : currentBeat.initialState;
-
+  // Sync deep-link ?beat=1..4 cleanly to the first stage of that beat (1A, 2A, 3A, 4A)
   useEffect(() => {
     if (!initialBeat || initialBeat < 1 || initialBeat > 4) return;
-    setSelectedBeatIdx(initialBeat - 1);
+    setMemberFilter("ALL");
+    const targetIdx = MINI_WAF_SCENARIO_STAGES.findIndex((s) => s.beatNumber === initialBeat);
+    if (targetIdx >= 0) {
+      setActiveIdx(targetIdx);
+      setStatus("idle");
+      setAutoSequence(false);
+      setTypedChars(0);
+      setShownLines(0);
+    }
   }, [initialBeat]);
 
-  useEffect(() => {
-    if (runPhase !== "typing" && runPhase !== "streaming") return;
-    if (isPaused) return;
-
-    if (runPhase === "typing") {
-      if (typedChars >= currentBeat.command.length) {
-        const t = setTimeout(() => setRunPhase("streaming"), 140);
-        return () => clearTimeout(t);
-      }
-      const step = currentBeat.command.length > 130 ? 4 : 2;
-      const t = setTimeout(() => {
-        const next = Math.min(currentBeat.command.length, typedChars + step);
-        setTypedChars(next);
-        if (next >= currentBeat.command.length) {
-          setRunPhase("streaming");
-        }
-      }, 24);
-      return () => clearTimeout(t);
-    }
-
-    if (runPhase === "streaming") {
-      if (visibleLines >= currentBeat.streamOutput.length) {
-        setRunPhase("done");
-        setCompletedBeats((prev) => ({ ...prev, [currentBeat.id]: true }));
-        onSyncTopology?.({
-          wafMode: currentBeat.afterState.wafMode,
-          portalMode: currentBeat.afterState.portalMode,
-        });
-        return;
-      }
-      const t = setTimeout(() => {
-        const nextLines = Math.min(currentBeat.streamOutput.length, visibleLines + 1);
-        setVisibleLines(nextLines);
-        if (nextLines >= currentBeat.streamOutput.length) {
-          setRunPhase("done");
-          setCompletedBeats((prev) => ({ ...prev, [currentBeat.id]: true }));
-          onSyncTopology?.({
-            wafMode: currentBeat.afterState.wafMode,
-            portalMode: currentBeat.afterState.portalMode,
-          });
-        }
-      }, 95);
-      return () => clearTimeout(t);
-    }
-  }, [
-    runPhase,
-    isPaused,
-    typedChars,
-    visibleLines,
-    currentBeat,
-    onSyncTopology,
-  ]);
-
-  // Auto-advance between beats when playing full 4-beat continuous demo
-  useEffect(() => {
-    if (!autoAdvanceQueue || runPhase !== "done" || isPaused) return;
-    if (selectedBeatIdx + 1 >= visibleBeats.length) {
-      setAutoAdvanceQueue(false);
-      return;
-    }
-    const t = setTimeout(() => {
-      const nextIdx = selectedBeatIdx + 1;
-      setSelectedBeatIdx(nextIdx);
-      setTypedChars(0);
-      setVisibleLines(0);
-      setRunPhase("typing");
-    }, 850);
-    return () => clearTimeout(t);
-  }, [autoAdvanceQueue, runPhase, isPaused, selectedBeatIdx, visibleBeats.length]);
-
-  const startSingleBeat = (idx: number, continuous = false) => {
-    setSelectedBeatIdx(idx);
-    setAutoAdvanceQueue(continuous);
-    setIsPaused(false);
-    setTypedChars(0);
-    setVisibleLines(0);
-    setRunPhase("typing");
-    const target = visibleBeats[idx] ?? visibleBeats[0];
-    onSyncTopology?.({
-      wafMode: target.initialState.wafMode,
-      portalMode: target.initialState.portalMode,
+  const triggerPortalDriver = (stage: ScenarioStageSpec) => {
+    if (!stage.portalDriver) return;
+    cmdCounterRef.current += 1;
+    setPortalCommand({
+      id: cmdCounterRef.current,
+      page: stage.portalDriver.page,
+      input: stage.portalDriver.input,
     });
   };
 
-  const progressPct = useMemo(() => {
-    if (runPhase === "idle") return 0;
-    if (runPhase === "done") return 100;
-    if (runPhase === "typing") {
-      return Math.min(45, Math.round((typedChars / Math.max(1, currentBeat.command.length)) * 45));
+  // Trigger topology + portal synchronization right when command execution finishes typing and starts streaming
+  useEffect(() => {
+    if (status === "streaming" && shownLines === 0) {
+      latestSyncRef.current?.({
+        wafMode: currentStage.wafMode,
+        portalMode: currentStage.portalMode,
+      });
+      triggerPortalDriver(currentStage);
     }
-    return Math.min(99, 45 + Math.round((visibleLines / Math.max(1, currentBeat.streamOutput.length)) * 54));
-  }, [runPhase, typedChars, currentBeat.command.length, visibleLines, currentBeat.streamOutput.length]);
+  }, [status, shownLines, currentStage]);
+
+  // Real character-by-character typing timer
+  useEffect(() => {
+    if (status !== "typing") return;
+    const cmdLen = currentStage.command.length;
+    if (typedChars >= cmdLen) {
+      const waitMs = paceMode === "slow" ? 280 : 120;
+      const t = setTimeout(() => setStatus("streaming"), waitMs);
+      return () => clearTimeout(t);
+    }
+    const charMs = paceMode === "slow" ? 40 : 18;
+    const t = setTimeout(() => setTypedChars((n) => n + 1), charMs);
+    return () => clearTimeout(t);
+  }, [status, typedChars, currentStage.command.length, paceMode]);
+
+  // Line-by-line streaming timer
+  useEffect(() => {
+    if (status !== "streaming") return;
+    const total = currentStage.outputLines.length;
+    if (shownLines >= total) {
+      setStatus("done");
+      return;
+    }
+    const lineMs = paceMode === "slow" ? 260 : 110;
+    const t = setTimeout(() => setShownLines((n) => n + 1), lineMs);
+    return () => clearTimeout(t);
+  }, [status, shownLines, currentStage.outputLines.length, paceMode]);
+
+  // Optional auto-sequence advance with generous pause for presenter narration
+  useEffect(() => {
+    if (status !== "done" || !autoSequence) return;
+    if (activeIdx + 1 >= visibleStages.length) {
+      setAutoSequence(false);
+      return;
+    }
+    const dwellMs = paceMode === "slow" ? 2400 : 1300;
+    const t = setTimeout(() => {
+      const next = activeIdx + 1;
+      setActiveIdx(next);
+      setTypedChars(0);
+      setShownLines(0);
+      setStatus("typing");
+    }, dwellMs);
+    return () => clearTimeout(t);
+  }, [status, autoSequence, activeIdx, visibleStages.length, paceMode]);
+
+  const startStage = (idx: number, withAutoSeq: boolean) => {
+    const safeIdx = Math.max(0, Math.min(idx, visibleStages.length - 1));
+    const stage = visibleStages[safeIdx];
+    latestSyncRef.current?.({ wafMode: stage.wafMode, portalMode: stage.portalMode });
+    setActiveIdx(safeIdx);
+    setTypedChars(0);
+    setShownLines(0);
+    setAutoSequence(withAutoSeq);
+    setStatus("typing");
+  };
+
+  const selectStageQuietly = (idx: number) => {
+    const safeIdx = Math.max(0, Math.min(idx, visibleStages.length - 1));
+    const stage = visibleStages[safeIdx];
+    latestSyncRef.current?.({ wafMode: stage.wafMode, portalMode: stage.portalMode });
+    setActiveIdx(safeIdx);
+    setTypedChars(0);
+    setShownLines(0);
+    setAutoSequence(false);
+    setStatus("idle");
+  };
+
+  const togglePause = () => {
+    if (status === "typing" || status === "streaming") {
+      setAutoSequence(false);
+      setStatus("paused");
+    } else if (status === "paused") {
+      setStatus(typedChars < currentStage.command.length ? "typing" : "streaming");
+    }
+  };
+
+  const resetAll = () => {
+    setAutoSequence(false);
+    setStatus("idle");
+    setTypedChars(0);
+    setShownLines(0);
+    setPortalCommand(null);
+  };
+
+  const visibleCmd =
+    status === "idle" && typedChars === 0
+      ? ""
+      : currentStage.command.slice(0, typedChars);
+  const renderedLines = currentStage.outputLines.slice(0, shownLines);
+  const completedCount = status === "done" ? activeIdx + 1 : activeIdx;
+  const pct = Math.round((completedCount / visibleStages.length) * 100);
 
   return (
     <div className="space-y-4">
-      {/* Perspective Switcher: Full 4 Beats vs Individual Member */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-subtle p-3.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded border border-hairline bg-surface p-0.5 text-xs">
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode("beats");
-                setSelectedBeatIdx(0);
-                setRunPhase("idle");
-                setTypedChars(0);
-                setVisibleLines(0);
-                setAutoAdvanceQueue(false);
-              }}
-              className={`cursor-pointer rounded px-2.5 py-1 font-semibold ${
-                viewMode === "beats" ? "bg-ink text-canvas" : "text-muted hover:text-ink"
-              }`}
-            >
-              4 Nhịp Demo Liên hoàn
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode("member");
-                setSelectedBeatIdx(0);
-                setRunPhase("idle");
-                setTypedChars(0);
-                setVisibleLines(0);
-                setAutoAdvanceQueue(false);
-              }}
-              className={`inline-flex cursor-pointer items-center gap-1 rounded px-2.5 py-1 font-semibold ${
-                viewMode === "member" ? "bg-accent text-white" : "text-muted hover:text-ink"
-              }`}
-            >
-              <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />
-              Theo Thành viên Cá nhân
-            </button>
+      {/* Control Header */}
+      <div className="rounded-lg border border-hairline bg-subtle p-3.5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-accent">
+              Kịch bản 12 Bước Có Hướng Dẫn (Web Trực tiếp + Terminal + Admin :8888)
+            </div>
+            <p className="text-xs text-secondary mt-0.5">
+              Đi từng bước hoặc bật chạy tuần tự: mỗi bước tự đồng bộ chế độ WAF/Web, điều khiển thẳng <strong className="text-ink">Website Quản lý Điểm Sinh viên</strong> bên trái và stream lệnh trên Terminal bên phải.
+            </p>
           </div>
 
-          {viewMode === "member" && (
-            <div className="inline-flex rounded border border-hairline bg-surface p-0.5 font-mono text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Speed toggle */}
+            <div className="inline-flex items-center rounded border border-hairline bg-surface p-0.5 font-mono text-[11px]">
+              <span className="inline-flex items-center gap-1 px-2 text-muted">
+                <Gauge className="h-3 w-3" aria-hidden="true" />
+                Nhịp:
+              </span>
               {[
-                { num: 1 as const, name: "1. Sơn" },
-                { num: 2 as const, name: "2. Hùng" },
-                { num: 3 as const, name: "3. Quyết" },
-                { num: 4 as const, name: "4. Khánh" },
-              ].map((m) => (
+                { id: "slow" as const, label: "Chậm 1x" },
+                { id: "normal" as const, label: "Chuẩn 2x" },
+              ].map((p) => (
                 <button
-                  key={m.num}
+                  key={p.id}
                   type="button"
-                  onClick={() => {
-                    setMemberFilter(m.num);
-                    setSelectedBeatIdx(0);
-                    setRunPhase("idle");
-                    setTypedChars(0);
-                    setVisibleLines(0);
-                    setAutoAdvanceQueue(false);
-                  }}
-                  className={`cursor-pointer rounded px-2.5 py-1 font-semibold ${
-                    memberFilter === m.num
-                      ? "bg-emerald-600 text-white"
-                      : "text-muted hover:text-ink"
+                  onClick={() => setPaceMode(p.id)}
+                  className={`cursor-pointer rounded px-2 py-0.5 font-semibold ${
+                    paceMode === p.id ? "bg-accent text-white" : "text-muted hover:text-ink"
                   }`}
                 >
-                  {m.name}
+                  {p.label}
                 </button>
               ))}
             </div>
-          )}
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => startSingleBeat(selectedBeatIdx, false)}
-            className="inline-flex cursor-pointer items-center gap-1.5 rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
-          >
-            <Play className="h-3.5 w-3.5" aria-hidden="true" />
-            {runPhase === "done" ? "Chạy lại bước này" : "Chạy trực tiếp Nhịp này"}
-          </button>
+        {/* Filter by member & step pills */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-2.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(["ALL", "Sơn", "Hùng", "Quyết", "Khánh"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  setMemberFilter(m);
+                  setActiveIdx(0);
+                  setAutoSequence(false);
+                  setStatus("idle");
+                  setTypedChars(0);
+                  setShownLines(0);
+                }}
+                className={`cursor-pointer rounded-md border px-2.5 py-1 font-mono text-[11px] font-semibold transition-colors ${
+                  memberFilter === m
+                    ? "border-accent bg-accent text-white"
+                    : "border-hairline bg-surface text-muted hover:text-ink"
+                }`}
+              >
+                {m === "ALL" ? "Tất cả (12 bước)" : `Phần ${m} (3 bước)`}
+              </button>
+            ))}
+          </div>
 
-          {viewMode === "beats" && (
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
-              onClick={() => startSingleBeat(0, true)}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+              onClick={() => startStage(activeIdx, false)}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 font-mono text-xs font-semibold text-canvas hover:opacity-90"
             >
               <Play className="h-3.5 w-3.5" aria-hidden="true" />
-              Chạy Liên hoàn Cả 4 Nhịp
+              Chạy bước {currentStage.stageCode}
             </button>
-          )}
-
-          {(runPhase === "typing" || runPhase === "streaming") && (
-            <>
+            <button
+              type="button"
+              onClick={() => startStage(status === "done" ? Math.min(activeIdx + 1, visibleStages.length - 1) : activeIdx, true)}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-accent bg-accent/10 px-2.5 py-1.5 font-mono text-xs font-semibold text-accent hover:bg-accent/20"
+            >
+              <Play className="h-3.5 w-3.5" aria-hidden="true" />
+              Chạy tự động
+            </button>
+            {(status === "typing" || status === "streaming" || status === "paused") && (
               <button
                 type="button"
-                onClick={() => setIsPaused((v) => !v)}
-                className="inline-flex cursor-pointer items-center gap-1 rounded border border-amber-500/50 bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300"
+                onClick={togglePause}
+                className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 font-mono text-xs font-semibold text-amber-400 hover:bg-amber-500/20"
               >
-                {isPaused ? (
+                {status === "paused" ? (
                   <>
                     <Play className="h-3.5 w-3.5" aria-hidden="true" />
-                    Tiếp tục chạy
+                    Tiếp tục
                   </>
                 ) : (
                   <>
@@ -504,222 +697,278 @@ export function MiniWafScenarioPlayer({
                   </>
                 )}
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsPaused(false);
-                  setTypedChars(currentBeat.command.length);
-                  setVisibleLines(currentBeat.streamOutput.length);
-                  setRunPhase("done");
-                  setCompletedBeats((prev) => ({ ...prev, [currentBeat.id]: true }));
-                }}
-                className="inline-flex cursor-pointer items-center gap-1 rounded border border-hairline bg-surface px-2.5 py-1.5 text-xs text-ink hover:bg-canvas"
-              >
-                <SkipForward className="h-3.5 w-3.5" aria-hidden="true" />
-                Hiện hết
-              </button>
-            </>
-          )}
-
-          {runPhase !== "idle" && (
+            )}
             <button
               type="button"
-              onClick={() => {
-                setAutoAdvanceQueue(false);
-                setIsPaused(false);
-                setRunPhase("idle");
-                setTypedChars(0);
-                setVisibleLines(0);
-              }}
-              className="inline-flex cursor-pointer items-center gap-1 rounded border border-hairline bg-surface px-2.5 py-1.5 text-xs text-muted hover:text-ink"
+              onClick={resetAll}
+              className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-hairline bg-surface px-2.5 py-1.5 font-mono text-xs font-semibold text-muted hover:text-ink"
             >
               <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-              Reset
+              Đặt lại
             </button>
-          )}
-        </div>
-      </div>
-
-      {/* Beat Selector Cards */}
-      <div className={`grid gap-2 ${visibleBeats.length > 1 ? "sm:grid-cols-2 lg:grid-cols-4" : "grid-cols-1"}`}>
-        {visibleBeats.map((b, idx) => {
-          const isCurrent = idx === selectedBeatIdx;
-          const isDone = Boolean(completedBeats[b.id]);
-          return (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() => {
-                setSelectedBeatIdx(idx);
-                setAutoAdvanceQueue(false);
-                setIsPaused(false);
-                setRunPhase("idle");
-                setTypedChars(0);
-                setVisibleLines(0);
-              }}
-              className={`flex cursor-pointer flex-col justify-between rounded-md border p-3 text-left text-xs transition-colors ${
-                isCurrent
-                  ? "border-accent bg-accent/10"
-                  : isDone
-                  ? "border-emerald-600/40 bg-emerald-500/5"
-                  : "border-hairline bg-subtle hover:bg-canvas"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2 font-mono text-[11px] font-bold">
-                <span className={isCurrent ? "text-accent" : "text-muted"}>{b.ownerLabel}</span>
-                {isDone && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />}
-              </div>
-              <div className="mt-1 font-semibold text-ink line-clamp-2">{b.title}</div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Live Synchronized Topology Telemetry Bar */}
-      <div className="grid gap-2.5 rounded-lg border border-zinc-800 bg-[#0b1120] p-3.5 font-mono text-[11px] text-zinc-200 sm:grid-cols-4">
-        <div className="rounded border border-zinc-800 bg-[#111827] px-3 py-2">
-          <div className="text-zinc-400">Mini-WAF Proxy (:8080)</div>
-          <div
-            className={`mt-1 font-bold ${
-              liveTopology.wafMode === "BLOCKING"
-                ? "text-emerald-300"
-                : liveTopology.wafMode === "MONITOR"
-                ? "text-amber-300"
-                : "text-rose-400"
-            }`}
-          >
-            MODE: {liveTopology.wafMode}
           </div>
         </div>
 
-        <div className="rounded border border-zinc-800 bg-[#111827] px-3 py-2">
-          <div className="text-zinc-400">Target Web (:8000 internal)</div>
-          <div className="mt-1 flex items-center gap-1.5 font-bold text-sky-300">
-            <Shield className="h-3.5 w-3.5" aria-hidden="true" />
-            {liveTopology.portalMode} · Hits: +{liveTopology.backendHitsDelta}
+        {/* 12 Step Timeline Pills + Progress Bar */}
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap gap-1.5">
+            {visibleStages.map((s, idx) => {
+              const isCurrent = idx === activeIdx;
+              const isDone = idx < activeIdx || (isCurrent && status === "done");
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => selectStageQuietly(idx)}
+                  className={`cursor-pointer rounded border px-2 py-1 font-mono text-[11px] font-semibold transition-colors ${
+                    isCurrent
+                      ? "border-accent bg-accent text-white"
+                      : isDone
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
+                      : "border-hairline bg-surface text-muted hover:text-ink"
+                  }`}
+                  title={`${s.ownerMember}: ${s.stageTitle}`}
+                >
+                  {s.stageCode} · {s.ownerMember}
+                </button>
+              );
+            })}
           </div>
-        </div>
-
-        <div className="rounded border border-zinc-800 bg-[#111827] px-3 py-2">
-          <div className="text-zinc-400">Blacklist Auto-Ban (:8888)</div>
-          <div className={`mt-1 flex items-center gap-1.5 font-bold ${liveTopology.bannedIp ? "text-rose-400" : "text-emerald-300"}`}>
-            {liveTopology.bannedIp ? (
-              <>
-                <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
-                BANNED: {liveTopology.bannedIp}
-              </>
-            ) : (
-              <>
-                <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                0 IP bị khóa
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="rounded border border-zinc-800 bg-[#111827] px-3 py-2">
-          <div className="text-zinc-400">Telegram Alerts (Redacted)</div>
-          <div className="mt-1 font-bold text-amber-300">
-            {liveTopology.telegramCount} cảnh báo đã gửi
-          </div>
-        </div>
-      </div>
-
-      {/* Main Split Execution Console: Live Terminal Typing + HTTP / Defense Panel */}
-      <div className="grid gap-4 lg:grid-cols-12">
-        <div className="lg:col-span-7 overflow-hidden rounded-lg border border-zinc-800 bg-[#0d1117] font-mono text-xs text-zinc-200">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 bg-[#161b22] px-3.5 py-2">
-            <div className="flex items-center gap-2.5">
-              <WindowControls />
-              <Terminal className="h-3.5 w-3.5 text-zinc-400" aria-hidden="true" />
-              <span className="font-semibold text-zinc-200">
-                {currentBeat.terminalOs} — {currentBeat.ownerLabel}
-              </span>
-            </div>
-            {runPhase !== "idle" && (
-              <span className="text-[11px] font-bold text-emerald-300">
-                {isPaused ? "ĐÃ TẠM DỪNG" : `${progressPct}%`}
-              </span>
-            )}
-          </div>
-
-          {runPhase !== "idle" && (
-            <div className="h-1 w-full bg-zinc-900">
+          <div className="flex items-center gap-2 font-mono text-[10px] text-muted">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-hairline">
               <div
-                className="h-full bg-emerald-500 transition-all duration-100"
-                style={{ width: `${progressPct}%` }}
+                className="h-full bg-accent transition-all duration-300"
+                style={{ width: `${pct}%` }}
               />
             </div>
-          )}
+            <span>
+              Bước {activeIdx + 1}/{visibleStages.length}
+            </span>
+          </div>
+        </div>
+      </div>
 
-          <div className="space-y-3 p-4">
-            <div className="text-[11px] text-zinc-400">
-              Tệp sở hữu: <span className="text-sky-300">{currentBeat.filesOwned}</span>
-            </div>
-
-            {runPhase === "idle" ? (
-              <div className="rounded border border-zinc-800 bg-[#05070a] p-5 text-zinc-400">
-                <div className="flex flex-wrap items-center gap-1.5 text-zinc-200">
-                  <span className="text-emerald-400">{currentBeat.prompt}</span>
-                  <span className="inline-block h-4 w-2 animate-pulse bg-emerald-400" />
-                </div>
-                <p className="mt-3 font-sans text-xs text-zinc-500">
-                  Chưa chạy kịch bản. Bấm &quot;Chạy trực tiếp Nhịp này&quot; để mô phỏng gõ từng chữ và quan sát phản ứng hệ thống theo thời gian thực.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2.5 rounded border border-zinc-800 bg-[#05070a] p-3.5">
-                <div className="break-all leading-relaxed">
-                  <span className="text-emerald-400">{currentBeat.prompt} </span>
-                  <span className="text-zinc-100">{currentBeat.command.slice(0, typedChars)}</span>
-                  {runPhase === "typing" && (
-                    <span className="ml-0.5 inline-block h-3.5 w-2 animate-pulse bg-emerald-400 align-middle" />
-                  )}
-                </div>
-
-                {visibleLines > 0 && (
-                  <pre className="whitespace-pre-wrap border-t border-zinc-800/80 pt-2.5 text-[11px] leading-relaxed text-emerald-300">
-                    {currentBeat.streamOutput.slice(0, visibleLines).join("\n")}
-                  </pre>
-                )}
-              </div>
-            )}
+      {/* Active Stage Summary & Navigation Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-hairline bg-surface px-3.5 py-2.5 text-xs">
+        <div className="space-y-0.5">
+          <div className="font-mono text-[11px] font-semibold text-accent">
+            {currentStage.phaseTitle} — [{currentStage.stageCode}]
+          </div>
+          <div className="font-semibold text-ink text-sm">
+            {currentStage.stageTitle}
+          </div>
+          <div className="font-mono text-[11px] text-muted">
+            {currentStage.topologySummary}
           </div>
         </div>
 
-        {/* HTTP Response & Instructor Q&A Explanation Pane */}
-        <div className="lg:col-span-5 flex flex-col justify-between gap-3 rounded-lg border border-hairline bg-subtle p-4 text-xs">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between border-b border-hairline pb-2">
-              <span className="font-bold text-ink">Phản hồi HTTP &amp; Đối chứng Bảo mật</span>
-              <button
-                type="button"
-                onClick={() => setExplainOpen((v) => !v)}
-                className="cursor-pointer rounded border border-hairline bg-surface px-2 py-0.5 font-mono text-[11px] font-semibold text-accent hover:bg-canvas"
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            disabled={activeIdx <= 0}
+            onClick={() => selectStageQuietly(activeIdx - 1)}
+            className="inline-flex cursor-pointer items-center gap-1 rounded border border-hairline bg-subtle px-2.5 py-1.5 font-mono text-[11px] font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            Bước trước
+          </button>
+          <button
+            type="button"
+            disabled={activeIdx >= visibleStages.length - 1}
+            onClick={() => startStage(activeIdx + 1, false)}
+            className="inline-flex cursor-pointer items-center gap-1 rounded bg-accent px-2.5 py-1.5 font-mono text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Chạy bước tiếp theo
+            <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      {/* Dual Stage: LEFT = Live Student Portal Browser, RIGHT = Terminal + Admin Telemetry */}
+      <div className="grid gap-4 lg:grid-cols-12">
+        {/* LEFT (7 cols on lg): VISIBLE LIVE WEB PORTAL */}
+        <div className="lg:col-span-7 space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold text-ink">
+              <Globe className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+              Màn hình Trình duyệt Thực tế — Website Quản lý Điểm Sinh viên
+            </span>
+            <span className="font-mono text-[10px] text-muted">
+              {currentStage.portalDriver
+                ? `Đồng bộ bước ${currentStage.stageCode}: /${currentStage.portalDriver.page}`
+                : "Bạn vẫn có thể bấm thử trực tiếp trên Web"}
+            </span>
+          </div>
+
+          <StudentPortalEmulator
+            wafMode={currentStage.wafMode}
+            portalMode={currentStage.portalMode}
+            ipBanned={Boolean(currentStage.ipBanned)}
+            externalCommand={portalCommand}
+          />
+        </div>
+
+        {/* RIGHT (5 cols on lg): TERMINAL + ADMIN TELEMETRY + DEFENSE TALKING POINT */}
+        <div className="lg:col-span-5 space-y-3">
+          {/* CLI Terminal */}
+          <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs text-zinc-200">
+            <div className="mb-2.5 flex items-center justify-between border-b border-zinc-800 pb-2">
+              <div className="flex items-center gap-2">
+                <WindowControls
+                  onClose={resetAll}
+                  closeTitle="Đặt lại Terminal"
+                />
+                <span className="inline-flex items-center gap-1 font-semibold text-zinc-300">
+                  <Terminal className="h-3 w-3 text-sky-400" aria-hidden="true" />
+                  Terminal ({currentStage.ownerMember})
+                </span>
+              </div>
+              <span
+                className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                  status === "idle"
+                    ? "bg-zinc-800 text-zinc-400"
+                    : status === "paused"
+                    ? "bg-amber-500/20 text-amber-300"
+                    : status === "done"
+                    ? "bg-emerald-500/20 text-emerald-300"
+                    : "bg-sky-500/20 text-sky-300"
+                }`}
               >
-                {explainOpen || isPaused ? "Ẩn điểm vấn đáp" : "Điểm ăn tiền ATTT"}
-              </button>
+                {status === "idle"
+                  ? "CHỜ BẤM CHẠY"
+                  : status === "typing"
+                  ? "ĐANG GÕ LỆNH..."
+                  : status === "streaming"
+                  ? "ĐANG NHẬN PHẢN HỒI..."
+                  : status === "paused"
+                  ? "TẠM DỪNG GIẢI THÍCH"
+                  : "HOÀN TẤT BƯỚC"}
+              </span>
             </div>
 
-            {runPhase === "idle" ? (
-              <div className="rounded border border-hairline bg-surface p-4 text-center text-muted">
-                Kết quả HTTP Header / Response từ <code className="font-mono text-ink">Mini-WAF :8080</code> sẽ cập nhật tại đây khi kịch bản chạy.
+            <div className="min-h-[210px] space-y-2 leading-relaxed">
+              <div>
+                <span className="text-emerald-400">{currentStage.prompt}</span>{" "}
+                <span className="text-white break-all">{visibleCmd}</span>
+                {(status === "idle" || status === "typing" || status === "paused") && (
+                  <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-zinc-200 align-middle" />
+                )}
+              </div>
+
+              {renderedLines.length > 0 && (
+                <div className="space-y-1 border-l-2 border-zinc-700 pl-2.5 text-[11px]">
+                  {renderedLines.map((line, i) => (
+                    <div
+                      key={i}
+                      className={
+                        line.includes("403") || line.includes("CRITICAL") || line.includes("AUTO-BAN")
+                          ? "text-rose-400"
+                          : line.includes("429") || line.includes("WARNING") || line.includes("VULNERABLE")
+                          ? "text-amber-300"
+                          : line.includes("PASSED") || line.includes("200 OK") || line.includes("100.00%")
+                          ? "text-emerald-400"
+                          : "text-zinc-300"
+                      }
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {status === "idle" && (
+                <div className="pt-2 text-[11px] text-zinc-500">
+                  Bấm <span className="text-zinc-300">Chạy bước {currentStage.stageCode}</span> để xem lệnh gõ từng ký tự và quan sát phản ứng đồng thời trên Website bên trái.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Admin :8888 + Telegram Panel */}
+          <div className="rounded-lg border border-hairline bg-surface p-3 text-xs space-y-2">
+            <div className="flex items-center justify-between border-b border-hairline pb-1.5 font-mono text-[11px]">
+              <span className="font-semibold text-ink">
+                Admin Monitor (127.0.0.1:8888)
+              </span>
+              <span
+                className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                  currentStage.wafMode === "BLOCKING"
+                    ? "bg-emerald-500/15 text-emerald-500"
+                    : currentStage.wafMode === "OFF"
+                    ? "bg-rose-500/15 text-rose-500"
+                    : "bg-amber-500/15 text-amber-500"
+                }`}
+              >
+                WAF: {currentStage.wafMode}
+              </span>
+            </div>
+
+            {status === "streaming" || status === "done" ? (
+              <div className="space-y-2 font-mono text-[11px]">
+                <div className="rounded border border-hairline bg-subtle p-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted">
+                      [{currentStage.adminEvent.time}] {currentStage.adminEvent.ip}
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 font-bold ${
+                        currentStage.adminEvent.action === "BLOCKED" ||
+                        currentStage.adminEvent.action === "BANNED"
+                          ? "text-rose-500"
+                          : currentStage.adminEvent.action === "RATE_LIMITED"
+                          ? "text-amber-500"
+                          : "text-emerald-500"
+                      }`}
+                    >
+                      {currentStage.adminEvent.action === "ALLOWED" ? (
+                        <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                      ) : (
+                        <ShieldAlert className="h-3 w-3" aria-hidden="true" />
+                      )}
+                      {currentStage.adminEvent.action}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-secondary break-all">
+                    {currentStage.adminEvent.detail}
+                  </div>
+                </div>
+
+                {currentStage.ipBanned && (
+                  <div className="flex items-center justify-between rounded border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-rose-500">
+                    <span>Blacklist đang khóa IP 203.0.113.9 (300s)</span>
+                    <span className="inline-flex items-center gap-1 font-semibold">
+                      <Unlock className="h-3 w-3" aria-hidden="true" />
+                      Bước 3C sẽ Unban
+                    </span>
+                  </div>
+                )}
+
+                {currentStage.telegramAlert && (
+                  <div className="flex items-start gap-1.5 rounded border border-sky-500/30 bg-sky-500/10 p-2 text-sky-400">
+                    <Bell className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span>{currentStage.telegramAlert}</span>
+                  </div>
+                )}
               </div>
             ) : (
-              <pre className="whitespace-pre-wrap rounded border border-zinc-800 bg-[#0d1117] p-3 font-mono text-[11px] leading-relaxed text-amber-200">
-                {currentBeat.httpResponsePreview}
-              </pre>
+              <div className="py-2 font-mono text-[11px] text-muted">
+                Nhật ký :8888 và cảnh báo Telegram sẽ cập nhật ngay khi request được gửi đi.
+              </div>
             )}
           </div>
 
-          {(explainOpen || isPaused || runPhase === "done") && (
-            <div className="rounded-md border border-emerald-600/35 bg-emerald-500/10 p-3 leading-relaxed text-secondary">
-              <div className="mb-1 font-mono text-[11px] font-bold uppercase text-emerald-700 dark:text-emerald-300">
-                Điểm trọng tâm trình bày trước Hội đồng ({currentBeat.ownerLabel}):
-              </div>
-              {currentBeat.defenseTalkingPoint}
+          {/* Member Defense Talking Point */}
+          <div className="rounded-lg border border-accent/30 bg-accent/5 p-3 text-xs space-y-1.5">
+            <div className="font-mono text-[11px] font-bold uppercase tracking-wider text-accent">
+              Điểm kỹ thuật ({currentStage.ownerMember})
             </div>
-          )}
+            <p className="leading-relaxed text-secondary">
+              {currentStage.talkingPoint}
+            </p>
+            <div className="font-mono text-[10px] text-muted">
+              Mã nguồn: <code className="text-ink">{currentStage.codeReference}</code>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronDown, ChevronUp, Download, Layers, Play, ShieldCheck, Terminal, Wrench } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, Download, Globe, Layers, Play, ShieldCheck, Terminal, Wrench } from "lucide-react";
 import { useWorkspace } from "@/components/WorkspaceProvider";
 import {
   ATTACK_FLOW_STAGES,
@@ -391,7 +391,14 @@ export function OverviewPageClient() {
               className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90"
             >
               <Play className="h-3.5 w-3.5" aria-hidden="true" />
-              Mô phỏng Kịch bản 4 Nhịp trên Web
+              Kịch bản 12 Bước + Web Live
+            </Link>
+            <Link
+              href="/mini-waf?tab=portal"
+              className="inline-flex items-center gap-1.5 rounded-md border border-accent bg-accent/10 px-3 py-2 text-xs font-semibold text-accent hover:bg-accent/20"
+            >
+              <Globe className="h-3.5 w-3.5" aria-hidden="true" />
+              Web Quản lý Điểm Trực tiếp
             </Link>
             <a
               href="/mini-waf/mini-waf-project.zip"
