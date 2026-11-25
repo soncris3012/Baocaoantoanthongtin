@@ -97,7 +97,7 @@ export function Navbar() {
                 : "text-secondary hover:bg-subtle hover:text-ink"
             }`}
           >
-            Mô phỏng Lab
+            Thực hành Lab
           </Link>
 
           <Link

@@ -145,14 +145,11 @@ function MoPhongContent() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="font-mono text-xs font-semibold uppercase tracking-wider text-accent">
-            Phòng Lab Mô phỏng Tương tác Trực tiếp
-          </div>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-            Console Mô phỏng: {member.display_name}
+          <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+            Workspace: {member.display_name}
           </h1>
           <p className="mt-1 text-sm text-secondary">
-            {member.role_title} · Thiết bị: <strong>{member.device}</strong> ({member.os_env})
+            {member.role_title} · {member.device} ({member.os_env})
           </p>
         </div>
 
@@ -160,19 +157,16 @@ function MoPhongContent() {
           href={`/thanh-vien/${selectedMember}`}
           className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-subtle px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-canvas"
         >
-          <span>Xem Kịch bản từng bước của {member.display_name}</span>
+          <span>Chi tiết {member.display_name}</span>
           <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
         </Link>
       </div>
 
-      {/* 4-Stage Attack-to-Defense Handoff Pipeline Bar */}
+      {/* Handoff Pipeline Bar */}
       <section className="rounded-lg border border-hairline bg-surface p-3.5">
         <div className="mb-2.5 flex items-center justify-between">
           <span className="font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
-            Luồng Bàn giao Dữ liệu 4 Trạm (Attack-to-Defense Handoff)
-          </span>
-          <span className="hidden text-[11px] text-muted sm:inline">
-            Chọn trạm để chuyển nhanh giữa 4 công cụ
+            Trạm Thực hành (4 Thành viên)
           </span>
         </div>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -212,17 +206,12 @@ function MoPhongContent() {
         </div>
       </section>
 
-      {/* Live Environment Variable Bar */}
+      {/* Environment Parameters */}
       <section className="rounded-lg border border-hairline bg-surface p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-xs font-bold text-ink sm:text-sm">
-              Biến Phiên Mô phỏng Dùng chung ({member.display_name})
-            </h2>
-            <p className="text-[11px] text-muted">
-              Thay đổi CONTAINER_REF, PHPSESSID hoặc USER_TOKEN tại đây sẽ cập nhật tức thì vào các gói tin và câu lệnh mô phỏng.
-            </p>
-          </div>
+          <h2 className="text-xs font-bold text-ink sm:text-sm">
+            Tham số Phiên ({member.display_name})
+          </h2>
           <button
             type="button"
             onClick={handleSaveVars}

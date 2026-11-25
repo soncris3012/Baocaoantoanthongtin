@@ -103,56 +103,28 @@ export function OverviewPageClient() {
         </div>
       </section>
 
-      {/* 2. PHAN CHIA KICH BAN 4 THANH VIEN */}
+      {/* 2. PHAN CHIA 4 THANH VIEN */}
       <section>
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight text-ink">
-              Phân chia Kịch bản Thực hành 4 Thành viên
-            </h2>
-            <p className="mt-1 text-sm text-muted">
-              Chọn đúng phần của từng thành viên để xem thao tác từng bước, lấy lệnh động và chạy trình mô phỏng.
-            </p>
-          </div>
+          <h2 className="text-xl font-bold tracking-tight text-ink">
+            Phân công Thực hành 4 Thành viên
+          </h2>
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/mo-phong"
               className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3.5 py-2 text-xs font-semibold text-canvas transition-opacity hover:opacity-90"
             >
               <Terminal className="h-3.5 w-3.5" aria-hidden="true" />
-              Mở Phòng Lab Mô phỏng
+              Mở Lab Console
             </Link>
             <Link
               href="/lab-setup"
               className="inline-flex items-center gap-2 rounded-md border border-hairline bg-surface px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-subtle"
             >
               <Wrench className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
-              Setup Lab &amp; .sh
+              Setup Lab
             </Link>
           </div>
-        </div>
-
-        {/* Live Simulator Callout */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-hairline bg-surface p-4 sm:p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-subtle text-accent border border-hairline">
-              <Play className="h-4 w-4" aria-hidden="true" />
-            </div>
-            <div>
-              <div className="text-sm font-bold text-ink">
-                Phòng Lab Mô phỏng Trực tuyến (Interactive Web Simulator)
-              </div>
-              <p className="mt-0.5 text-xs text-muted max-w-2xl">
-                Không cần cài máy ảo, bạn có thể chạy thử trực tiếp chuỗi lệnh Docker/Nmap của <strong>Sơn</strong>, bắt gói tin Burp của <strong>Hùng</strong>, chạy SQLMap của <strong>Quyết</strong> và kiểm thử WAF của <strong>Khánh</strong>.
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/mo-phong"
-            className="inline-flex items-center gap-2 rounded-md border border-hairline bg-subtle px-3.5 py-2 text-xs font-semibold text-ink transition-colors hover:bg-canvas"
-          >
-            Trải nghiệm Console ↗
-          </Link>
         </div>
 
         <div className="grid gap-5 md:grid-cols-2">
@@ -371,34 +343,26 @@ export function OverviewPageClient() {
         </div>
       </section>
 
-      {/* 3C. KIEN TRUC MINI-WAF V2 & KET QUA DO KIEM THUC NGHIEM */}
+      {/* 3C. MINI-WAF V2 & BENCHMARK */}
       <section className="rounded-lg border border-hairline bg-surface p-5 sm:p-6 space-y-5">
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-hairline pb-4">
-          <div className="space-y-1">
-            <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-accent">
-              Blue Team Engineering · Hợp nhất Đặc tả 9 trang &amp; Đề cương 11 trang
-            </div>
-            <h2 className="text-lg font-bold tracking-tight text-ink sm:text-xl">
-              Hệ thống Mini-WAF Chủ động (FastAPI Reverse Proxy + Inspection + Benchmark)
-            </h2>
-            <p className="max-w-3xl text-xs leading-relaxed text-muted sm:text-sm">
-              Kế thừa giai đoạn kiểm toán DVWA ban đầu để đóng gói sản phẩm phần mềm phòng thủ tầng biên hoàn chỉnh bằng Python (FastAPI + HTTPX + SQLite WAL + Docker Compose): cách ly kép <code className="font-mono text-ink">frontend_net</code> / <code className="font-mono text-ink">backend_net (internal=true)</code> cho cả Portal Quản lý Điểm (:8000) và DVWA (:80).
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-hairline pb-4">
+          <h2 className="text-lg font-bold tracking-tight text-ink sm:text-xl">
+            Mini-WAF Reverse Proxy (FastAPI + Benchmark 100 Mẫu)
+          </h2>
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/mini-waf"
               className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90"
             >
               <Play className="h-3.5 w-3.5" aria-hidden="true" />
-              Kịch bản 12 Bước + Web Live
+              Mở Mini-WAF
             </Link>
             <Link
               href="/mini-waf?tab=portal"
               className="inline-flex items-center gap-1.5 rounded-md border border-accent bg-accent/10 px-3 py-2 text-xs font-semibold text-accent hover:bg-accent/20"
             >
               <Globe className="h-3.5 w-3.5" aria-hidden="true" />
-              Web Quản lý Điểm Trực tiếp
+              Cổng Sinh viên
             </Link>
             <a
               href="/mini-waf/mini-waf-project.zip"
@@ -406,42 +370,38 @@ export function OverviewPageClient() {
               className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-subtle px-3 py-2 font-mono text-xs font-semibold text-ink hover:bg-canvas"
             >
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
-              Tải Full Code (.zip)
+              Code (.zip)
             </a>
           </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
           <div className="rounded-md border border-emerald-600/40 bg-emerald-500/5 p-3.5">
-            <div className="font-mono text-[11px] text-muted">Đo kiểm 100 Mẫu (50 Attack / 50 Benign)</div>
+            <div className="font-mono text-[11px] text-muted">100 Mẫu (50/50)</div>
             <div className="mt-1 font-mono text-lg font-bold text-emerald-700 dark:text-emerald-300">
               TPR 100% · FPR 0%
             </div>
-            <p className="mt-1 text-muted">TP=50, FP=0, TN=50, FN=0 · Cho qua an toàn họ tên O&apos;Brien, D&apos;Angelo &amp; phép so sánh 5 &lt; 10.</p>
           </div>
 
           <div className="rounded-md border border-hairline bg-subtle p-3.5">
-            <div className="font-mono text-[11px] text-muted">Độ trễ Phụ trội (OFF vs BLOCKING)</div>
+            <div className="font-mono text-[11px] text-muted">Độ trễ phụ trội</div>
             <div className="mt-1 font-mono text-lg font-bold text-ink">
-              +0.709 ms TB (p95: 2.16ms)
+              +0.709 ms (p95 2.16ms)
             </div>
-            <p className="mt-1 text-muted">0.928 ms (không WAF) lên 1.637 ms (có WAF) · Kiểm chứng trên 300 request lặp 3 lượt.</p>
           </div>
 
           <div className="rounded-md border border-hairline bg-subtle p-3.5">
-            <div className="font-mono text-[11px] text-muted">Cô lập &amp; Tách cổng Quản trị</div>
+            <div className="font-mono text-[11px] text-muted">Tách cổng</div>
             <div className="mt-1 font-mono text-lg font-bold text-ink">
               :8080 Proxy · :8888 Admin
             </div>
-            <p className="mt-1 text-muted">Port :8080 trả 404 mọi API quản trị; 0 payload độc hại lọt xuống target_web VULNERABLE/HARDENED (150/300 hits).</p>
           </div>
 
           <div className="rounded-md border border-hairline bg-subtle p-3.5">
-            <div className="font-mono text-[11px] text-muted">Kiểm thử Đơn vị &amp; Phòng thủ Chủ động</div>
+            <div className="font-mono text-[11px] text-muted">Kiểm thử</div>
             <div className="mt-1 font-mono text-lg font-bold text-accent">
-              13/13 Pytest Passed
+              13/13 Pytest
             </div>
-            <p className="mt-1 text-muted">test_sqli, test_xss, test_proxy, test_defense + Auto-Ban TTL 300s &amp; Log Masking.</p>
           </div>
         </div>
       </section>

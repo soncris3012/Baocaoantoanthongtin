@@ -345,22 +345,15 @@ export function MiniWafSimulator() {
 
   const blockedCount = logs.filter((l) => l.action === "BLOCKED" || l.action === "BANNED").length;
   const rateLimitedCount = logs.filter((l) => l.action === "RATE_LIMITED").length;
-  const monitoredCount = logs.filter((l) => l.action === "MONITORED").length;
-  const allowedCount = logs.filter((l) => l.action === "ALLOWED").length;
 
   return (
     <div className="rounded-lg border border-hairline bg-surface p-4 sm:p-5 space-y-4">
-      {/* Header & Global Mode Switch */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
-        <div>
-          <h3 className="flex items-center gap-2 text-sm font-bold text-ink sm:text-base">
-            <Shield className="h-4 w-4 text-accent" aria-hidden="true" />
-            Mini-WAF v2 Interactive Studio (Reverse Proxy :8080 · Admin :8888)
-          </h3>
-          <p className="mt-0.5 text-xs text-muted">
-            Mô phỏng toàn trình Kiến trúc Hợp nhất: Dual-Target Isolation, Normalization Pipeline, SQL Lexer, Sliding Window/Auto-Ban &amp; Benchmark.
-          </p>
-        </div>
+      {/* Header & Artifacts */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
+        <h3 className="flex items-center gap-2 text-sm font-bold text-ink sm:text-base">
+          <Shield className="h-4 w-4 text-accent" aria-hidden="true" />
+          Mini-WAF Proxy :8080 · Admin :8888
+        </h3>
 
         <div className="flex flex-wrap items-center gap-2">
           <a
@@ -369,7 +362,7 @@ export function MiniWafSimulator() {
             className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-subtle px-2.5 py-1.5 font-mono text-[11px] font-semibold text-ink hover:bg-canvas"
           >
             <Download className="h-3.5 w-3.5" aria-hidden="true" />
-            Tải Full Code (.zip)
+            Code (.zip)
           </a>
           <a
             href="/mini-waf/SPECIFICATION_V2.md"
@@ -377,16 +370,16 @@ export function MiniWafSimulator() {
             className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-subtle px-2.5 py-1.5 font-mono text-[11px] font-semibold text-ink hover:bg-canvas"
           >
             <Download className="h-3.5 w-3.5" aria-hidden="true" />
-            Đặc tả V2
+            Đặc tả
           </a>
         </div>
       </div>
 
-      {/* Live Topology Control Bar */}
+      {/* Topology Control Bar */}
       <div className="grid gap-3 rounded-lg border border-hairline bg-subtle p-3 sm:grid-cols-3 text-xs">
         <div>
           <div className="mb-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
-            1. Chế độ Vận hành WAF
+            WAF
           </div>
           <div className="inline-flex rounded border border-hairline bg-surface p-0.5">
             {(["OFF", "MONITOR", "BLOCKING"] as const).map((m) => (
@@ -415,13 +408,13 @@ export function MiniWafSimulator() {
 
         <div>
           <div className="mb-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
-            2. Upstream (Sơn · backend_net internal)
+            Upstream
           </div>
           <div className="flex flex-wrap gap-1.5">
             <div className="inline-flex rounded border border-hairline bg-surface p-0.5">
               {[
-                { id: "student_portal" as const, label: "Portal (:8000)" },
-                { id: "dvwa" as const, label: "DVWA (:80)" },
+                { id: "student_portal" as const, label: "Portal :8000" },
+                { id: "dvwa" as const, label: "DVWA :80" },
               ].map((u) => (
                 <button
                   key={u.id}
@@ -469,12 +462,12 @@ export function MiniWafSimulator() {
 
         <div>
           <div className="mb-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
-            3. Rate Limit (Quyết · protection/)
+            Rate Limit
           </div>
           <div className="inline-flex rounded border border-hairline bg-surface p-0.5">
             {[
-              { id: "sliding" as const, label: "Sliding Window" },
-              { id: "fixed" as const, label: "Fixed Window" },
+              { id: "sliding" as const, label: "Sliding" },
+              { id: "fixed" as const, label: "Fixed" },
             ].map((a) => (
               <button
                 key={a.id}
@@ -493,15 +486,15 @@ export function MiniWafSimulator() {
         </div>
       </div>
 
-      {/* 6 Subsystem Navigation Tabs (12-stage Scenario + Interactive Web Portal first) */}
+      {/* Navigation Tabs */}
       <div className="inline-flex flex-wrap rounded-md border border-hairline bg-subtle p-0.5 text-xs">
         {[
-          { id: "scenario" as const, label: "0. Kịch bản Live 12 Bước (4 Nhịp + Web)" },
-          { id: "portal" as const, label: "1. Web Quản lý Điểm (Sơn · :8000/:8080)" },
-          { id: "inspect" as const, label: "2. Proxy & Inspection (Sơn + Hùng)" },
-          { id: "defense" as const, label: "3. Rate Limit & Auto-Ban (Quyết)" },
-          { id: "dashboard" as const, label: "4. DB, Masking & Dashboard :8888 (Quyết)" },
-          { id: "benchmark" as const, label: "5. Tests & Benchmark 100 Mẫu (Khánh)" },
+          { id: "scenario" as const, label: "Quy trình 12 Bước" },
+          { id: "portal" as const, label: "Cổng Sinh viên" },
+          { id: "inspect" as const, label: "Proxy & Inspection" },
+          { id: "defense" as const, label: "Rate Limit & Auto-Ban" },
+          { id: "dashboard" as const, label: "Dashboard :8888" },
+          { id: "benchmark" as const, label: "Benchmark" },
         ].map((t) => (
           <button
             key={t.id}
@@ -518,7 +511,6 @@ export function MiniWafSimulator() {
         ))}
       </div>
 
-      {/* TAB 0: FULL 12-STAGE LIVE SCENARIO + LIVE PORTAL BROWSER */}
       {subTab === "scenario" && (
         <MiniWafScenarioPlayer
           initialBeat={initialBeat}
@@ -526,28 +518,24 @@ export function MiniWafSimulator() {
         />
       )}
 
-      {/* TAB 1: INTERACTIVE STUDENT PORTAL WEB DEMO + EXTERNAL RED-TEAM BENCH */}
       {subTab === "portal" && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs text-zinc-200 space-y-2.5">
+          <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3 font-mono text-xs text-zinc-200 space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2">
               <span className="inline-flex items-center gap-1.5 font-semibold text-sky-300">
                 <Terminal className="h-3.5 w-3.5" aria-hidden="true" />
-                Bảng Gửi Request Ngoài biên (Red-Team / Inspector — Tách rời khỏi Website)
-              </span>
-              <span className="text-[11px] text-zinc-400">
-                Mục tiêu thực tế dưới đây hoàn toàn sạch như Web Học viện; gửi payload từ đây để quan sát phản ứng thực của Web &amp; Mini-WAF
+                Request Ngoài biên
               </span>
             </div>
 
             <div className="flex flex-wrap gap-1.5 text-[11px]">
               {[
-                { label: "Hợp lệ: O'Brien", page: "search" as const, input: "O'Brien", tone: "emerald" },
-                { label: "SQLi Search: ' OR '1'='1--", page: "search" as const, input: "' OR '1'='1--", tone: "rose" },
-                { label: "Comment Bypass: UN/**/ION", page: "search" as const, input: "1' UN/**/ION SEL/**/ECT 1,2--", tone: "rose" },
-                { label: "SQLi Login: admin' OR '1'='1--", page: "login" as const, input: "admin' OR '1'='1--", tone: "rose" },
-                { label: "XSS: <img src=x onerror=alert(1)>", page: "comments" as const, input: "<img src=x onerror=alert(1)>", tone: "amber" },
-                { label: "LFI: ....//....//etc/passwd", page: "download" as const, input: "....//....//etc/passwd", tone: "amber" },
+                { label: "O'Brien", page: "search" as const, input: "O'Brien", tone: "emerald" },
+                { label: "' OR '1'='1--", page: "search" as const, input: "' OR '1'='1--", tone: "rose" },
+                { label: "1' UN/**/ION SEL/**/ECT 1,2--", page: "search" as const, input: "1' UN/**/ION SEL/**/ECT 1,2--", tone: "rose" },
+                { label: "admin' OR '1'='1--", page: "login" as const, input: "admin' OR '1'='1--", tone: "rose" },
+                { label: "<img src=x onerror=alert(1)>", page: "comments" as const, input: "<img src=x onerror=alert(1)>", tone: "amber" },
+                { label: "....//....//etc/passwd", page: "download" as const, input: "....//....//etc/passwd", tone: "amber" },
               ].map((vec) => (
                 <button
                   key={vec.label}
@@ -583,8 +571,7 @@ export function MiniWafSimulator() {
                         : "font-bold text-emerald-400"
                     }
                   >
-                    WAF: {portalExchange.action} · HTTP {portalExchange.status} · Score {portalExchange.score}
-                    {portalExchange.ruleIds.length ? ` [${portalExchange.ruleIds.join(", ")}]` : ""}
+                    {portalExchange.action} · HTTP {portalExchange.status}
                   </span>
                 </div>
                 <div className="text-emerald-300/90 break-all">
@@ -746,7 +733,7 @@ export function MiniWafSimulator() {
 
             {!inspectionResult ? (
               <div className="py-12 text-center text-zinc-500">
-                Chưa gửi request. Chọn một mẫu hoặc nhập dữ liệu rồi bấm &quot;Phân tích Gói tin qua Mini-WAF&quot;.
+                Chưa có dữ liệu.
               </div>
             ) : (
               <div className="space-y-2.5 text-[11px]">
@@ -834,7 +821,7 @@ export function MiniWafSimulator() {
             </div>
             {!defenseOutput ? (
               <div className="py-8 text-center text-zinc-500">
-                Bấm một trong hai nút phía trên để thử nghiệm thuật toán Sliding vs Fixed Window hoặc kích hoạt Auto-Ban 300s.
+                Chưa có dữ liệu.
               </div>
             ) : (
               <pre className="whitespace-pre-wrap text-[11px] leading-relaxed text-emerald-300">
@@ -852,11 +839,8 @@ export function MiniWafSimulator() {
             <div className="mx-auto max-w-md rounded-lg border border-hairline bg-subtle p-5 text-xs space-y-3">
               <div className="flex items-center gap-2 font-bold text-ink text-sm">
                 <Lock className="h-4 w-4 text-accent" aria-hidden="true" />
-                Xác thực Cổng Quản trị Tách biệt (Port 8888)
+                Đăng nhập Admin :8888
               </div>
-              <p className="text-muted">
-                Cổng Proxy (:8080) trả về 404 đối với API quản trị. Chỉ quản trị viên truy cập 127.0.0.1:8888 có mật khẩu đúng mới mở được Dashboard và thao tác Unban.
-              </p>
               <input
                 type="password"
                 value={adminPwdInput}
@@ -897,40 +881,32 @@ export function MiniWafSimulator() {
                 <div className="rounded-md border border-hairline bg-subtle p-3">
                   <div className="text-muted">Tổng yêu cầu</div>
                   <div className="mt-1 font-mono text-xl font-bold text-ink">{logs.length}</div>
-                  <div className="mt-0.5 font-mono text-[10px] text-muted">
-                    ALLOW {allowedCount} · MON {monitoredCount}
-                  </div>
                 </div>
                 <div className="rounded-md border border-hairline bg-subtle p-3">
-                  <div className="text-muted">Yêu cầu bị chặn</div>
+                  <div className="text-muted">Bị chặn</div>
                   <div className="mt-1 font-mono text-xl font-bold text-rose-600">
                     {blockedCount + rateLimitedCount}
                   </div>
-                  <div className="mt-0.5 font-mono text-[10px] text-muted">
-                    BLOCK {blockedCount} · 429 {rateLimitedCount}
-                  </div>
                 </div>
                 <div className="rounded-md border border-hairline bg-subtle p-3">
-                  <div className="text-muted">IP đang Auto-Ban</div>
+                  <div className="text-muted">IP Auto-Ban</div>
                   <div className="mt-1 font-mono text-xl font-bold text-amber-600">
                     {bannedIps.length}
                   </div>
-                  <div className="mt-0.5 font-mono text-[10px] text-muted">TTL 300s · O(1) RAM</div>
                 </div>
                 <div className="rounded-md border border-hairline bg-subtle p-3">
                   <div className="text-muted">Cảnh báo Telegram</div>
                   <div className="mt-1 font-mono text-xl font-bold text-emerald-600">
                     {telegramFeed.length}
                   </div>
-                  <div className="mt-0.5 font-mono text-[10px] text-muted">Async · Redacted</div>
                 </div>
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-lg border border-hairline bg-subtle p-3.5 text-xs space-y-2">
-                  <div className="font-bold text-ink">Danh sách Blacklist (Bấm Unban để gỡ khóa)</div>
+                  <div className="font-bold text-ink">Blacklist</div>
                   {bannedIps.length === 0 ? (
-                    <div className="text-muted">Chưa có IP nào đang bị khóa. Hãy chạy Auto-Ban ở Tab 2 hoặc gửi 3 payload BLOCK ở Tab 1.</div>
+                    <div className="text-muted">Trống.</div>
                   ) : (
                     <div className="space-y-2">
                       {bannedIps.map((b) => (
@@ -1039,14 +1015,9 @@ export function MiniWafSimulator() {
       {subTab === "benchmark" && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-subtle p-4">
-            <div>
-              <div className="flex items-center gap-2 text-sm font-bold text-ink">
-                <BarChart3 className="h-4 w-4 text-accent" aria-hidden="true" />
-                Kiểm định Khoa học 100 Mẫu (Confusion Matrix &amp; Latency Overhead)
-              </div>
-              <p className="mt-1 text-xs text-muted">
-                Chạy kiểm thử trực tiếp trên trình duyệt và đối chiếu số liệu thực nghiệm từ FastAPI ASGITransport Benchmark (<code className="font-mono text-ink">python -m tests.benchmark --iterations 3</code>).
-              </p>
+            <div className="flex items-center gap-2 text-sm font-bold text-ink">
+              <BarChart3 className="h-4 w-4 text-accent" aria-hidden="true" />
+              Benchmark 100 Mẫu
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <a
@@ -1062,14 +1033,14 @@ export function MiniWafSimulator() {
                 className="inline-flex cursor-pointer items-center gap-1.5 rounded bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
               >
                 <Play className="h-3.5 w-3.5" aria-hidden="true" />
-                Chạy Benchmark Đối chứng
+                Chạy Benchmark
               </button>
             </div>
           </div>
 
           {!benchmarkRunResult ? (
             <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-8 text-center font-mono text-xs text-zinc-500">
-              Chưa chạy benchmark. Bấm &quot;Chạy Benchmark Đối chứng&quot; để tính toán Precision, Recall (TPR), FPR, F1-score và Latency Delta.
+              Chưa chạy kiểm thử.
             </div>
           ) : (
             <div className="space-y-4">
