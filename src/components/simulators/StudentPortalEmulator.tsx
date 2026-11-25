@@ -5,6 +5,7 @@ import {
   Award,
   BookOpen,
   Calendar,
+  ChevronLeft,
   ChevronRight,
   Cpu,
   Download,
@@ -21,6 +22,11 @@ import {
   Users,
 } from "lucide-react";
 import { WindowControls } from "@/components/WindowBar";
+import {
+  PORTAL_CLASS_SUMMARIES,
+  PORTAL_STUDENTS,
+  type PortalStudentRow,
+} from "@/data/studentPortalDataset";
 import {
   type PortalSecurityMode,
   type WafMode,
@@ -44,21 +50,19 @@ export interface PortalHttpExchange {
   score: number;
 }
 
-interface StudentRow {
-  masv: string;
-  fullname: string;
-  className: string;
-  gpa: number;
-  note: string;
+interface PortalResponseState {
+  url: string;
+  status: number;
+  blockedByWaf: boolean;
+  incidentId?: string;
+  students?: PortalStudentRow[];
+  leakedRows?: string[];
+  sqlError?: string;
+  authenticatedUser?: { username: string; role: "admin" | "student"; viaBypass: boolean };
+  loginError?: string;
+  commentPreview?: { author: string; content: string; xssAlert: boolean };
+  downloadText?: string;
 }
-
-const STUDENTS: StudentRow[] = [
-  { masv: "SV001", fullname: "Nguyen Van An", className: "D22CNTT01", gpa: 8.8, note: "Mạng máy tính" },
-  { masv: "SV002", fullname: "Patrick O'Brien", className: "D22CNTT01", gpa: 9.1, note: "Cơ sở dữ liệu" },
-  { masv: "SV003", fullname: "Marco D'Angelo", className: "D22CNTT02", gpa: 8.4, note: "Toán rời rạc" },
-  { masv: "SV004", fullname: "Tran Thi Binh", className: "D22CNTT02", gpa: 7.9, note: "Hệ điều hành" },
-  { masv: "SV005", fullname: "Le Minh Khanh", className: "D22CNTT01", gpa: 9.4, note: "Kiến trúc máy tính" },
-];
 
 const ANNOUNCEMENTS = [
   {
@@ -80,20 +84,6 @@ const ANNOUNCEMENTS = [
     tag: "Nghiên cứu",
   },
 ];
-
-interface PortalResponseState {
-  url: string;
-  status: number;
-  blockedByWaf: boolean;
-  incidentId?: string;
-  students?: StudentRow[];
-  leakedRows?: string[];
-  sqlError?: string;
-  authenticatedUser?: { username: string; role: "admin" | "student"; viaBypass: boolean };
-  loginError?: string;
-  commentPreview?: { author: string; content: string; xssAlert: boolean };
-  downloadText?: string;
-}
 
 interface StudentPortalEmulatorProps {
   wafMode: WafMode;
@@ -134,6 +124,8 @@ export function StudentPortalEmulator({
 
   const [heroQuery, setHeroQuery] = useState("");
   const [searchInput, setSearchInput] = useState("SV001");
+  const [selectedClass, setSelectedClass] = useState<string>("ALL");
+  const [pageNum, setPageNum] = useState<number>(1);
   const [loginUser, setLoginUser] = useState("sv001");
   const [loginPass, setLoginPass] = useState("student123");
   const [commentAuthor, setCommentAuthor] = useState("Nguyen Van An");
@@ -229,6 +221,7 @@ export function StudentPortalEmulator({
     }
 
     if (targetPage === "search") {
+      setPageNum(1);
       const hasSqliAttack =
         /('|\bor\b|\bunion\b|\bselect\b)/i.test(rawVal) &&
         !/^(patrick )?o'brien$|^(marco )?d'angelo$/i.test(rawVal.trim());
@@ -237,10 +230,10 @@ export function StudentPortalEmulator({
           url: fullUrl,
           status: rawVal.trim() === "'" ? 500 : 200,
           blockedByWaf: false,
-          students: STUDENTS,
+          students: PORTAL_STUDENTS,
           leakedRows: [
-            "admin | portal_admin_2026 | Giảng viên Quản trị",
-            "sv001 | student123 | Sinh viên D22CNTT01",
+            "admin | portal_admin_2026 | Giảng viên Quản trị (Toàn quyền 402 hồ sơ)",
+            "sv001 | student123 | Sinh viên ANHTTT",
           ],
           sqlError:
             rawVal.trim() === "'"
@@ -258,12 +251,13 @@ export function StudentPortalEmulator({
         return;
       }
       const qLow = rawVal.trim().toLowerCase();
-      const matched = STUDENTS.filter(
+      const matched = PORTAL_STUDENTS.filter(
         (s) =>
           !qLow ||
           s.masv.toLowerCase().includes(qLow) ||
           s.fullname.toLowerCase().includes(qLow) ||
-          s.className.toLowerCase().includes(qLow)
+          s.className.toLowerCase().includes(qLow) ||
+          s.note.toLowerCase().includes(qLow)
       );
       setBrowserState({
         url: fullUrl,
@@ -717,6 +711,46 @@ export function StudentPortalEmulator({
                 </div>
               </div>
 
+              {/* 22-CLASS COHORT OVERVIEW GRID + RESEARCH / STATS */}
+              <div className="rounded-xl border border-[#E6EFEB] bg-[#F2F9F6] p-3.5 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="border-l-4 border-amber-400 pl-2.5 text-sm font-bold text-[#005F37] uppercase">
+                    Quy mô Các lớp Chuyên ngành ({PORTAL_STUDENTS.length} Học viên · {PORTAL_CLASS_SUMMARIES.length} Lớp CN)
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedClass("ALL");
+                      setSearchInput("");
+                      setPageNum(1);
+                      setPage("search");
+                      executePortalAction("search", "");
+                    }}
+                    className="cursor-pointer text-[11px] font-semibold text-[#005F37] hover:underline"
+                  >
+                    Xem toàn bộ {PORTAL_STUDENTS.length} hồ sơ ▶
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {PORTAL_CLASS_SUMMARIES.slice(0, 12).map((cls) => (
+                    <button
+                      key={cls.className}
+                      type="button"
+                      onClick={() => {
+                        setSelectedClass(cls.className);
+                        setSearchInput(cls.className);
+                        setPageNum(1);
+                        setPage("search");
+                        executePortalAction("search", cls.className);
+                      }}
+                      className="cursor-pointer rounded-md border border-[#E6EFEB] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#005F37] transition-colors hover:border-[#005F37] hover:bg-emerald-50"
+                    >
+                      {cls.className} <span className="font-mono text-slate-500">({cls.count})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* RESEARCH & IMPRESSIVE NUMBERS */}
               <div className="grid gap-3 sm:grid-cols-12">
                 <div className="sm:col-span-6 rounded-xl bg-[#0a1d35] p-4 text-white space-y-2">
@@ -733,7 +767,7 @@ export function StudentPortalEmulator({
                     Chuyển đổi số Quản lý Đào tạo &amp; Học liệu Mở cho Sinh viên Kỹ thuật
                   </div>
                   <p className="text-[11px] leading-relaxed text-slate-300">
-                    Kết nối đồng bộ dữ liệu điểm thi, lịch giảng đường và kho giáo trình dùng chung giữa các khoa chuyên ngành.
+                    Kết nối đồng bộ dữ liệu điểm thi, lịch giảng đường và kho giáo trình dùng chung giữa {PORTAL_CLASS_SUMMARIES.length} lớp chuyên ngành.
                   </p>
                 </div>
 
@@ -744,9 +778,9 @@ export function StudentPortalEmulator({
                   <div className="grid grid-cols-4 gap-2 text-center">
                     {[
                       { num: "3", label: "Top ĐH KTQS", Icon: Award },
-                      { num: "13", label: "Giải thưởng KHCN", Icon: GraduationCap },
-                      { num: "100+", label: "Chuyên ngành", Icon: BookOpen },
-                      { num: "5069+", label: "Sinh viên", Icon: Users },
+                      { num: String(PORTAL_CLASS_SUMMARIES.length), label: "Lớp Chuyên ngành", Icon: GraduationCap },
+                      { num: "100+", label: "Học phần", Icon: BookOpen },
+                      { num: `${PORTAL_STUDENTS.length}+`, label: "Học viên TĐ1", Icon: Users },
                     ].map((stat) => (
                       <div key={stat.label} className="space-y-0.5">
                         <stat.Icon className="mx-auto h-3.5 w-3.5 text-white/80" aria-hidden="true" />
@@ -761,84 +795,156 @@ export function StudentPortalEmulator({
           )}
 
           {/* FUNCTIONAL PAGE: GRADE LOOKUP */}
-          {page === "search" && (
-            <div className="space-y-3.5 bg-white p-4 text-xs">
-              <div className="border-l-4 border-amber-400 pl-2.5">
-                <h3 className="text-sm font-bold text-[#005F37]">
-                  Tra cứu Bảng điểm Học phần — Học kỳ I (2025 – 2026)
-                </h3>
-                <p className="text-[11px] text-slate-500">
-                  Nhập Mã sinh viên (vd: SV001) hoặc Họ và tên sinh viên (vd: Patrick O&apos;Brien) để kiểm tra kết quả học tập.
-                </p>
-              </div>
+          {page === "search" && (() => {
+            const baseList = browserState?.students ?? PORTAL_STUDENTS;
+            const filteredByClass =
+              selectedClass === "ALL"
+                ? baseList
+                : baseList.filter((st) => st.className === selectedClass);
+            const pageSize = 12;
+            const totalPages = Math.max(1, Math.ceil(filteredByClass.length / pageSize));
+            const safePage = Math.min(pageNum, totalPages);
+            const sliceRows = filteredByClass.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-              <div className="flex flex-wrap gap-2">
-                <input
-                  type="text"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  aria-label="Tìm kiếm sinh viên"
-                  className="min-w-[200px] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-slate-900"
-                />
-                <button
-                  type="button"
-                  onClick={() => executePortalAction("search", searchInput)}
-                  className="cursor-pointer rounded-lg bg-[#005F37] px-4 py-1.5 font-semibold text-white hover:bg-[#004a2b]"
-                >
-                  Tra cứu
-                </button>
-              </div>
-
-              {browserState?.sqlError && (
-                <div className="rounded-lg border border-rose-300 bg-rose-50 p-3 font-mono text-[11px] text-rose-800">
-                  {browserState.sqlError}
-                </div>
-              )}
-
-              {browserState?.leakedRows && (
-                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 font-mono text-[11px] text-slate-800">
-                  <div className="mb-1 font-sans text-xs font-bold text-slate-900">
-                    Kết quả truy vấn bổ sung từ CSDL:
+            return (
+              <div className="space-y-3.5 bg-white p-4 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-l-4 border-amber-400 pl-2.5">
+                  <div>
+                    <h3 className="text-sm font-bold text-[#005F37]">
+                      Tra cứu Bảng điểm Học phần — Học kỳ I (2025 – 2026)
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Quản lý {PORTAL_STUDENTS.length} hồ sơ điểm trên {PORTAL_CLASS_SUMMARIES.length} lớp chuyên ngành (ANHTTT, CNTT1–3, PTDL, KTPM, BĐATTT...).
+                    </p>
                   </div>
-                  {browserState.leakedRows.map((r) => (
-                    <div key={r}>{r}</div>
-                  ))}
                 </div>
-              )}
 
-              <div className="overflow-x-auto rounded-lg border border-[#E6EFEB]">
-                <table className="w-full text-left">
-                  <thead className="bg-[#F2F9F6] text-[#005F37]">
-                    <tr>
-                      <th className="px-3 py-2">Mã SV</th>
-                      <th className="px-3 py-2">Họ và tên</th>
-                      <th className="px-3 py-2">Lớp</th>
-                      <th className="px-3 py-2">GPA</th>
-                      <th className="px-3 py-2">Học phần</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {(browserState?.students ?? STUDENTS).map((st) => (
-                      <tr
-                        key={st.masv}
-                        className={
-                          st.masv === "SV002" && /o'brien/i.test(searchInput)
-                            ? "bg-emerald-50 font-semibold"
-                            : ""
-                        }
-                      >
-                        <td className="px-3 py-2 font-mono font-semibold text-[#005F37]">{st.masv}</td>
-                        <td className="px-3 py-2">{st.fullname}</td>
-                        <td className="px-3 py-2">{st.className}</td>
-                        <td className="px-3 py-2 font-mono font-bold text-[#005F37]">{st.gpa}</td>
-                        <td className="px-3 py-2 text-slate-600">{st.note}</td>
-                      </tr>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    aria-label="Tìm kiếm sinh viên"
+                    placeholder="Nhập Mã SV (SV001..SV402), Họ tên (vd: O'Brien) hoặc Lớp..."
+                    className="min-w-[200px] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-slate-900"
+                  />
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => {
+                      const cls = e.target.value;
+                      setSelectedClass(cls);
+                      setPageNum(1);
+                    }}
+                    aria-label="Lọc theo Lớp chuyên ngành"
+                    className="rounded-lg border border-slate-300 bg-[#F2F9F6] px-2.5 py-1.5 font-semibold text-[#005F37]"
+                  >
+                    <option value="ALL">Tất cả lớp ({PORTAL_STUDENTS.length})</option>
+                    {PORTAL_CLASS_SUMMARIES.map((c) => (
+                      <option key={c.className} value={c.className}>
+                        {c.className} ({c.count})
+                      </option>
                     ))}
-                  </tbody>
-                </table>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedClass("ALL");
+                      executePortalAction("search", searchInput);
+                    }}
+                    className="cursor-pointer rounded-lg bg-[#005F37] px-4 py-1.5 font-semibold text-white hover:bg-[#004a2b]"
+                  >
+                    Tra cứu
+                  </button>
+                </div>
+
+                {browserState?.sqlError && (
+                  <div className="rounded-lg border border-rose-300 bg-rose-50 p-3 font-mono text-[11px] text-rose-800">
+                    {browserState.sqlError}
+                  </div>
+                )}
+
+                {browserState?.leakedRows && (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 font-mono text-[11px] text-slate-800">
+                    <div className="mb-1 font-sans text-xs font-bold text-slate-900">
+                      Kết quả truy vấn bổ sung từ CSDL ({browserState.leakedRows.length} bảng ghi tài khoản):
+                    </div>
+                    {browserState.leakedRows.map((r) => (
+                      <div key={r}>{r}</div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="overflow-x-auto rounded-lg border border-[#E6EFEB]">
+                  <table className="w-full text-left">
+                    <thead className="bg-[#F2F9F6] text-[#005F37]">
+                      <tr>
+                        <th className="px-3 py-2">Mã SV</th>
+                        <th className="px-3 py-2">Họ và tên</th>
+                        <th className="px-3 py-2">Lớp CN</th>
+                        <th className="px-3 py-2">GPA</th>
+                        <th className="px-3 py-2">Học phần trọng tâm</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {sliceRows.map((st) => (
+                        <tr
+                          key={st.masv}
+                          className={
+                            st.masv === "SV002" && /o'brien/i.test(searchInput)
+                              ? "bg-emerald-50 font-semibold"
+                              : ""
+                          }
+                        >
+                          <td className="px-3 py-2 font-mono font-semibold text-[#005F37]">{st.masv}</td>
+                          <td className="px-3 py-2">{st.fullname}</td>
+                          <td className="px-3 py-2 font-mono text-[11px] text-slate-700">{st.className}</td>
+                          <td className="px-3 py-2 font-mono font-bold text-[#005F37]">{st.gpa}</td>
+                          <td className="px-3 py-2 text-slate-600">{st.note}</td>
+                        </tr>
+                      ))}
+                      {sliceRows.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-3 py-4 text-center text-slate-500">
+                            Không tìm thấy hồ sơ sinh viên phù hợp.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+                  <span>
+                    Hiển thị {filteredByClass.length === 0 ? 0 : (safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredByClass.length)} / {filteredByClass.length} hồ sơ
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={safePage <= 1}
+                      onClick={() => setPageNum((p) => Math.max(1, p - 1))}
+                      className="inline-flex cursor-pointer items-center gap-0.5 rounded border border-slate-300 bg-white px-2 py-1 font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                      Trước
+                    </button>
+                    <span className="font-mono font-semibold text-[#005F37]">
+                      Trang {safePage}/{totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={safePage >= totalPages}
+                      onClick={() => setPageNum((p) => Math.min(totalPages, p + 1))}
+                      className="inline-flex cursor-pointer items-center gap-0.5 rounded border border-slate-300 bg-white px-2 py-1 font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Sau
+                      <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* FUNCTIONAL PAGE: LOGIN PORTAL */}
           {page === "login" && (
@@ -866,7 +972,7 @@ export function StudentPortalEmulator({
                   </div>
                   {browserState.authenticatedUser.role === "admin" && (
                     <div className="rounded-lg border border-amber-300 bg-white p-3 text-[11px] text-slate-700">
-                      <strong>Bảng điều khiển Giảng viên:</strong> Đang hiển thị 5 hồ sơ điểm lớp D22CNTT01–02 (cho phép cập nhật GPA &amp; xuất danh sách).
+                      <strong>Bảng điều khiển Giảng viên:</strong> Đang quản lý {PORTAL_STUDENTS.length} hồ sơ điểm trên {PORTAL_CLASS_SUMMARIES.length} lớp chuyên ngành (ANHTTT, CNTT1–3, KTPM, PTDL, BĐATTT...).
                     </div>
                   )}
                 </div>
