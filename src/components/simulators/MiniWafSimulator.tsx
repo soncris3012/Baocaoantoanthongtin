@@ -12,10 +12,15 @@ import {
   RotateCcw,
   Shield,
   ShieldAlert,
+  Terminal,
   Unlock,
 } from "lucide-react";
 import { MiniWafScenarioPlayer } from "@/components/simulators/MiniWafScenarioPlayer";
-import { StudentPortalEmulator } from "@/components/simulators/StudentPortalEmulator";
+import {
+  type PortalDriverCommand,
+  type PortalHttpExchange,
+  StudentPortalEmulator,
+} from "@/components/simulators/StudentPortalEmulator";
 import { WindowControls } from "@/components/WindowBar";
 import {
   type PortalSecurityMode,
@@ -92,6 +97,8 @@ export function MiniWafSimulator() {
     telegramMsg: string | null;
     upstreamReached: boolean;
   } | null>(null);
+  const [portalCmd, setPortalCmd] = useState<PortalDriverCommand | null>(null);
+  const [portalExchange, setPortalExchange] = useState<PortalHttpExchange | null>(null);
 
   // Tab 2 & 3 states (Shared telemetry fed by Tab 1 & Tab 2 actions)
   const [adminUnlocked, setAdminUnlocked] = useState(false);
@@ -519,18 +526,80 @@ export function MiniWafSimulator() {
         />
       )}
 
-      {/* TAB 1: INTERACTIVE STUDENT PORTAL WEB DEMO */}
+      {/* TAB 1: INTERACTIVE STUDENT PORTAL WEB DEMO + EXTERNAL RED-TEAM BENCH */}
       {subTab === "portal" && (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-hairline bg-subtle px-3 py-2 text-xs text-secondary">
-            <span>
-              Trình duyệt tương tác trực tiếp với <strong className="text-ink">Website Quản lý Điểm Sinh viên</strong> đang chạy sau Reverse Proxy <code className="font-mono text-ink">:8080</code>. Thay đổi nút <strong className="text-ink">WAF (OFF / MONITOR / BLOCKING)</strong> hoặc <strong className="text-ink">VULNERABLE / HARDENED</strong> ở thanh điều khiển phía trên để kiểm chứng ngay trên Web!
-            </span>
+        <div className="space-y-4">
+          <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-xs text-zinc-200 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2">
+              <span className="inline-flex items-center gap-1.5 font-semibold text-sky-300">
+                <Terminal className="h-3.5 w-3.5" aria-hidden="true" />
+                Bảng Gửi Request Ngoài biên (Red-Team / Inspector — Tách rời khỏi Website)
+              </span>
+              <span className="text-[11px] text-zinc-400">
+                Mục tiêu thực tế dưới đây hoàn toàn sạch như Web Học viện; gửi payload từ đây để quan sát phản ứng thực của Web &amp; Mini-WAF
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 text-[11px]">
+              {[
+                { label: "Hợp lệ: O'Brien", page: "search" as const, input: "O'Brien", tone: "emerald" },
+                { label: "SQLi Search: ' OR '1'='1--", page: "search" as const, input: "' OR '1'='1--", tone: "rose" },
+                { label: "Comment Bypass: UN/**/ION", page: "search" as const, input: "1' UN/**/ION SEL/**/ECT 1,2--", tone: "rose" },
+                { label: "SQLi Login: admin' OR '1'='1--", page: "login" as const, input: "admin' OR '1'='1--", tone: "rose" },
+                { label: "XSS: <img src=x onerror=alert(1)>", page: "comments" as const, input: "<img src=x onerror=alert(1)>", tone: "amber" },
+                { label: "LFI: ....//....//etc/passwd", page: "download" as const, input: "....//....//etc/passwd", tone: "amber" },
+              ].map((vec) => (
+                <button
+                  key={vec.label}
+                  type="button"
+                  onClick={() =>
+                    setPortalCmd((prev) => ({
+                      id: (prev?.id ?? 0) + 1,
+                      page: vec.page,
+                      input: vec.input,
+                    }))
+                  }
+                  className={`cursor-pointer rounded border px-2 py-1 font-semibold transition-colors ${
+                    vec.tone === "emerald"
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                      : vec.tone === "rose"
+                      ? "border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
+                      : "border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+                  }`}
+                >
+                  {vec.label}
+                </button>
+              ))}
+            </div>
+
+            {portalExchange && (
+              <div className="rounded border border-zinc-800 bg-zinc-950/90 p-2.5 text-[11px] space-y-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-zinc-400">
+                  <span className="truncate text-zinc-200">{portalExchange.url}</span>
+                  <span
+                    className={
+                      portalExchange.action === "BLOCKED" || portalExchange.action === "BANNED"
+                        ? "font-bold text-rose-400"
+                        : "font-bold text-emerald-400"
+                    }
+                  >
+                    WAF: {portalExchange.action} · HTTP {portalExchange.status} · Score {portalExchange.score}
+                    {portalExchange.ruleIds.length ? ` [${portalExchange.ruleIds.join(", ")}]` : ""}
+                  </span>
+                </div>
+                <div className="text-emerald-300/90 break-all">
+                  {portalExchange.headers.join(" | ")}
+                </div>
+              </div>
+            )}
           </div>
+
           <StudentPortalEmulator
             wafMode={wafMode}
             portalMode={portalSecurityMode}
             ipBanned={bannedIps.some((b) => b.ip === effectiveIp)}
+            externalCommand={portalCmd}
+            onExchange={setPortalExchange}
           />
         </div>
       )}
