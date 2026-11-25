@@ -391,7 +391,7 @@ export function OverviewPageClient() {
               className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90"
             >
               <Play className="h-3.5 w-3.5" aria-hidden="true" />
-              Mở Studio Mini-WAF v2
+              Mô phỏng Kịch bản 4 Nhịp trên Web
             </Link>
             <a
               href="/mini-waf/mini-waf-project.zip"

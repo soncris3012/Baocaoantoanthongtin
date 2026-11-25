@@ -1284,6 +1284,130 @@ Fingerprint: n'kkkkw -> Lexer WAF: BLOCK (Detected structural UNION + SELECT cla
       "Giải pháp tôi tự phát triển là bộ phân tích từ vựng SQL Lexical Tokenizer bằng Python theo triết lý của libinjection: giải mã nhiều lớp, chuẩn hóa bình luận điều kiện MySQL và khớp cấu trúc ngữ pháp thay vì tìm từ khóa chết, kết hợp chuẩn PHP SafePDO tắt emulate prepares để triệt tiêu hoàn toàn SQL Injection.",
     simulator_key: "m4-eng",
   },
+  // ==================== MINI-WAF V2 SCENARIO (BUOC 7 CHO 4 THANH VIEN) ====================
+  {
+    id: "m1-s7",
+    member_number: 1,
+    step_order: 7,
+    phase_tag: "MINI-WAF V2 • WEB DEMO & PROXY",
+    title: "Triển khai Web Demo 2 Chế độ (VULNERABLE / HARDENED) & Cô lập Reverse Proxy (:8080)",
+    poc_ref: "Mini-WAF v2 • Nhịp 1 (Sơn)",
+    is_defense: true,
+    goal: "Thiết kế Website Quản lý Điểm Sinh viên (target_web cổng 8000) với hai chế độ VULNERABLE vs HARDENED (Prepared Statements, Output Escaping, Path Sandbox), chạy sau Reverse Proxy FastAPI/HTTPX cổng 8080 trong mạng backend_net (internal: true) không mở port 8000 ra máy Host.",
+    action_steps: [
+      "Mở target_web/app.py xem cách chuyển đổi APP_SECURITY_MODE=VULNERABLE và HARDENED.",
+      "Kiểm tra docker ps & nmap -sV -p 8080,8000 127.0.0.1 xác nhận cổng 8000 ẩn hoàn toàn, mọi truy cập đi qua waf/proxy/server.py (:8080).",
+      "So sánh phản hồi khi WAF OFF trên target_web VULNERABLE vs HARDENED để chứng minh lập trình an toàn vẫn là tuyến phòng thủ gốc.",
+    ],
+    commands: [
+      {
+        label: "Kiểm tra cô lập cổng 8000 & chạy Proxy + Target Web (:8080 -> :8000)",
+        shell: "python",
+        template: `nmap -sV -p 8080,8000 127.0.0.1 && PYTHONPATH=. .venv/bin/python waf/main.py`,
+        explanation: "waf/main.py khởi chạy đồng thời Reverse Proxy :8080 (waf/proxy/server.py) và Admin Control Plane 127.0.0.1:8888.",
+      },
+    ],
+    expected_output: `8080/tcp open   http    Mini-WAF Reverse Proxy (waf/proxy/server.py)
+8000/tcp closed irdmi   (target_web nằm trong backend_net: internal=true)
+[Mini-WAF] Proxy Server listening on http://0.0.0.0:8080 -> http://target_web:8000`,
+    academic_explanation:
+      "Kết hợp Virtual Patching ở Reverse Proxy (forward.py xóa header Server/X-Powered-By và gắn HttpOnly; SameSite=Lax) với chế độ HARDENED ở Web Demo chứng minh rõ vai trò bổ trợ của Defense-in-Depth.",
+    presenter_script:
+      "Ở hệ thống Mini-WAF hoàn chỉnh, tôi trực tiếp xây dựng Web Quản lý Sinh viên 2 chế độ VULNERABLE/HARDENED trên cổng 8000 và cửa ngõ Reverse Proxy bất đồng bộ ở cổng 8080, cô lập hoàn toàn backend khỏi mạng Host.",
+    simulator_key: "miniwaf-beat-1",
+  },
+  {
+    id: "m2-s7",
+    member_number: 2,
+    step_order: 7,
+    phase_tag: "MINI-WAF V2 • INSPECTION ENGINE",
+    title: "Xây dựng Lõi Chuẩn hóa Chống Bypass & Phát hiện Đa lớp Tránh Nhầm O'Brien",
+    poc_ref: "Mini-WAF v2 • Nhịp 3 (Hùng)",
+    is_defense: true,
+    goal: "Tổ chức Inspection Engine gồm parser.py, normalizer.py, sqli.py, xss.py, traversal.py và engine.py để chuẩn hóa URL decode 3 lớp, HTML entity, comment SQL (UN/**/ION & /*!50000...*/), HPP và JSON lồng nhau, đồng thời giữ tỷ lệ chặn nhầm 0% cho tên O'Brien / D'Angelo.",
+    action_steps: [
+      "Mở waf/inspection/normalizer.py kiểm tra hai biểu diễn spaced và collapsed giải quyết xung đột bình luận SQL.",
+      "Gửi bộ mẫu né lọc (%2527, UN/**/ION, /*!50000UNION*/) xác nhận sqli.py chấm điểm >= 5 (BLOCK).",
+      "Gửi ?q=O'Brien xác nhận chỉ cộng SQL-01 (+2 < ngưỡng 5) và SQL Lexical Tokenizer cho đi qua 200 OK.",
+    ],
+    commands: [
+      {
+        label: "Kiểm thử Normalizer & Inspection Engine với O'Brien vs Double-Encode/Comment",
+        shell: "python",
+        template: `curl -s -o /dev/null -w "DoubleEncode:%{http_code} " "http://127.0.0.1:8080/search?q=1%2527%2520OR%25201%253D1--" && curl -s "http://127.0.0.1:8080/search?q=O'Brien"`,
+        explanation: "Minh họa rõ khả năng chống bypass đa tầng và giảm báo động nhầm bằng Anomaly Scoring kết hợp SQL Lexical Tokenizer.",
+      },
+    ],
+    expected_output: `DoubleEncode:403 (SQL-01 + SQL-02 + SQL-05 = 13 điểm >= 5 -> BLOCKED)
+O'Brien: 200 OK -> {"query":"O'Brien","count":1,"students":[{"masv":"SV002","fullname":"Patrick O'Brien","gpa":9.1}]}`,
+    academic_explanation:
+      "Thay vì regex đơn lẻ dễ bị bypass hoặc khóa nhầm dấu nháy hợp lệ, thiết kế tách riêng parser, normalizer, sqli, xss, traversal dưới điều phối Anomaly Scoring (>= 5) đạt cân bằng tối ưu giữa độ nhạy và tính khả dụng.",
+    presenter_script:
+      "Tôi đảm nhiệm toàn bộ bộ não Inspection Engine gồm parser, normalizer, sqli, xss, traversal và engine. Nhờ chuẩn hóa 3 lớp và chấm điểm bất thường, hệ thống chặn gọn payload mã hóa kép và chèn comment nhưng vẫn cho phép tên O'Brien đi qua bình thường.",
+    simulator_key: "miniwaf-beat-3",
+  },
+  {
+    id: "m3-s7",
+    member_number: 3,
+    step_order: 7,
+    phase_tag: "MINI-WAF V2 • PROTECTION & DASHBOARD",
+    title: "Phòng thủ Hành vi (Sliding Window / Auto-Ban), Che Log Nhạy cảm & Dashboard :8888",
+    poc_ref: "Mini-WAF v2 • Nhịp 2 (Quyết)",
+    is_defense: true,
+    goal: "Cài đặt thuật toán Sliding Window (deque) chống đột biến biên, cơ chế Auto-Ban có thời hạn TTL (300s), chống giả mạo X-Forwarded-For qua TRUSTED_PROXIES, che dữ liệu nhạy cảm trong SQLite WAL (***MASKED***), Dashboard tách cổng :8888 kèm nút Unban và cảnh báo Telegram bất đồng bộ.",
+    action_steps: [
+      "Mở waf/protection/rate_limit.py, blacklist.py, decision.py đối chiếu Fixed vs Sliding Window và XFF guard.",
+      "Gửi 3 yêu cầu vi phạm liên tiếp để kích hoạt Auto-Ban TTL 300s và cảnh báo Telegram ẩn PII.",
+      "Đăng nhập Admin Dashboard cổng 127.0.0.1:8888 kiểm tra log đã masking và thao tác gỡ khóa (Unban).",
+    ],
+    commands: [
+      {
+        label: "Kích hoạt Blocking, kiểm tra Stats bảo mật & Unban IP qua cổng Admin :8888",
+        shell: "python",
+        template: `curl -s -H "X-Admin-Token: miniwaf-admin-2026" http://127.0.0.1:8888/api/stats && curl -s -X POST http://127.0.0.1:8888/api/unban -H "X-Admin-Token: miniwaf-admin-2026" -d '{"ip":"198.51.100.77"}'`,
+        explanation: "Tách biệt hoàn toàn cổng điều khiển 8888 khỏi cổng traffic 8080 để ngăn kẻ tấn công rà quét vào trang quản trị.",
+      },
+    ],
+    expected_output: `{"total_requests":3,"blocked_count":3,"banned_count":1,"rate_algo":"sliding","spike_alert":true}
+{"ok":true,"ip":"198.51.100.77","removed":true}`,
+    academic_explanation:
+      "Phòng thủ hành vi bảo vệ tầng ứng dụng trước các cuộc rà quét tự động hoặc vét cạn bằng tốc độ cao với độ phức tạp kiểm tra Blacklist O(1), đồng thời tuân thủ an toàn nhật ký khi loại bỏ mật khẩu/Cookie trước khi lưu CSDL.",
+    presenter_script:
+      "Phần của tôi là phòng thủ hành vi và trung tâm giám sát gồm protection/, database/ và monitoring/. Hệ thống dùng Sliding Window chặn spam, tự khóa IP tạm thời 300 giây, chống giả mạo X-Forwarded-For, che mật khẩu trong log và cho phép Unban trực tiếp trên Dashboard :8888.",
+    simulator_key: "miniwaf-beat-2",
+  },
+  {
+    id: "m4-s7",
+    member_number: 4,
+    step_order: 7,
+    phase_tag: "MINI-WAF V2 • KIỂM THỬ & BENCHMARK",
+    title: "Kiểm chứng Đối chứng Nmap/Burp/SQLMap & Benchmark Định lượng 100 Mẫu",
+    poc_ref: "Mini-WAF v2 • Nhịp 4 (Khánh)",
+    is_defense: false,
+    goal: "Chuyển bộ công cụ Nmap/Burp/SQLMap thành bài kiểm thử Red Team đối chứng giữa hai kịch bản Không WAF (OFF) và Có Mini-WAF (BLOCKING), đồng thời chạy pytest (test_sqli, test_xss, test_proxy) và benchmark.py đo chính xác Precision, Recall, F1 và độ trễ mean/median/p95.",
+    action_steps: [
+      "Chạy .venv/bin/pytest -v tests/test_sqli.py tests/test_xss.py tests/test_proxy.py tests/test_defense.py xác nhận 13/13 ca PASS.",
+      "Chạy PYTHONPATH=. .venv/bin/python -m tests.benchmark --iterations 3 với 100 mẫu Ground Truth (50 tấn công + 50 hợp lệ biên).",
+      "Đối chiếu số liệu Precision, Recall, FPR, F1, Latency Overhead và Backend Shielding (chỉ 150 request sạch đi tới backend).",
+    ],
+    commands: [
+      {
+        label: "Chạy bộ Pytest đầy đủ & Script đo kiểm Khoa học Benchmark 100 Mẫu",
+        shell: "python",
+        template: `.venv/bin/pytest -v tests/test_sqli.py tests/test_xss.py tests/test_proxy.py tests/test_defense.py && PYTHONPATH=. .venv/bin/python -m tests.benchmark --iterations 3`,
+        explanation: "Cung cấp bằng chứng định lượng khoa học (Confusion Matrix & Độ trễ p95) thay vì nhận xét cảm tính.",
+      },
+    ],
+    expected_output: `13 passed in 0.38s
+WAF OFF      : Backend Hits=300 | Mean=0.928ms | Median=0.859ms | p95=1.404ms
+WAF BLOCKING : TP=50 FP=0 TN=50 FN=0 | Precision=100.0% | Recall(TPR)=100.0% | FPR=0.0% | F1=100.0%
+               Mean=1.637ms | Median=1.693ms | p95=2.160ms | Overhead Delta=+0.709ms`,
+    academic_explanation:
+      "Phương pháp đánh giá định lượng sử dụng đầy đủ Precision, Recall, F1-score cùng 3 mức phân vị độ trễ giúp hội đồng đánh giá khách quan hiệu năng lẫn giới hạn nghiên cứu của Mini-WAF.",
+    presenter_script:
+      "Ở phần cuối, tôi chịu trách nhiệm kiểm thử xâm nhập đối chứng và viết bộ test_sqli, test_xss, test_proxy cùng benchmark.py trên 100 mẫu Ground Truth, ghi nhận TPR 100%, FPR 0% với độ trễ phụ trội trung bình chỉ +0.709 ms.",
+    simulator_key: "miniwaf-beat-4",
+  },
 ];
 
 export const VULNERABILITIES: VulnerabilityItem[] = [
@@ -1991,6 +2115,58 @@ export const STEP_ENRICHMENTS: Record<string, StepEnrichment> = {
         symptom: "Dùng PDO nhưng vẫn để mặc định PDO::ATTR_EMULATE_PREPARES = true",
         cause: "PHP tự nội suy chuỗi phía client thay vì gửi gói tin Prepare + Execute tách biệt xuống MySQL Server.",
         fix: "Luôn khai báo rõ PDO::ATTR_EMULATE_PREPARES => false khi khởi tạo kết nối PDO.",
+      },
+    ],
+  },
+  "m1-s7": {
+    verification_checks: [
+      "nmap -sV -p 8080,8000 xác nhận 8000 closed (ẩn trong backend_net: internal=true), chỉ 8080 open.",
+      "target_web hoạt động đầy đủ ở cả hai chế độ APP_SECURITY_MODE=VULNERABLE và HARDENED.",
+    ],
+    pitfalls: [
+      {
+        symptom: "Lộ header Server: uvicorn khi chạy FastAPI trực tiếp trên TCP",
+        cause: "uvicorn tự thêm Server header ở lớp HTTP/1.1 transport nếu không cấu hình.",
+        fix: "Khởi tạo uvicorn.Config(..., server_header=False) trong waf/main.py.",
+      },
+    ],
+  },
+  "m2-s7": {
+    verification_checks: [
+      "Payload %2527, UN/**/ION và /*!50000UNION*/ đều trả 403 Forbidden.",
+      "Truy vấn tên hợp lệ ?q=O'Brien và biểu thức 5 < 10 trả về 200 OK.",
+    ],
+    pitfalls: [
+      {
+        symptom: "Thay thế /*...*/ bằng chuỗi rỗng trên toàn bộ chuỗi làm SELECT/**/FROM dính thành SELECTFROM",
+        cause: "Xóa comment chỉ một chiều thay vì dùng hai luồng phân tích.",
+        fix: "Tạo đồng thời hai view spaced (gắn dấu cách) và collapsed (nối từ bị tách) trong normalizer.py.",
+      },
+    ],
+  },
+  "m3-s7": {
+    verification_checks: [
+      "Cổng 8080 trả 404 với /api/stats; cổng 8888 yêu cầu X-Admin-Token / Cookie hợp lệ.",
+      "Nhật ký security_logs che cookie/password bằng ***MASKED*** và Unban khôi phục truy cập ngay lập tức.",
+    ],
+    pitfalls: [
+      {
+        symptom: "Kẻ tấn công giả mạo header X-Forwarded-For để vượt Auto-Ban",
+        cause: "Tin cậy mặc định header X-Forwarded-For từ mọi nguồn kết nối.",
+        fix: "Chỉ đọc X-Forwarded-For khi socket peer khớp danh sách TRUSTED_PROXIES trong client_ip.py.",
+      },
+    ],
+  },
+  "m4-s7": {
+    verification_checks: [
+      ".venv/bin/pytest -v vượt qua toàn bộ 13/13 test case trên test_sqli, test_xss, test_proxy, test_defense.",
+      "python -m tests.benchmark --iterations 3 đạt TP=50, FP=0, TN=50, FN=0 và độ trễ phụ trội < 1 ms.",
+    ],
+    pitfalls: [
+      {
+        symptom: "Đo Accuracy thất bại sau mẫu tấn công thứ 3 trong benchmark hàng loạt",
+        cause: "Auto-Ban khóa IP loopback của script benchmark trước khi chạy hết 100 mẫu.",
+        fix: "Tách pha đo Accuracy/Latency (tắt Auto-Ban tạm thời) khỏi pha kiểm thử Rate Limit 429 và Auto-Ban.",
       },
     ],
   },

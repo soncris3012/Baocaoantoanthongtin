@@ -140,6 +140,22 @@ export function buildStepTerminalCommands(
         `python3 public/engineering/khanh_sql_lexer_waf.py --payload "1' /*!50000UNION*/ /*!50000SELECT*/ user,password FROM users#"`,
         `python3 public/engineering/khanh_sql_lexer_waf.py --show-pdo`,
       ];
+    case "m1-s7":
+      return [
+        `nmap -sV -p 8080,8000 127.0.0.1 && PYTHONPATH=. .venv/bin/python waf/main.py`,
+      ];
+    case "m2-s7":
+      return [
+        `curl -s -o /dev/null -w "DoubleEncode:%{http_code} " "http://127.0.0.1:8080/search?q=1%2527%2520OR%25201%253D1--" && curl -s "http://127.0.0.1:8080/search?q=O'Brien"`,
+      ];
+    case "m3-s7":
+      return [
+        `curl -s -H "X-Admin-Token: miniwaf-admin-2026" http://127.0.0.1:8888/api/stats && curl -s -X POST http://127.0.0.1:8888/api/unban -H "X-Admin-Token: miniwaf-admin-2026" -d '{"ip":"198.51.100.77"}'`,
+      ];
+    case "m4-s7":
+      return [
+        `.venv/bin/pytest -v tests/test_sqli.py tests/test_xss.py tests/test_proxy.py tests/test_defense.py && PYTHONPATH=. .venv/bin/python -m tests.benchmark --iterations 3`,
+      ];
     default:
       return null;
   }
@@ -357,6 +373,30 @@ export function describeTerminalCommand(rawCmd: string): { title: string; effect
     return {
       title: "Kiểm chứng Container Bất biến (--read-only --cap-drop=ALL)",
       effect: "Chứng minh lớp Kernel từ chối ghi webshell (/var/www/html/shell.php) với lỗi Read-only file system ngay cả khi tầng PHP có lỗ hổng.",
+    };
+  }
+  if (lower.includes("waf/main.py") || lower.includes("8080,8000")) {
+    return {
+      title: "Kiểm tra cô lập cổng 8000 & Khởi chạy Mini-WAF (:8080 / :8888)",
+      effect: "Xác nhận cổng target_web 8000 ẩn trong backend_net (internal=true) và kích hoạt Reverse Proxy + Admin Control Plane.",
+    };
+  }
+  if (lower.includes("o'brien") || lower.includes("1%2527")) {
+    return {
+      title: "Kiểm thử Normalizer 3 vòng & phân biệt O'Brien",
+      effect: "Chứng minh payload mã hóa URL kép bị chặn 403 trong khi họ tên chứa dấu nháy đơn hợp lệ (O'Brien) đi qua 200 OK.",
+    };
+  }
+  if (lower.includes("8888/api/stats") || lower.includes("/api/unban")) {
+    return {
+      title: "Truy vấn Dashboard :8888 & Gỡ chặn IP (Unban)",
+      effect: "Giao tiếp an toàn với Admin Control Plane tách cổng bằng X-Admin-Token để kiểm tra thống kê và mở khóa IP.",
+    };
+  }
+  if (lower.includes("pytest") || lower.includes("tests.benchmark")) {
+    return {
+      title: "Chạy Bộ Pytest (13 ca) & Benchmark Định lượng 100 Mẫu",
+      effect: "Đo kiểm chính xác TP, FP, TN, FN, Precision, Recall, F1 và độ trễ Mean/Median/p95 giữa OFF và BLOCKING.",
     };
   }
 
@@ -1775,6 +1815,42 @@ export function TerminalEmulator({
           nextCwd: tabCwd,
         };
       }
+    }
+
+    if (lower.startsWith(".venv/bin/pytest") || lower.includes("tests.benchmark")) {
+      return {
+        output: `13 passed in 0.38s (test_sqli, test_xss, test_proxy, test_defense)\n=== Mini-WAF Benchmark Report (100 samples x 3 iters) ===\nWAF OFF      : Backend Hits=300 | Mean=0.928ms | Median=0.859ms | p95=1.404ms\nWAF BLOCKING : TP=50 FP=0 TN=50 FN=0 | Precision=100.0% | Recall(TPR)=100.0% | FPR=0.0% | F1=100.0%\n               Mean=1.637ms | Median=1.693ms | p95=2.160ms | Overhead Delta=+0.709ms`,
+        tone: "ok",
+        nextContext: tabContext,
+        nextCwd: tabCwd,
+      };
+    }
+
+    if (lower.includes("waf/main.py") || lower.includes("8080,8000")) {
+      return {
+        output: `PORT     STATE    SERVICE\n8080/tcp open     http    Mini-WAF Reverse Proxy (:8080)\n8000/tcp closed   irdmi   (Cô lập trong backend_net: internal=true)\n[Mini-WAF] Proxy Server listening on http://0.0.0.0:8080 -> http://target_web:8000\n[Mini-WAF] Admin Dashboard listening on http://127.0.0.1:8888`,
+        tone: "ok",
+        nextContext: tabContext,
+        nextCwd: tabCwd,
+      };
+    }
+
+    if (lower.includes("8888/api/stats") || lower.includes("/api/unban")) {
+      return {
+        output: `{"total_requests":3,"blocked_count":3,"banned_count":1,"rate_algo":"sliding","spike_alert":true}\n{"ok":true,"ip":"198.51.100.77","removed":true}`,
+        tone: "ok",
+        nextContext: tabContext,
+        nextCwd: tabCwd,
+      };
+    }
+
+    if (lower.includes("o'brien") || lower.includes("1%2527")) {
+      return {
+        output: `DoubleEncode:403 (SQL-01 + SQL-02 + SQL-05 = 13 điểm >= 5 -> BLOCKED)\n{"query":"O'Brien","count":1,"students":[{"masv":"SV002","fullname":"Patrick O'Brien","class_name":"AT19A","gpa":9.1}]}`,
+        tone: "ok",
+        nextContext: tabContext,
+        nextCwd: tabCwd,
+      };
     }
 
     return {

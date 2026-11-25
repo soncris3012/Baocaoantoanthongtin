@@ -611,14 +611,24 @@ export function MemberPageClient({ memberNumber }: MemberPageClientProps) {
                     })()}
 
                     {step.simulator_key && (
-                      <button
-                        type="button"
-                        onClick={() => handleJumpToSimulator(step.simulator_key)}
-                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-hairline bg-subtle px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-canvas"
-                      >
-                        <Play className="h-3.5 w-3.5" aria-hidden="true" />
-                        Mở Simulator
-                      </button>
+                      step.simulator_key.startsWith("miniwaf-beat-") ? (
+                        <Link
+                          href={`/mini-waf?beat=${step.simulator_key.replace("miniwaf-beat-", "")}`}
+                          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                        >
+                          <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                          Mô phỏng Kịch bản Mini-WAF
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleJumpToSimulator(step.simulator_key)}
+                          className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-hairline bg-subtle px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-canvas"
+                        >
+                          <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                          Mở Simulator
+                        </button>
+                      )
                     )}
 
                     <button

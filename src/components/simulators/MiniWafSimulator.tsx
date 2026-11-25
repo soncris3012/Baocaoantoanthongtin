@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   Unlock,
 } from "lucide-react";
+import { MiniWafScenarioPlayer } from "@/components/simulators/MiniWafScenarioPlayer";
 import { WindowControls } from "@/components/WindowBar";
 
 type WafMode = "OFF" | "MONITOR" | "BLOCKING";
@@ -378,11 +379,22 @@ const VERIFIED_PYTHON_BENCHMARK = {
 };
 
 export function MiniWafSimulator() {
-  const [subTab, setSubTab] = useState<"inspect" | "defense" | "dashboard" | "benchmark">("inspect");
+  const [subTab, setSubTab] = useState<"scenario" | "inspect" | "defense" | "dashboard" | "benchmark">("scenario");
+  const [initialBeat, setInitialBeat] = useState<number | undefined>(undefined);
   const [wafMode, setWafMode] = useState<WafMode>("BLOCKING");
   const [upstreamTarget, setUpstreamTarget] = useState<UpstreamTarget>("student_portal");
   const [portalSecurityMode, setPortalSecurityMode] = useState<"VULNERABLE" | "HARDENED">("VULNERABLE");
   const [rateAlgo, setRateAlgo] = useState<RateAlgo>("sliding");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const beat = Number(sp.get("beat"));
+    if (beat >= 1 && beat <= 4) {
+      setInitialBeat(beat);
+      setSubTab("scenario");
+    }
+  }, []);
 
   // Tab 1 states (zero pre-executed output)
   const [reqMethod, setReqMethod] = useState<"GET" | "POST">("GET");
@@ -418,6 +430,14 @@ export function MiniWafSimulator() {
     clientFn: number;
     pythonReport: typeof VERIFIED_PYTHON_BENCHMARK;
   } | null>(null);
+
+  const handleSyncTopology = useCallback(
+    (next: { wafMode: WafMode; portalMode: "VULNERABLE" | "HARDENED" }) => {
+      setWafMode(next.wafMode);
+      setPortalSecurityMode(next.portalMode);
+    },
+    []
+  );
 
   const effectiveIp = useMemo(() => {
     if (peerTrusted && xffHeader.trim()) return xffHeader.trim();
@@ -784,9 +804,10 @@ export function MiniWafSimulator() {
         </div>
       </div>
 
-      {/* 4 Subsystem Navigation Tabs */}
+      {/* 5 Subsystem Navigation Tabs (Scenario Demo first) */}
       <div className="inline-flex flex-wrap rounded-md border border-hairline bg-subtle p-0.5 text-xs">
         {[
+          { id: "scenario" as const, label: "0. Kịch bản Live Demo (4 Nhịp · Từng thành viên)" },
           { id: "inspect" as const, label: "1. Web 2 Chế độ & Proxy (Sơn) + Inspection (Hùng)" },
           { id: "defense" as const, label: "2. Rate Limit & Auto-Ban (Quyết)" },
           { id: "dashboard" as const, label: "3. DB, Masking & Dashboard :8888 (Quyết)" },
@@ -806,6 +827,14 @@ export function MiniWafSimulator() {
           </button>
         ))}
       </div>
+
+      {/* TAB 0: FULL 4-BEAT LIVE SCENARIO SIMULATOR */}
+      {subTab === "scenario" && (
+        <MiniWafScenarioPlayer
+          initialBeat={initialBeat}
+          onSyncTopology={handleSyncTopology}
+        />
+      )}
 
       {/* TAB 1: INSPECTION ENGINE */}
       {subTab === "inspect" && (

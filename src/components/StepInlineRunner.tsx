@@ -480,6 +480,39 @@ Fingerprint: n'kkkkw -> Lexer WAF: BLOCK (Detected structural UNION + SELECT cla
 
 [+] PDO::ATTR_EMULATE_PREPARES => false + FILTER_VALIDATE_INT đã sẵn sàng.`;
 
+      case "m1-s7":
+        return `[+] Kiểm tra cô lập mạng Docker & khởi chạy Reverse Proxy:
+8080/tcp open   http    Mini-WAF Reverse Proxy (waf/proxy/server.py)
+8000/tcp closed irdmi   (target_web cô lập trong backend_net: internal=true)
+[Mini-WAF] Proxy Server listening on http://0.0.0.0:8080 -> http://target_web:8000
+[Mini-WAF] Admin Dashboard listening on http://127.0.0.1:8888
+[✓] target_web hỗ trợ đủ 2 chế độ APP_SECURITY_MODE=VULNERABLE và HARDENED.`;
+
+      case "m2-s7":
+        return `[+] Kiểm thử Normalizer đa tầng + SQL Lexical Tokenizer:
+Probe 1 (?q=1%2527%2520OR%25201%253D1--) -> DoubleEncode: 403 BLOCKED (Score=13)
+Probe 2 (?q=1' UN/**/ION SEL/**/ECT 1,2--) -> CommentSplit: 403 BLOCKED (Score=14)
+Probe 3 (?q=O'Brien) -> Chỉ khớp SQL-01 (+2 < 5) -> 200 OK:
+{"query":"O'Brien","count":1,"students":[{"masv":"SV002","fullname":"Patrick O'Brien","gpa":9.1}]}`;
+
+      case "m3-s7":
+        return `[+] Truy vấn Control Plane tách cổng (127.0.0.1:8888/api/stats):
+{"total_requests":3,"blocked_count":3,"banned_count":1,"rate_algo":"sliding","spike_alert":true}
+
+[+] Gỡ khóa thủ công (Unban) từ Dashboard :8888:
+POST /api/unban {"ip":"198.51.100.77"} -> {"ok":true,"ip":"198.51.100.77","removed":true}
+[✓] Log đã masking password/Cookie/Bearer trước khi lưu SQLite WAL.`;
+
+      case "m4-s7":
+        return `[+] .venv/bin/pytest -v (tests/test_sqli, test_xss, test_proxy, test_defense):
+============================== 13 passed in 0.38s ==============================
+
+[+] python -m tests.benchmark --iterations 3 (100 mẫu Ground Truth x 3 lượt):
+WAF OFF      : Backend Hits=300 | Mean=0.928ms | Median=0.859ms | p95=1.404ms
+WAF BLOCKING : TP=50 FP=0 TN=50 FN=0 | Precision=100.0% | Recall(TPR)=100.0% | FPR=0.0% | F1=100.0%
+               Mean=1.637ms | Median=1.693ms | p95=2.160ms | Overhead Delta=+0.709ms
+Backend Shielding: Chỉ 150 request hợp lệ đi xuống target_web (0 payload độc hại lọt qua!).`;
+
       default:
         return step.expected_output || "[✓] Đã hoàn tất mô phỏng lệnh.";
     }
