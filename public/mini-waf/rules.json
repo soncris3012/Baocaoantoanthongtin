@@ -1,0 +1,85 @@
+{
+  "anomaly_threshold": 5,
+  "rules": [
+    {
+      "id": "SQL-01",
+      "group": "SQLi",
+      "name": "SQL Quote or Inline Comment Signal",
+      "targets": ["query", "query_hpp", "body", "query_key"],
+      "pattern": "(?:'|\\\"|\\s--(?:\\s|$)|#)",
+      "weight": 2,
+      "severity": "LOW",
+      "note": "Soft suspicion signal (+2 < 5): avoids false positives on surnames like O'Brien or D'Angelo."
+    },
+    {
+      "id": "SQL-02",
+      "group": "SQLi",
+      "name": "SQL Tautology & Boolean Logic",
+      "targets": ["query", "query_hpp", "body"],
+      "pattern": "(?:(?:'|\\\")\\s*(?:or|and|xor)\\s+(?:['\\\"]?[a-z0-9_]+['\\\"]?\\s*=\\s*['\\\"]?[a-z0-9_]+['\\\"]?|true\\b))|(?:\\b(?:or|and|xor)\\s+['\\\"]?\\d+['\\\"]?\\s*=\\s*['\\\"]?\\d+['\\\"]?)|(?:\\bor\\s+'[^']{1,32}'\\s*=\\s*'[^']{1,32}')",
+      "weight": 5,
+      "severity": "HIGH",
+      "note": "Blocks classic tautologies (' OR '1'='1, OR 1=1) and boolean authentication bypasses."
+    },
+    {
+      "id": "SQL-03",
+      "group": "SQLi",
+      "name": "SQL UNION SELECT & Metadata Enumeration",
+      "targets": ["query", "query_hpp", "body"],
+      "pattern": "(?:\\bunion(?:\\s+all)?\\s+(?:select\\b|\\(\\s*select\\b))|(?:\\b(?:information_schema|sqlite_master)\\b)|(?:\\binto\\s+(?:outfile|dumpfile)\\b)|(?:\\bload_file\\s*\\()",
+      "weight": 6,
+      "severity": "CRITICAL",
+      "note": "Catches UNION-based extraction and metadata schema dumps after comment normalization."
+    },
+    {
+      "id": "SQL-04",
+      "group": "SQLi",
+      "name": "Time-Based Blind SQLi & Stacked DDL",
+      "targets": ["query", "query_hpp", "body"],
+      "pattern": "(?:\\b(?:sleep|benchmark|pg_sleep|randomblob)\\s*\\()|(?:\\bwaitfor\\s+delay\\b)|(?:;\\s*(?:drop\\s+table|delete\\s+from|insert\\s+into|alter\\s+table)\\b)",
+      "weight": 6,
+      "severity": "HIGH",
+      "note": "Catches SLEEP/BENCHMARK timing probes and stacked destructive DDL/DML."
+    },
+    {
+      "id": "XSS-01",
+      "group": "XSS",
+      "name": "XSS Executable HTML Tag / Event Attribute",
+      "targets": ["query", "query_hpp", "body", "path"],
+      "pattern": "(?:<\\s*/?\\s*(?:script|iframe|svg|object|embed)\\b)|(?:<\\s*(?:img|body|video|audio|details|a|input|marquee)\\b[^>]*\\bon(?:error|load|click|mouseover|focus|toggle|start)\\s*=)|(?:\\bon(?:error|load|mouseover|focus)\\s*=\\s*['\\\"]?(?:alert|prompt|confirm|fetch|eval|document))|(?:\\b(?:javascript|vbscript)\\s*:)",
+      "weight": 5,
+      "severity": "HIGH",
+      "note": "Detects script tags, event-handler injections, and javascript: URIs without tripping on '5 < 10'."
+    },
+    {
+      "id": "LFI-01",
+      "group": "LFI",
+      "name": "Path Traversal & Sensitive System Files",
+      "targets": ["path", "query", "query_hpp", "body"],
+      "pattern": "(?:\\.\\./|\\.\\.\\\\|\\x00|%00|/etc/passwd|/etc/shadow|/etc/hosts|/proc/self/|\\\\windows\\\\win\\.ini|file://)",
+      "weight": 5,
+      "severity": "HIGH",
+      "note": "Detects directory traversal sequences, null bytes, and Linux/Windows sensitive system files."
+    },
+    {
+      "id": "SCN-01",
+      "group": "Scanner",
+      "name": "Automated Scanner User-Agent Signal",
+      "targets": ["header:user-agent"],
+      "pattern": "\\b(?:sqlmap|nikto|acunetix|masscan|hydra|nessus|gobuster|dirbuster|wfuzz|ffuf|havij)\\b",
+      "weight": 3,
+      "severity": "MEDIUM",
+      "note": "Soft telemetry (+3 < 5) aligned with multi-signal philosophy: avoids blocking purely on spoofable User-Agent unless combined with suspicious probing."
+    },
+    {
+      "id": "SCN-02",
+      "group": "Scanner",
+      "name": "Sensitive Hidden Probe Endpoint",
+      "targets": ["path"],
+      "pattern": "(?:^/\\.env$|^/\\.git(?:/|$)|/wp-login\\.php$|/phpmyadmin(?:/|$)|/actuator/env$|/cgi-bin/)",
+      "weight": 3,
+      "severity": "MEDIUM",
+      "note": "Flags scanner enumeration paths; combines with SCN-01 (+3+3=6 >= 5) to block automated Nikto/dirb probes immediately."
+    }
+  ]
+}

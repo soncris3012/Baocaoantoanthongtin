@@ -1,0 +1,94 @@
+services:
+  target_web:
+    build:
+      context: ./target_web
+      dockerfile: Dockerfile
+    container_name: miniwaf-target-web
+    environment:
+      - APP_SECURITY_MODE=${TARGET_APP_SECURITY_MODE:-vulnerable}
+      - DB_PATH=/tmp/student_portal.db
+    networks:
+      - backend_net
+    # Security architecture rule: target_web NEVER publishes ports to the Host.
+    expose:
+      - "8000"
+    mem_limit: 256m
+    pids_limit: 80
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  dvwa:
+    image: vulnerables/web-dvwa:latest
+    container_name: miniwaf-dvwa
+    profiles:
+      - dvwa
+    networks:
+      - backend_net
+    # Isolated inside internal backend_net: attackers cannot bypass Mini-WAF directly.
+    expose:
+      - "80"
+    mem_limit: 512m
+    pids_limit: 128
+    restart: unless-stopped
+
+  mini-waf:
+    build:
+      context: ./waf
+      dockerfile: Dockerfile
+    container_name: miniwaf-proxy
+    depends_on:
+      - target_web
+    environment:
+      - UPSTREAM_URL=${UPSTREAM_URL:-http://target_web:8000}
+      - PROXY_HOST=0.0.0.0
+      - PROXY_PORT=8080
+      - ADMIN_HOST=0.0.0.0
+      - ADMIN_PORT=8888
+      - WAF_MODE=${WAF_MODE:-BLOCKING}
+      - ANOMALY_THRESHOLD=${ANOMALY_THRESHOLD:-5}
+      - RATE_LIMIT_ALGO=${RATE_LIMIT_ALGO:-sliding}
+      - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-30}
+      - RATE_LIMIT_WINDOW_SEC=${RATE_LIMIT_WINDOW_SEC:-10}
+      - AUTOBAN_VIOLATIONS=${AUTOBAN_VIOLATIONS:-3}
+      - AUTOBAN_WINDOW_SEC=${AUTOBAN_WINDOW_SEC:-60}
+      - AUTOBAN_TTL_SEC=${AUTOBAN_TTL_SEC:-300}
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-miniwaf-admin-2026}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-miniwaf-admin-2026}
+      - WAF_DB_PATH=/data/waf_logs.db
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+    ports:
+      - "8080:8080"
+      # Admin dashboard binds to host loopback only, never exposed on untrusted interfaces.
+      - "127.0.0.1:8888:8888"
+    networks:
+      - frontend_net
+      - backend_net
+    volumes:
+      - waf_data:/data
+    mem_limit: 512m
+    pids_limit: 100
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+networks:
+  frontend_net:
+    driver: bridge
+  backend_net:
+    driver: bridge
+    internal: true
+
+volumes:
+  waf_data:

@@ -1,0 +1,1136 @@
+[
+  {
+    "id": "atk-sql-01",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=' OR '1'='1",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-sql-02",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1' OR 1=1--",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-sql-03",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/grades",
+    "query": "masv=SV001' UNION SELECT null,username,password,0 FROM accounts--",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-sql-04",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1 UNION SELECT user,password FROM users",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-sql-05",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1' AND 1=1#",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-sql-06",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "POST",
+    "path": "/login",
+    "body": "username=admin' OR '1'='1&password=x",
+    "headers": {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "query": ""
+  },
+  {
+    "id": "atk-sql-07",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/grades",
+    "query": "masv=1 OR 1=1",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-sql-08",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1' UNION ALL SELECT sql,null,null,null FROM sqlite_master--",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-sql-09",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1' UNION SELECT table_name,null FROM information_schema.tables#",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-sql-10",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1' AND SLEEP(5)#",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-sql-11",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1' AND BENCHMARK(5000000,MD5(1))#",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-sql-12",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1'; WAITFOR DELAY '0:0:5'--",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-sql-13",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/grades",
+    "query": "masv=1'; DROP TABLE students;--",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-sql-14",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1' AND ASCII(SUBSTRING(database(),1,1))>79#",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-sql-15",
+    "group": "SQLi Basic",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "POST",
+    "path": "/login",
+    "body": "{\"username\":\"admin' OR true--\",\"password\":\"x\"}",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "query": ""
+  },
+  {
+    "id": "atk-eva-01",
+    "group": "SQLi Evasion",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1%2527%2520OR%25201%253D1--",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-eva-02",
+    "group": "SQLi Evasion",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1' UN/**/ION SEL/**/ECT user,password FROM users#",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-eva-03",
+    "group": "SQLi Evasion",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1' /*!50000UNION*/ /*!50000SELECT*/ 1,2,3,4--",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-eva-04",
+    "group": "SQLi Evasion",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1' UnIoN SeLeCt 1,2,3,4--",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-eva-05",
+    "group": "SQLi Evasion",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=%26%2339%3B%20OR%20%26%2339%3B1%26%2339%3B%3D%26%2339%3B1",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-eva-06",
+    "group": "SQLi Evasion",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=SV001&q=' OR 1=1--",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-eva-07",
+    "group": "SQLi Evasion",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "POST",
+    "path": "/login",
+    "body": "{\"user\":{\"name\":\"admin\\u0027 OR \\u00271\\u0027=\\u00271\"}}",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "query": ""
+  },
+  {
+    "id": "atk-eva-08",
+    "group": "SQLi Evasion",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1'/**/OR/**/1=1#",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-eva-09",
+    "group": "SQLi Evasion",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1%27%09UNION%0ASELECT%091,2,3,4--",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-eva-10",
+    "group": "SQLi Evasion",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=1＇ UNION SELECT 1,2,3,4--",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-xss-01",
+    "group": "XSS",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=<script>alert(1)</script>",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-xss-02",
+    "group": "XSS",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=<img src=x onerror=alert(document.cookie)>",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-xss-03",
+    "group": "XSS",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=<svg onload=alert(1)>",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-xss-04",
+    "group": "XSS",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=<iframe src=\"javascript:alert(1)\"></iframe>",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-xss-05",
+    "group": "XSS",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=%3Cscript%3Efetch('http://evil.local')%3C/script%3E",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-xss-06",
+    "group": "XSS",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=%253Cscript%253Ealert(1)%253C/script%253E",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-xss-07",
+    "group": "XSS",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=<body onload=alert('xss')>",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-xss-08",
+    "group": "XSS",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "POST",
+    "path": "/comments",
+    "body": "author=sv001&msg=<ScRiPt>alert(9)</ScRiPt>",
+    "headers": {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "query": ""
+  },
+  {
+    "id": "atk-xss-09",
+    "group": "XSS",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=&lt;script&gt;alert(1)&lt;/script&gt;",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-xss-10",
+    "group": "XSS",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "POST",
+    "path": "/login",
+    "body": "{\"note\":\"<img src=x onerror=confirm(1)>\"}",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "query": ""
+  },
+  {
+    "id": "atk-xss-11",
+    "group": "XSS",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=\" onmouseover=\"alert(1)",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-xss-12",
+    "group": "XSS",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=javascript:alert(document.domain)",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-lfi-01",
+    "group": "LFI",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/download",
+    "query": "file=../../etc/passwd",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-lfi-02",
+    "group": "LFI",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/download",
+    "query": "file=..%2f..%2fetc/passwd",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-lfi-03",
+    "group": "LFI",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/download",
+    "query": "file=%252e%252e%252f%252e%252e%252fetc/shadow",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-lfi-04",
+    "group": "LFI",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/download",
+    "query": "file=....//....//etc/passwd",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-lfi-05",
+    "group": "LFI",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/download",
+    "query": "file=..\\..\\windows\\win.ini",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-lfi-06",
+    "group": "LFI",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/download",
+    "query": "file=tailieu.pdf%00.jpg",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-lfi-07",
+    "group": "LFI",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/../etc/passwd",
+    "query": "",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-lfi-08",
+    "group": "LFI",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/download",
+    "query": "file=file:///etc/hosts",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "atk-scn-01",
+    "group": "Scanner",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=SV001'",
+    "headers": {
+      "User-Agent": "sqlmap/1.8.4#stable"
+    },
+    "body": ""
+  },
+  {
+    "id": "atk-scn-02",
+    "group": "Scanner",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/.env",
+    "query": "",
+    "headers": {
+      "User-Agent": "Nikto/2.5.0"
+    },
+    "body": ""
+  },
+  {
+    "id": "atk-scn-03",
+    "group": "Scanner",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/.git/config",
+    "query": "",
+    "headers": {
+      "User-Agent": "Acunetix Web Vulnerability Scanner"
+    },
+    "body": ""
+  },
+  {
+    "id": "atk-scn-04",
+    "group": "Scanner",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/phpmyadmin/index.php",
+    "query": "",
+    "headers": {
+      "User-Agent": "DirBuster-1.0-RC1"
+    },
+    "body": ""
+  },
+  {
+    "id": "atk-scn-05",
+    "group": "Scanner",
+    "label": "malicious",
+    "expected": "BLOCK",
+    "method": "GET",
+    "path": "/wp-login.php",
+    "query": "test=1'",
+    "headers": {
+      "User-Agent": "Hydra v9.5"
+    },
+    "body": ""
+  },
+  {
+    "id": "ben-01",
+    "group": "Normal Search",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/",
+    "query": "",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-02",
+    "group": "Normal Search",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=SV001",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-03",
+    "group": "Normal Search",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=SV002",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-04",
+    "group": "Normal Search",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=SV003",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-05",
+    "group": "Normal Search",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=SV004",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-06",
+    "group": "Normal Search",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=SV005",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-07",
+    "group": "Normal Search",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/grades",
+    "query": "masv=SV001",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-08",
+    "group": "Normal Search",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/grades",
+    "query": "masv=SV005",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-09",
+    "group": "Normal Search",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=Nguyen%20Van%20An",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-10",
+    "group": "Normal Search",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=Tran%20Thi%20Binh",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-11",
+    "group": "Apostrophe Edge",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=O'Brien",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-12",
+    "group": "Apostrophe Edge",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=D'Angelo",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-13",
+    "group": "Apostrophe Edge",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=O'Connor",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-14",
+    "group": "Apostrophe Edge",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "POST",
+    "path": "/search",
+    "body": "{\"student\":\"Patrick O'Brien\"}",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "query": ""
+  },
+  {
+    "id": "ben-15",
+    "group": "Apostrophe Edge",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "author=Minh&msg=It's%20a%20great%20course",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-16",
+    "group": "Math Edge",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=5%20%3C%2010%20and%20gpa%20%3E%208.0",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-17",
+    "group": "Math Edge",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=a%20%3C%20b%20or%20x%20%3E%20y",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-18",
+    "group": "Math Edge",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=2025-2026",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-19",
+    "group": "Math Edge",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=9.25",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-20",
+    "group": "Math Edge",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=diem%20tu%205%20den%2010",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-21",
+    "group": "Academic Prose",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=Bai%20giang%20An%20toan%20thong%20tin%20hay%20qua",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-22",
+    "group": "Academic Prose",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=Please%20select%20one%20option%20from%20menu",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-23",
+    "group": "Academic Prose",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=The%20student%20union%20meets%20at%20noon",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-24",
+    "group": "Academic Prose",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=Tim%20hieu%20co%20che%20Prepared%20Statement",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-25",
+    "group": "Academic Prose",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=Can%20giai%20thich%20ve%20Cross-Site%20Scripting",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-26",
+    "group": "Document Download",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/download",
+    "query": "file=tailieu.pdf",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-27",
+    "group": "Document Download",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/download",
+    "query": "file=huongdan.txt",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-28",
+    "group": "Document Download",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/download",
+    "query": "file=de_cuong_attt_2026.pdf",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-29",
+    "group": "Document Download",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/download",
+    "query": "file=ket-qua-thi.csv",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-30",
+    "group": "Document Download",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/download",
+    "query": "file=danh_sach_lop_AT19A.xlsx",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-31",
+    "group": "Auth Normal",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "POST",
+    "path": "/login",
+    "body": "username=sv001&password=student123",
+    "headers": {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    "query": ""
+  },
+  {
+    "id": "ben-32",
+    "group": "Auth Normal",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "POST",
+    "path": "/login",
+    "body": "{\"username\":\"admin\",\"password\":\"portal_admin_2026\"}",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "query": ""
+  },
+  {
+    "id": "ben-33",
+    "group": "Auth Normal",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=Le%20Minh%20Khanh",
+    "headers": {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X)"
+    },
+    "body": ""
+  },
+  {
+    "id": "ben-34",
+    "group": "Auth Normal",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/grades",
+    "query": "masv=SV003",
+    "headers": {
+      "User-Agent": "curl/8.5.0"
+    },
+    "body": ""
+  },
+  {
+    "id": "ben-35",
+    "group": "Auth Normal",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=AT19A",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-36",
+    "group": "Auth Normal",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=AT19B",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-37",
+    "group": "Auth Normal",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/grades",
+    "query": "masv=SV002",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-38",
+    "group": "Auth Normal",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/grades",
+    "query": "masv=SV004",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-39",
+    "group": "Auth Normal",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "author=Son&msg=Nhom%204%20hoan%20thanh%20phan%20proxy",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-40",
+    "group": "Auth Normal",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "author=Hung&msg=Rule%20O'Brien%20pass%20tot",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-41",
+    "group": "Unicode Vietnamese",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=Nguy%E1%BB%85n%20V%C4%83n%20An",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-42",
+    "group": "Unicode Vietnamese",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=B%E1%BA%A3o%20m%E1%BA%ADt%20%E1%BB%A9ng%20d%E1%BB%A5ng%20Web",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-43",
+    "group": "Unicode Vietnamese",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=M%C3%B4%20h%C3%ACnh%20ph%C3%B2ng%20th%E1%BB%A7%20chi%E1%BB%81u%20s%C3%A2u",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-44",
+    "group": "Unicode Vietnamese",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=C%E1%BA%ADp%20nh%E1%BA%ADt%20%C4%91i%E1%BB%83m%20k%E1%BB%B3%202",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-45",
+    "group": "Unicode Vietnamese",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "msg=Ch%C3%BAc%20m%E1%BB%ABng%20l%E1%BB%9Bp%20AT19A",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-46",
+    "group": "Multi-Signal Benign",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=O'Brien%20student",
+    "headers": {
+      "User-Agent": "Mozilla/5.0"
+    },
+    "body": ""
+  },
+  {
+    "id": "ben-47",
+    "group": "Multi-Signal Benign",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/grades",
+    "query": "masv=SV001",
+    "headers": {
+      "User-Agent": "python-httpx/0.28"
+    },
+    "body": ""
+  },
+  {
+    "id": "ben-48",
+    "group": "Multi-Signal Benign",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "author=Quyet&msg=Dashboard%20hoat%20dong%20on%20dinh",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-49",
+    "group": "Multi-Signal Benign",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/comments",
+    "query": "author=Khanh&msg=Benchmark%20hoan%20tat%20100%20mau",
+    "body": "",
+    "headers": {}
+  },
+  {
+    "id": "ben-50",
+    "group": "Multi-Signal Benign",
+    "label": "benign",
+    "expected": "ALLOW",
+    "method": "GET",
+    "path": "/search",
+    "query": "q=Marco%20D'Angelo",
+    "body": "",
+    "headers": {}
+  }
+]

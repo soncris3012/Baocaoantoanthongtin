@@ -485,6 +485,61 @@ export function LabSetupClient() {
           ))}
         </div>
       </section>
+
+      {/* 6. Mini-WAF v2 Reverse Proxy & Benchmark Suite */}
+      <section className="rounded-lg border border-hairline bg-surface p-5 sm:p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+              <Terminal className="h-4 w-4 text-accent" aria-hidden="true" />
+              6. Hệ thống Mini-WAF v2 (Reverse Proxy :8080 · Admin Dashboard :8888)
+            </h2>
+            <p className="mt-1 text-xs text-muted sm:text-sm">
+              Triển khai trọn bộ Reverse Proxy bất đồng bộ + Website Quản lý Điểm Sinh viên + DVWA cô lập trong <code className="font-mono text-ink">docker-compose.yml</code>.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href="/mini-waf/mini-waf-project.zip"
+              download="mini-waf-project.zip"
+              className="inline-flex items-center gap-1.5 rounded-md bg-ink px-3 py-1.5 font-mono text-xs font-semibold text-canvas hover:opacity-90"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              Tải mini-waf-project.zip
+            </a>
+            <a
+              href="/mini-waf/SPECIFICATION_V2.md"
+              download="SPECIFICATION_V2.md"
+              className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-subtle px-3 py-1.5 font-mono text-xs font-semibold text-ink hover:bg-canvas"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              SPECIFICATION_V2.md
+            </a>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <CodeBlock
+            label="Chạy Unit Test (9/9) & Benchmark 100 Mẫu bằng Python (.venv)"
+            shell="zsh / bash"
+            code={`unzip mini-waf-project.zip -d mini-waf-project && cd mini-waf-project
+python3 -m venv .venv && .venv/bin/pip install -r waf/requirements.txt
+.venv/bin/pytest -v
+PYTHONPATH=. .venv/bin/python -m benchmark.run_benchmark --iterations 3`}
+            explanation="Đo trực tiếp Confusion Matrix (Precision, Recall, F1, TPR, FPR) và Latency Overhead giữa hai chế độ WAF OFF và BLOCKING."
+          />
+          <CodeBlock
+            label="Khởi chạy Cô lập 2 Mạng Docker (Portal :8000 / DVWA :80 ẩn khỏi Host)"
+            shell="zsh / bash"
+            code={`cp .env.example .env
+# Bảo vệ Website Quản lý Điểm Sinh viên mặc định (cổng Proxy 8080, Admin 127.0.0.1:8888)
+docker compose up --build -d
+# Hoặc chuyển mục tiêu sang DVWA nằm hoàn toàn trong backend_net nội bộ:
+UPSTREAM_URL=http://dvwa:80 docker compose --profile dvwa up --build -d`}
+            explanation="Container web mục tiêu không xuất port ra máy thật; mọi request bắt buộc đi qua Mini-WAF cổng 8080."
+          />
+        </div>
+      </section>
     </div>
   );
 }

@@ -371,6 +371,74 @@ export function OverviewPageClient() {
         </div>
       </section>
 
+      {/* 3C. KIEN TRUC MINI-WAF V2 & KET QUA DO KIEM THUC NGHIEM */}
+      <section className="rounded-lg border border-hairline bg-surface p-5 sm:p-6 space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-hairline pb-4">
+          <div className="space-y-1">
+            <div className="font-mono text-[11px] font-semibold uppercase tracking-wider text-accent">
+              Blue Team Engineering · Hợp nhất Đặc tả 9 trang &amp; Đề cương 11 trang
+            </div>
+            <h2 className="text-lg font-bold tracking-tight text-ink sm:text-xl">
+              Hệ thống Mini-WAF Chủ động (FastAPI Reverse Proxy + Inspection + Benchmark)
+            </h2>
+            <p className="max-w-3xl text-xs leading-relaxed text-muted sm:text-sm">
+              Kế thừa giai đoạn kiểm toán DVWA ban đầu để đóng gói sản phẩm phần mềm phòng thủ tầng biên hoàn chỉnh bằng Python (FastAPI + HTTPX + SQLite WAL + Docker Compose): cách ly kép <code className="font-mono text-ink">frontend_net</code> / <code className="font-mono text-ink">backend_net (internal=true)</code> cho cả Portal Quản lý Điểm (:8000) và DVWA (:80).
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/mini-waf"
+              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90"
+            >
+              <Play className="h-3.5 w-3.5" aria-hidden="true" />
+              Mở Studio Mini-WAF v2
+            </Link>
+            <a
+              href="/mini-waf/mini-waf-project.zip"
+              download="mini-waf-project.zip"
+              className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-subtle px-3 py-2 font-mono text-xs font-semibold text-ink hover:bg-canvas"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              Tải Full Code (.zip)
+            </a>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+          <div className="rounded-md border border-emerald-600/40 bg-emerald-500/5 p-3.5">
+            <div className="font-mono text-[11px] text-muted">Đo kiểm 100 Mẫu (50 Attack / 50 Benign)</div>
+            <div className="mt-1 font-mono text-lg font-bold text-emerald-700 dark:text-emerald-300">
+              TPR 100% · FPR 0%
+            </div>
+            <p className="mt-1 text-muted">TP=50, FP=0, TN=50, FN=0 · Cho qua an toàn họ tên O&apos;Brien, D&apos;Angelo &amp; phép so sánh 5 &lt; 10.</p>
+          </div>
+
+          <div className="rounded-md border border-hairline bg-subtle p-3.5">
+            <div className="font-mono text-[11px] text-muted">Độ trễ Phụ trội (OFF vs BLOCKING)</div>
+            <div className="mt-1 font-mono text-lg font-bold text-ink">
+              +0.692 ms TB (p95: 2.072ms)
+            </div>
+            <p className="mt-1 text-muted">0.853 ms (không WAF) lên 1.545 ms (có WAF) · Kiểm chứng trên 300 request lặp 3 lượt.</p>
+          </div>
+
+          <div className="rounded-md border border-hairline bg-subtle p-3.5">
+            <div className="font-mono text-[11px] text-muted">Cô lập &amp; Tách cổng Quản trị</div>
+            <div className="mt-1 font-mono text-lg font-bold text-ink">
+              :8080 Proxy · :8888 Admin
+            </div>
+            <p className="mt-1 text-muted">Port :8080 trả 404 mọi API quản trị; chỉ IP qua Proxy và 0 payload độc hại lọt xuống backend (150/300 hits).</p>
+          </div>
+
+          <div className="rounded-md border border-hairline bg-subtle p-3.5">
+            <div className="font-mono text-[11px] text-muted">Kiểm thử Đơn vị &amp; Phòng thủ Chủ động</div>
+            <div className="mt-1 font-mono text-lg font-bold text-accent">
+              9/9 Pytest Passed
+            </div>
+            <p className="mt-1 text-muted">Vượt kiểm thử Sliding vs Fixed Window, XFF anti-spoofing, Auto-Ban TTL 300s &amp; Log Masking.</p>
+          </div>
+        </div>
+      </section>
+
       {/* 4. CONG CU & XU LY HA TANG */}
       <section className="grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2">

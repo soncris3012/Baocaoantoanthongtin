@@ -108,6 +108,17 @@ export function Navbar() {
           </Link>
 
           <Link
+            href="/mini-waf"
+            className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors sm:text-sm ${
+              pathname === "/mini-waf"
+                ? "border-accent bg-accent text-white"
+                : "border-accent/40 bg-accent/10 text-accent hover:bg-accent/20"
+            }`}
+          >
+            Mini-WAF v2
+          </Link>
+
+          <Link
             href="/lab-setup"
             className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
               pathname === "/lab-setup"

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, ExternalLink, Save } from "lucide-react";
 import { RoleSimulator } from "@/components/RoleSimulator";
 import { DvwaWebEmulator } from "@/components/simulators/DvwaWebEmulator";
+import { MiniWafSimulator } from "@/components/simulators/MiniWafSimulator";
 import { useWorkspace } from "@/components/WorkspaceProvider";
 import { ATTACK_FLOW_STAGES } from "@/data/scenarioData";
 
@@ -15,18 +16,25 @@ function MoPhongContent() {
   const router = useRouter();
 
   const isDvwaParam = searchParams.get("view") === "dvwa";
+  const isMiniWafParam = searchParams.get("view") === "miniwaf";
   const tabParam = searchParams.get("tab");
   const initialParam = Number(searchParams.get("member"));
   const validInitial: 1 | 2 | 3 | 4 =
     initialParam >= 1 && initialParam <= 4 ? (initialParam as 1 | 2 | 3 | 4) : 1;
 
-  const [viewMode, setViewMode] = useState<"member" | "dvwa">(isDvwaParam ? "dvwa" : "member");
+  const [viewMode, setViewMode] = useState<"member" | "dvwa" | "miniwaf">(
+    isDvwaParam ? "dvwa" : isMiniWafParam ? "miniwaf" : "member"
+  );
   const [selectedMember, setSelectedMember] = useState<1 | 2 | 3 | 4>(validInitial);
 
   useEffect(() => {
     const viewParam = searchParams.get("view");
     if (viewParam === "dvwa") {
       setViewMode("dvwa");
+      return;
+    }
+    if (viewParam === "miniwaf") {
+      setViewMode("miniwaf");
       return;
     }
     const param = Number(searchParams.get("member"));
@@ -69,6 +77,11 @@ function MoPhongContent() {
     router.replace("/mo-phong?view=dvwa", { scroll: false });
   };
 
+  const handleOpenMiniWafView = () => {
+    setViewMode("miniwaf");
+    router.replace("/mo-phong?view=miniwaf", { scroll: false });
+  };
+
   const handleSaveVars = async () => {
     await updateMemberState(selectedMember, {
       container_ref: containerInput,
@@ -90,6 +103,17 @@ function MoPhongContent() {
         </Link>
 
         <div className="inline-flex flex-wrap rounded-md border border-hairline bg-subtle p-0.5">
+          <button
+            type="button"
+            onClick={handleOpenMiniWafView}
+            className={`cursor-pointer rounded px-3 py-1 font-mono text-xs font-medium transition-colors ${
+              viewMode === "miniwaf"
+                ? "bg-accent font-bold text-white shadow-sm"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            Mini-WAF v2 (:8080/:8888)
+          </button>
           <button
             type="button"
             onClick={handleOpenDvwaView}
@@ -259,8 +283,10 @@ function MoPhongContent() {
         </div>
       </section>
 
-      {/* Simulator Frame or Full DVWA Web Emulator */}
-      {viewMode === "dvwa" ? (
+      {/* Simulator Frame, Mini-WAF v2, or Full DVWA Web Emulator */}
+      {viewMode === "miniwaf" ? (
+        <MiniWafSimulator />
+      ) : viewMode === "dvwa" ? (
         <section className="space-y-3 rounded-lg border border-hairline bg-surface p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-hairline pb-3">
             <div>

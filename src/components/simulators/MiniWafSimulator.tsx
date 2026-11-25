@@ -1,0 +1,1324 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import {
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  CheckCircle2,
+  Download,
+  Lock,
+  Play,
+  RotateCcw,
+  Shield,
+  ShieldAlert,
+  Unlock,
+} from "lucide-react";
+import { WindowControls } from "@/components/WindowBar";
+
+type WafMode = "OFF" | "MONITOR" | "BLOCKING";
+type UpstreamTarget = "student_portal" | "dvwa";
+type RateAlgo = "sliding" | "fixed";
+
+interface MiniWafLogEntry {
+  id: number;
+  time: string;
+  ip: string;
+  method: string;
+  path: string;
+  ruleIds: string[];
+  category: string;
+  score: number;
+  action: "ALLOWED" | "MONITORED" | "BLOCKED" | "RATE_LIMITED" | "BANNED";
+  latencyMs: number;
+  maskedSnippet: string;
+}
+
+interface BannedEntry {
+  ip: string;
+  reason: string;
+  ttlSec: number;
+}
+
+const SQL_LEXER_KEYWORDS = new Set([
+  "SELECT",
+  "UNION",
+  "ALL",
+  "FROM",
+  "WHERE",
+  "AND",
+  "OR",
+  "XOR",
+  "ORDER",
+  "BY",
+  "GROUP",
+  "HAVING",
+  "INSERT",
+  "UPDATE",
+  "DELETE",
+  "DROP",
+  "ALTER",
+  "SLEEP",
+  "BENCHMARK",
+  "WAITFOR",
+  "DELAY",
+  "CONCAT",
+  "GROUP_CONCAT",
+  "SUBSTRING",
+  "SUBSTR",
+  "ASCII",
+  "CHAR",
+  "INFORMATION_SCHEMA",
+  "SQLITE_MASTER",
+  "OUTFILE",
+  "DUMPFILE",
+  "LOAD_FILE",
+  "INTO",
+  "NULL",
+  "TRUE",
+  "FALSE",
+]);
+
+function normalizeMultiPass(raw: string): {
+  decoded: string;
+  spaced: string;
+  collapsed: string;
+} {
+  let curr = raw.slice(0, 4096);
+  for (let i = 0; i < 3; i++) {
+    try {
+      const next = decodeURIComponent(curr.replace(/\+/g, " "));
+      if (next === curr) break;
+      curr = next;
+    } catch {
+      break;
+    }
+  }
+  curr = curr
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&amp;/gi, "&")
+    .normalize("NFKC");
+
+  const unwrappedSpace = curr.replace(/\/\*!\d*\s*([\s\S]*?)\s*\*\//g, " $1 ");
+  const unwrappedCol = curr.replace(/\/\*!\d*\s*([\s\S]*?)\s*\*\//g, "$1");
+
+  let spaced = unwrappedSpace
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/[\t\r\n]+/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .toLowerCase();
+
+  let collapsed = unwrappedCol
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/[\t\r\n]+/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .toLowerCase();
+
+  if (spaced.includes("....//")) spaced = spaced.replaceAll("....//", "../../");
+  if (collapsed.includes("....//")) collapsed = collapsed.replaceAll("....//", "../../");
+  return { decoded: curr, spaced, collapsed };
+}
+
+function tokenizeSqlForWaf(text: string): { kind: string; lexeme: string }[] {
+  const tokens: { kind: string; lexeme: string }[] = [];
+  let i = 0;
+  while (i < text.length && tokens.length < 64) {
+    const ch = text[i];
+    if (/\s/.test(ch)) {
+      i += 1;
+      continue;
+    }
+    if (ch === "#" || text.slice(i, i + 2) === "--") {
+      tokens.push({ kind: "c", lexeme: text.slice(i, i + 24) });
+      break;
+    }
+    if (ch === "'" || ch === '"') {
+      let j = i + 1;
+      while (j < text.length && text[j] !== ch) j += 1;
+      if (j < text.length) {
+        tokens.push({ kind: "s", lexeme: text.slice(i, j + 1) });
+        i = j + 1;
+      } else {
+        tokens.push({ kind: "o", lexeme: ch });
+        i += 1;
+      }
+      continue;
+    }
+    if ("=<>(),;+-*/".includes(ch)) {
+      tokens.push({ kind: "o", lexeme: ch });
+      i += 1;
+      continue;
+    }
+    const numM = text.slice(i).match(/^(?:0x[0-9a-fA-F]+|\d+(?:\.\d+)?)/);
+    if (numM) {
+      tokens.push({ kind: "n", lexeme: numM[0] });
+      i += numM[0].length;
+      continue;
+    }
+    const wordM = text.slice(i).match(/^[A-Za-z_@.][A-Za-z0-9_@.$]*/);
+    if (wordM) {
+      const lex = wordM[0];
+      tokens.push({
+        kind: SQL_LEXER_KEYWORDS.has(lex.toUpperCase()) ? "k" : "w",
+        lexeme: lex,
+      });
+      i += lex.length;
+      continue;
+    }
+    tokens.push({ kind: "o", lexeme: ch });
+    i += 1;
+  }
+  return tokens;
+}
+
+function analyzeSqlLexical(rawValue: string): { suspicious: boolean; fingerprint: string } {
+  const views = normalizeMultiPass(rawValue);
+  let lastFp = "";
+  for (const variant of [views.spaced, views.collapsed]) {
+    const tokens = tokenizeSqlForWaf(variant);
+    if (tokens.length === 0) continue;
+    lastFp = tokens
+      .slice(0, 8)
+      .map((t) => t.kind)
+      .join("");
+    const kws = tokens.filter((t) => t.kind === "k").map((t) => t.lexeme.toUpperCase());
+    const ops = tokens.filter((t) => t.kind === "o").map((t) => t.lexeme);
+    const hasComment = tokens.some((t) => t.kind === "c");
+    const hasQuote = ops.includes("'") || ops.includes('"') || tokens.some((t) => t.kind === "s");
+    if (kws.includes("UNION") && kws.includes("SELECT")) {
+      return { suspicious: true, fingerprint: lastFp };
+    }
+    if (hasQuote && kws.some((k) => k === "OR" || k === "AND" || k === "XOR") && (ops.includes("=") || hasComment || kws.includes("TRUE"))) {
+      return { suspicious: true, fingerprint: lastFp };
+    }
+    if (kws.some((k) => ["SLEEP", "BENCHMARK", "WAITFOR", "ASCII", "SUBSTRING", "SUBSTR", "LOAD_FILE", "GROUP_CONCAT"].includes(k)) && ops.includes("(")) {
+      return { suspicious: true, fingerprint: lastFp };
+    }
+    if (kws.some((k) => ["INFORMATION_SCHEMA", "SQLITE_MASTER", "OUTFILE", "DUMPFILE"].includes(k))) {
+      return { suspicious: true, fingerprint: lastFp };
+    }
+    for (let idx = 0; idx < tokens.length - 1; idx++) {
+      if (tokens[idx].lexeme === ";" && tokens[idx + 1].kind === "k") {
+        if (["SELECT", "DROP", "DELETE", "INSERT", "UPDATE", "ALTER"].includes(tokens[idx + 1].lexeme.toUpperCase())) {
+          return { suspicious: true, fingerprint: lastFp };
+        }
+      }
+    }
+  }
+  return { suspicious: false, fingerprint: lastFp };
+}
+
+function maskSensitiveLog(text: string): string {
+  return text
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9\-_.~+/=]+/gi, "$1 ***MASKED***")
+    .replace(/\b(password|passwd|pwd|token|cookie|phpsessid)\s*([=:])\s*([^&\s,;"]+)/gi, "$1$2***MASKED***")
+    .slice(0, 180);
+}
+
+function inspectSimulatedRequest(params: {
+  method: "GET" | "POST";
+  path: string;
+  queryOrBody: string;
+  userAgent: string;
+  wafMode: WafMode;
+}) {
+  if (params.wafMode === "OFF") {
+    return {
+      action: "ALLOWED" as const,
+      ruleIds: [] as string[],
+      category: "Normal",
+      score: 0,
+      confidence: 1.0,
+      normalized: normalizeMultiPass(params.queryOrBody),
+      fingerprint: "",
+      reasons: ["WAF đang ở chế độ OFF (chuyển thẳng sang máy chủ đích)."],
+    };
+  }
+
+  // Handle HPP repeated keys like ?q=SV001&q=' OR 1=1--
+  const parts = params.queryOrBody
+    .split("&")
+    .map((p) => (p.includes("=") ? p.split("=").slice(1).join("=") : p));
+  const combinedParam = parts.length > 1 ? parts.join(" ") : params.queryOrBody;
+
+  const normPath = normalizeMultiPass(params.path);
+  const normParam = normalizeMultiPass(combinedParam);
+  const lex = analyzeSqlLexical(combinedParam);
+
+  const ruleIds: string[] = [];
+  const reasons: string[] = [];
+  let score = 0;
+  let category = "Normal";
+
+  const addHit = (id: string, grp: string, pts: number, desc: string) => {
+    if (ruleIds.includes(id)) return;
+    ruleIds.push(id);
+    if (category === "Normal") category = grp;
+    score += pts;
+    reasons.push(`${id} (${desc}, +${pts})`);
+  };
+
+  const candidates = [normParam.spaced, normParam.collapsed, params.queryOrBody];
+  if (candidates.some((s) => /(?:'|"|\s--(?:\s|$)|#)/.test(s))) {
+    addHit("SQL-01", "SQLi", 2, "Dấu nháy đơn/kép hoặc comment SQL");
+  }
+  if (
+    candidates.some((s) =>
+      /(?:(?:'|")\s*(?:or|and|xor)\s+(?:['"]?[a-z0-9_]+['"]?\s*=\s*['"]?[a-z0-9_]+['"]?|true\b))|(?:\b(?:or|and|xor)\s+['"]?\d+['"]?\s*=\s*['"]?\d+['"]?)|(?:\bor\s+'[^']{1,32}'\s*=\s*'[^']{1,32}')/i.test(
+        s
+      )
+    )
+  ) {
+    addHit("SQL-02", "SQLi", 5, "Biểu thức logic Tautology / Boolean bypass");
+  }
+  if (
+    candidates.some((s) =>
+      /(?:\bunion(?:\s+all)?\s+(?:select\b|\(\s*select\b))|(?:\b(?:information_schema|sqlite_master)\b)|(?:\binto\s+(?:outfile|dumpfile)\b)/i.test(
+        s
+      )
+    )
+  ) {
+    addHit("SQL-03", "SQLi", 6, "UNION SELECT / Metadata Schema");
+  }
+  if (
+    candidates.some((s) =>
+      /(?:\b(?:sleep|benchmark|pg_sleep|randomblob)\s*\()|(?:\bwaitfor\s+delay\b)|(?:;\s*(?:drop\s+table|delete\s+from|insert\s+into|alter\s+table)\b)/i.test(
+        s
+      )
+    )
+  ) {
+    addHit("SQL-04", "SQLi", 6, "Time-Based Blind SQLi / Stacked DDL");
+  }
+  if (lex.suspicious) {
+    addHit("SQL-05", "SQLi", 6, `SQL Lexical Grammar [${lex.fingerprint}]`);
+  }
+
+  const allTargets = [...candidates, normPath.spaced, normPath.collapsed];
+  if (
+    allTargets.some((s) =>
+      /(?:<\s*\/?\s*(?:script|iframe|svg|object|embed)\b)|(?:<\s*(?:img|body|video|audio|details|a|input|marquee)\b[^>]*\bon(?:error|load|click|mouseover|focus)\s*=)|(?:\bon(?:error|load|mouseover|focus)\s*=\s*['"]?(?:alert|prompt|confirm|fetch|eval|document))|(?:\b(?:javascript|vbscript)\s*:)/i.test(
+        s
+      )
+    )
+  ) {
+    addHit("XSS-01", "XSS", 5, "Thẻ HTML thực thi / Thuộc tính sự kiện / javascript:");
+  }
+
+  if (
+    allTargets.some((s) =>
+      /(?:\.\.\/|\.\.\\|\x00|%00|\/etc\/passwd|\/etc\/shadow|\/etc\/hosts|\\windows\\win\.ini|file:\/\/)/i.test(
+        s
+      )
+    )
+  ) {
+    addHit("LFI-01", "LFI", 5, "Path Traversal / Đọc tệp hệ thống nhạy cảm");
+  }
+
+  if (/\b(sqlmap|nikto|acunetix|masscan|hydra|nessus|gobuster|dirbuster)\b/i.test(params.userAgent)) {
+    addHit("SCN-01", "Scanner", 3, "User-Agent công cụ rà quét (+3 < 5: không chặn đơn lẻ)");
+  }
+  if (/^(?:\/\.env$|\/\.git(?:\/|$)|\/wp-login\.php$|\/phpmyadmin(?:\/|$)|\/cgi-bin\/)/i.test(normPath.spaced)) {
+    addHit("SCN-02", "Scanner", 3, "Đường dẫn thăm dò nhạy cảm");
+  }
+
+  const action =
+    score >= 5
+      ? params.wafMode === "BLOCKING"
+        ? ("BLOCKED" as const)
+        : ("MONITORED" as const)
+      : params.wafMode === "MONITOR" && score > 0
+      ? ("MONITORED" as const)
+      : ("ALLOWED" as const);
+
+  return {
+    action,
+    ruleIds,
+    category,
+    score,
+    confidence: score === 0 ? 0.99 : Number(Math.min(0.99, 0.55 + (score / 10) * 0.44).toFixed(2)),
+    normalized: normParam,
+    fingerprint: lex.fingerprint,
+    reasons: reasons.length ? reasons : ["Sạch trên toàn bộ 4 vùng HTTP."],
+  };
+}
+
+const VERIFIED_PYTHON_BENCHMARK = {
+  datasetSize: 100,
+  iterations: 3,
+  off: { backendHits: 300, meanMs: 0.853, medianMs: 0.797, p95Ms: 1.142 },
+  monitor: { backendHits: 100, monitoredLogged: 50 },
+  blocking: {
+    tp: 50,
+    fp: 0,
+    tn: 50,
+    fn: 0,
+    precisionPct: 100.0,
+    recallTprPct: 100.0,
+    fprPct: 0.0,
+    f1Pct: 100.0,
+    meanMs: 1.545,
+    medianMs: 1.648,
+    p95Ms: 2.072,
+    deltaMeanMs: 0.692,
+    deltaP95Ms: 0.93,
+    backendHits: 150,
+  },
+  groups: [
+    { name: "SQLi cơ bản & Tautology", total: 15, blocked: 15, expected: "Chặn 15/15" },
+    { name: "SQLi né lọc (Double Encode / /**/ / HPP / JSON)", total: 10, blocked: 10, expected: "Chặn 10/10" },
+    { name: "XSS, Path Traversal & Scanner + Probe", total: 25, blocked: 25, expected: "Chặn 25/25" },
+    { name: "Lưu lượng hợp lệ biên (O'Brien, D'Angelo, 5 < 10)", total: 50, blocked: 0, expected: "Cho qua >= 49/50" },
+  ],
+};
+
+export function MiniWafSimulator() {
+  const [subTab, setSubTab] = useState<"inspect" | "defense" | "dashboard" | "benchmark">("inspect");
+  const [wafMode, setWafMode] = useState<WafMode>("BLOCKING");
+  const [upstreamTarget, setUpstreamTarget] = useState<UpstreamTarget>("student_portal");
+  const [rateAlgo, setRateAlgo] = useState<RateAlgo>("sliding");
+
+  // Tab 1 states (zero pre-executed output)
+  const [reqMethod, setReqMethod] = useState<"GET" | "POST">("GET");
+  const [reqPath, setReqPath] = useState("/search");
+  const [reqParam, setReqParam] = useState("q=SV001");
+  const [userAgent, setUserAgent] = useState("Mozilla/5.0 (Macintosh; Intel Mac OS X)");
+  const [peerTrusted, setPeerTrusted] = useState(true);
+  const [xffHeader, setXffHeader] = useState("198.51.100.77");
+  const [inspectionResult, setInspectionResult] = useState<{
+    clientIp: string;
+    decision: ReturnType<typeof inspectSimulatedRequest>;
+    maskedSnippet: string;
+    telegramMsg: string | null;
+    upstreamReached: boolean;
+  } | null>(null);
+
+  // Tab 2 & 3 states (Shared telemetry fed by Tab 1 & Tab 2 actions)
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [adminPwdInput, setAdminPwdInput] = useState("miniwaf-admin-2026");
+  const [adminAuthError, setAdminAuthError] = useState<string | null>(null);
+  const [logs, setLogs] = useState<MiniWafLogEntry[]>([]);
+  const [bannedIps, setBannedIps] = useState<BannedEntry[]>([]);
+  const [violationCounter, setViolationCounter] = useState<Record<string, number>>({});
+  const [telegramFeed, setTelegramFeed] = useState<string[]>([]);
+  const [defenseOutput, setDefenseOutput] = useState<string | null>(null);
+
+  // Tab 4 Benchmark runner state (empty until clicked)
+  const [benchmarkRunResult, setBenchmarkRunResult] = useState<{
+    browserVerified: typeof VERIFIED_PYTHON_BENCHMARK.groups;
+    clientTp: number;
+    clientFp: number;
+    clientTn: number;
+    clientFn: number;
+    pythonReport: typeof VERIFIED_PYTHON_BENCHMARK;
+  } | null>(null);
+
+  const effectiveIp = useMemo(() => {
+    if (peerTrusted && xffHeader.trim()) return xffHeader.trim();
+    return "203.0.113.9";
+  }, [peerTrusted, xffHeader]);
+
+  const appendEvent = (entry: Omit<MiniWafLogEntry, "id" | "time">) => {
+    const time = new Date().toTimeString().slice(0, 8);
+    setLogs((prev) => [{ ...entry, id: prev.length + 1, time }, ...prev].slice(0, 40));
+  };
+
+  const handleInspectRun = () => {
+    const activeBan = bannedIps.find((b) => b.ip === effectiveIp);
+    if (wafMode !== "OFF" && activeBan) {
+      appendEvent({
+        ip: effectiveIp,
+        method: reqMethod,
+        path: reqPath,
+        ruleIds: ["BAN-403"],
+        category: "Blacklist",
+        score: 10,
+        action: "BANNED",
+        latencyMs: 0.14,
+        maskedSnippet: maskSensitiveLog(reqParam),
+      });
+      setInspectionResult({
+        clientIp: effectiveIp,
+        decision: {
+          action: "BLOCKED",
+          ruleIds: ["BAN-403"],
+          category: "Blacklist",
+          score: 10,
+          confidence: 0.99,
+          normalized: normalizeMultiPass(reqParam),
+          fingerprint: "",
+          reasons: [`IP ${effectiveIp} đang bị Auto-Ban O(1) — chặn ngay trước khi chạy Regex.`],
+        },
+        maskedSnippet: maskSensitiveLog(reqParam),
+        telegramMsg: null,
+        upstreamReached: false,
+      });
+      return;
+    }
+
+    const decision = inspectSimulatedRequest({
+      method: reqMethod,
+      path: reqPath,
+      queryOrBody: reqParam,
+      userAgent,
+      wafMode,
+    });
+    const masked = maskSensitiveLog(reqParam);
+    const upstreamReached = decision.action !== "BLOCKED";
+    let tgMsg: string | null = null;
+
+    if (decision.action === "BLOCKED") {
+      const nextHits = (violationCounter[effectiveIp] ?? 0) + 1;
+      const shouldBan = nextHits >= 3;
+      setViolationCounter((prev) => ({ ...prev, [effectiveIp]: shouldBan ? 0 : nextHits }));
+      if (shouldBan) {
+        setBannedIps((prev) => [
+          {
+            ip: effectiveIp,
+            reason: `Auto-Ban (>= 3 vi phạm BLOCKED trong 60s · ${decision.ruleIds[0]})`,
+            ttlSec: 300,
+          },
+          ...prev.filter((x) => x.ip !== effectiveIp),
+        ]);
+      }
+      tgMsg = `[Mini-WAF] Phat hien su kien bao mat\nLoai: ${decision.category}${
+        shouldBan ? " -> AUTO-BAN" : ""
+      }\nIP: ${effectiveIp}\nQuy tac: ${decision.ruleIds.join(",")}\nHanh dong: ${
+        shouldBan ? "BANNED (TTL 300s)" : "BLOCK"
+      }`;
+      setTelegramFeed((prev) => [tgMsg as string, ...prev].slice(0, 10));
+    }
+
+    appendEvent({
+      ip: effectiveIp,
+      method: reqMethod,
+      path: reqPath,
+      ruleIds: decision.ruleIds.length ? decision.ruleIds : ["NONE"],
+      category: decision.category,
+      score: decision.score,
+      action: decision.action,
+      latencyMs: decision.action === "BLOCKED" ? 0.58 : 1.54,
+      maskedSnippet: masked,
+    });
+
+    setInspectionResult({
+      clientIp: effectiveIp,
+      decision,
+      maskedSnippet: masked,
+      telegramMsg: tgMsg,
+      upstreamReached,
+    });
+  };
+
+  const handleBoundaryBurstDemo = () => {
+    if (rateAlgo === "fixed") {
+      setDefenseOutput(
+        `[Fixed Window Burst @ t=9.5s & t=10.2s — Limit: 5 req/10s]\n` +
+          `• t=9.5s (Bucket 0): 5/5 ALLOWED -> Reset bộ đếm ở giây thứ 10.0!\n` +
+          `• t=10.2s (Bucket 1): 5/5 ALLOWED tiếp -> Lọt 10 request trong 0.7 giây (Lỗ hổng ranh giới Fixed Window).\n` +
+          `=> Chuyển sang "Sliding Window (deque)" và chạy lại để xem cách vá triệt để.`
+      );
+      return;
+    }
+
+    appendEvent({
+      ip: effectiveIp,
+      method: "GET",
+      path: "/search",
+      ruleIds: ["RL-429"],
+      category: "RateLimit",
+      score: 10,
+      action: "RATE_LIMITED",
+      latencyMs: 0.11,
+      maskedSnippet: "Burst > 5 req / 10s (Sliding deque)",
+    });
+    setDefenseOutput(
+      `[Sliding Window (collections.deque) @ t=9.5s & t=10.2s — Limit: 5 req/10s]\n` +
+        `• t=9.5s: 5/5 ALLOWED -> deque = [9.5, 9.5, 9.5, 9.5, 9.5]\n` +
+        `• t=10.2s: Cửa sổ trượt [0.2 .. 10.2] vẫn còn 5 phần tử cũ -> Trả ngay HTTP 429 Too Many Requests + Retry-After: 10s!`
+    );
+  };
+
+  const handleTriggerAutoBanSequence = () => {
+    const offenderIp = effectiveIp;
+    const seq = ["q=1' OR 1=1--", "q=1' UNION SELECT 1,2--", "msg=<script>alert(1)</script>"];
+    seq.forEach((p, idx) => {
+      const dec = inspectSimulatedRequest({
+        method: "GET",
+        path: "/search",
+        queryOrBody: p,
+        userAgent,
+        wafMode: "BLOCKING",
+      });
+      appendEvent({
+        ip: offenderIp,
+        method: "GET",
+        path: "/search",
+        ruleIds: dec.ruleIds,
+        category: dec.category,
+        score: dec.score,
+        action: idx === 2 ? "BANNED" : "BLOCKED",
+        latencyMs: 0.52,
+        maskedSnippet: maskSensitiveLog(p),
+      });
+    });
+
+    setBannedIps((prev) => [
+      {
+        ip: offenderIp,
+        reason: "Auto-Ban: >= 3 WAF BLOCK events trong 60s (last: XSS-01)",
+        ttlSec: 300,
+      },
+      ...prev.filter((b) => b.ip !== offenderIp),
+    ]);
+
+    const tgMsg = `[Mini-WAF] Phat hien su kien bao mat\nLoai: XSS -> AUTO-BAN\nIP: ${offenderIp}\nQuy tac: SQL-02,SQL-03,XSS-01\nHanh dong: BANNED (TTL 300s)`;
+    setTelegramFeed((prev) => [tgMsg, ...prev].slice(0, 10));
+    setDefenseOutput(
+      `[Auto-Ban Triggered for ${offenderIp}]\n` +
+        `• Lần 1 (1' OR 1=1--): 403 BLOCKED (counter=1/3)\n` +
+        `• Lần 2 (1' UNION SELECT...): 403 BLOCKED (counter=2/3)\n` +
+        `• Lần 3 (<script>alert(1)): 403 BLOCKED -> Đạt ngưỡng 3/60s! Ghi vào bảng banned_ips (TTL=300s).\n` +
+        `• Lần 4 (/search?q=SV001 hợp lệ): Bị chặn O(1) ở RAM (403 BANNED) mà không chạy Regex. Vào Tab 3 để bấm Unban!`
+    );
+  };
+
+  const handleRunInBrowserBenchmark = () => {
+    const miniCorpus = [
+      // 6 Representative Malicious
+      { g: "SQLi", mal: true, q: "q=' OR '1'='1" },
+      { g: "Evasion", mal: true, q: "q=1%2527%2520OR%25201%253D1--" },
+      { g: "Evasion", mal: true, q: "q=1' UN/**/ION SEL/**/ECT 1,2--" },
+      { g: "Evasion", mal: true, q: "q=1' /*!50000UNION*/ /*!50000SELECT*/ 1,2--" },
+      { g: "XSS", mal: true, q: "msg=<img src=x onerror=alert(1)>" },
+      { g: "LFI", mal: true, q: "file=....//....//etc/passwd" },
+      // 6 Hard Benign Negatives
+      { g: "Benign", mal: false, q: "q=SV001" },
+      { g: "Benign", mal: false, q: "q=O'Brien" },
+      { g: "Benign", mal: false, q: "q=Marco D'Angelo" },
+      { g: "Benign", mal: false, q: "msg=5 < 10 and gpa > 8.0" },
+      { g: "Benign", mal: false, q: "msg=Please select option from menu" },
+      { g: "Benign", mal: false, q: "file=tailieu.pdf" },
+    ];
+    let tp = 0;
+    let fp = 0;
+    let tn = 0;
+    let fn = 0;
+    for (const item of miniCorpus) {
+      const dec = inspectSimulatedRequest({
+        method: "GET",
+        path: item.g === "LFI" ? "/download" : "/search",
+        queryOrBody: item.q,
+        userAgent: "Mozilla/5.0",
+        wafMode: "BLOCKING",
+      });
+      const blocked = dec.action === "BLOCKED";
+      if (item.mal && blocked) tp += 1;
+      else if (!item.mal && blocked) fp += 1;
+      else if (!item.mal && !blocked) tn += 1;
+      else fn += 1;
+    }
+    setBenchmarkRunResult({
+      browserVerified: VERIFIED_PYTHON_BENCHMARK.groups,
+      clientTp: tp,
+      clientFp: fp,
+      clientTn: tn,
+      clientFn: fn,
+      pythonReport: VERIFIED_PYTHON_BENCHMARK,
+    });
+  };
+
+  const blockedCount = logs.filter((l) => l.action === "BLOCKED" || l.action === "BANNED").length;
+  const rateLimitedCount = logs.filter((l) => l.action === "RATE_LIMITED").length;
+  const monitoredCount = logs.filter((l) => l.action === "MONITORED").length;
+  const allowedCount = logs.filter((l) => l.action === "ALLOWED").length;
+
+  return (
+    <div className="rounded-lg border border-hairline bg-surface p-4 sm:p-5 space-y-4">
+      {/* Header & Global Mode Switch */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-4">
+        <div>
+          <h3 className="flex items-center gap-2 text-sm font-bold text-ink sm:text-base">
+            <Shield className="h-4 w-4 text-accent" aria-hidden="true" />
+            Mini-WAF v2 Interactive Studio (Reverse Proxy :8080 · Admin :8888)
+          </h3>
+          <p className="mt-0.5 text-xs text-muted">
+            Mô phỏng toàn trình Kiến trúc Hợp nhất: Dual-Target Isolation, Normalization Pipeline, SQL Lexer, Sliding Window/Auto-Ban &amp; Benchmark.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href="/mini-waf/mini-waf-project.zip"
+            download="mini-waf-project.zip"
+            className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-subtle px-2.5 py-1.5 font-mono text-[11px] font-semibold text-ink hover:bg-canvas"
+          >
+            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+            Tải Full Code (.zip)
+          </a>
+          <a
+            href="/mini-waf/SPECIFICATION_V2.md"
+            download="SPECIFICATION_V2.md"
+            className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-subtle px-2.5 py-1.5 font-mono text-[11px] font-semibold text-ink hover:bg-canvas"
+          >
+            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+            Đặc tả V2
+          </a>
+        </div>
+      </div>
+
+      {/* Live Topology Control Bar */}
+      <div className="grid gap-3 rounded-lg border border-hairline bg-subtle p-3 sm:grid-cols-3 text-xs">
+        <div>
+          <div className="mb-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
+            1. Chế độ Vận hành WAF
+          </div>
+          <div className="inline-flex rounded border border-hairline bg-surface p-0.5">
+            {(["OFF", "MONITOR", "BLOCKING"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  setWafMode(m);
+                  setInspectionResult(null);
+                }}
+                className={`cursor-pointer rounded px-2.5 py-1 font-mono text-[11px] font-semibold ${
+                  wafMode === m
+                    ? m === "BLOCKING"
+                      ? "bg-emerald-600 text-white"
+                      : m === "MONITOR"
+                      ? "bg-amber-600 text-white"
+                      : "bg-rose-600 text-white"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
+            2. Upstream (backend_net: internal=true)
+          </div>
+          <div className="inline-flex rounded border border-hairline bg-surface p-0.5">
+            {[
+              { id: "student_portal" as const, label: "Portal Điểm (:8000)" },
+              { id: "dvwa" as const, label: "DVWA (:80)" },
+            ].map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => {
+                  setUpstreamTarget(u.id);
+                  setReqPath(u.id === "student_portal" ? "/search" : "/vulnerabilities/sqli/");
+                  setInspectionResult(null);
+                }}
+                className={`cursor-pointer rounded px-2.5 py-1 font-mono text-[11px] font-semibold ${
+                  upstreamTarget === u.id
+                    ? "bg-ink text-canvas"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                {u.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-muted">
+            3. Thuật toán Rate Limit
+          </div>
+          <div className="inline-flex rounded border border-hairline bg-surface p-0.5">
+            {[
+              { id: "sliding" as const, label: "Sliding Window" },
+              { id: "fixed" as const, label: "Fixed Window" },
+            ].map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => setRateAlgo(a.id)}
+                className={`cursor-pointer rounded px-2.5 py-1 font-mono text-[11px] font-semibold ${
+                  rateAlgo === a.id
+                    ? "bg-accent text-white"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 4 Subsystem Navigation Tabs */}
+      <div className="inline-flex flex-wrap rounded-md border border-hairline bg-subtle p-0.5 text-xs">
+        {[
+          { id: "inspect" as const, label: "1. Proxy & Inspection Engine (Hùng)" },
+          { id: "defense" as const, label: "2. Rate Limit & Auto-Ban (Sơn)" },
+          { id: "dashboard" as const, label: "3. Dashboard :8888 & Masking (Quyết)" },
+          { id: "benchmark" as const, label: "4. Benchmark 100 Mẫu (Khánh)" },
+        ].map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setSubTab(t.id)}
+            className={`cursor-pointer rounded px-3 py-1.5 font-medium transition-colors ${
+              subTab === t.id
+                ? "bg-surface font-semibold text-ink shadow-sm"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* TAB 1: INSPECTION ENGINE */}
+      {subTab === "inspect" && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-3 rounded-lg border border-zinc-800 bg-[#0d1117] p-4 font-mono text-xs text-zinc-200">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+              <div className="flex items-center gap-2">
+                <WindowControls onClose={() => setInspectionResult(null)} closeTitle="Xóa kết quả kiểm tra" />
+                <span className="font-semibold text-sky-300">
+                  HTTP Request Generator -&gt; http://mini-waf:8080
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { label: "O'Brien", path: "/search", q: "q=O'Brien" },
+                { label: "5 < 10", path: "/comments", q: "msg=5 < 10" },
+                { label: "Double URL", path: "/search", q: "q=1%2527%2520OR%25201%253D1--" },
+                { label: "UN/**/ION", path: "/search", q: "q=1' UN/**/ION SEL/**/ECT 1,2--" },
+                { label: "/*!50000*/", path: "/search", q: "q=1' /*!50000UNION*/ /*!50000SELECT*/ 1,2--" },
+                { label: "HPP", path: "/search", q: "q=SV001&q=' OR 1=1--" },
+                { label: "XSS img", path: "/comments", q: "msg=<img src=x onerror=alert(1)>" },
+                { label: "LFI ....//", path: "/download", q: "file=....//....//etc/passwd" },
+                { label: "Password Masking", path: "/login", q: "username=admin&password=MySecret2026" },
+              ].map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => {
+                    setReqPath(preset.path);
+                    setReqParam(preset.q);
+                    setReqMethod(preset.path === "/login" ? "POST" : "GET");
+                    setInspectionResult(null);
+                  }}
+                  className="cursor-pointer rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-4">
+              <select
+                value={reqMethod}
+                onChange={(e) => setReqMethod(e.target.value as "GET" | "POST")}
+                aria-label="HTTP Method"
+                className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-zinc-200"
+              >
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+              </select>
+              <input
+                type="text"
+                value={reqPath}
+                onChange={(e) => {
+                  setReqPath(e.target.value);
+                  setInspectionResult(null);
+                }}
+                aria-label="URL Path"
+                className="sm:col-span-3 rounded border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-amber-200 focus:outline-none"
+              />
+            </div>
+
+            <input
+              type="text"
+              value={reqParam}
+              onChange={(e) => {
+                setReqParam(e.target.value);
+                setInspectionResult(null);
+              }}
+              aria-label="Query hoặc Body"
+              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-amber-200 focus:outline-none"
+            />
+
+            <div className="grid gap-2 sm:grid-cols-2 text-[11px]">
+              <div>
+                <div className="mb-1 text-zinc-400">User-Agent:</div>
+                <select
+                  value={userAgent}
+                  onChange={(e) => {
+                    setUserAgent(e.target.value);
+                    setInspectionResult(null);
+                  }}
+                  aria-label="User Agent"
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-200"
+                >
+                  <option value="Mozilla/5.0 (Macintosh; Intel Mac OS X)">Mozilla/5.0</option>
+                  <option value="sqlmap/1.8.4#stable">sqlmap/1.8.4 (+3)</option>
+                  <option value="Nikto/2.5.0">Nikto/2.5.0 (+3)</option>
+                </select>
+              </div>
+              <div>
+                <div className="mb-1 text-zinc-400">X-Forwarded-For Trust:</div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPeerTrusted((v) => !v);
+                    setXffHeader("198.51.100.77");
+                    setInspectionResult(null);
+                  }}
+                  className="w-full cursor-pointer rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-left text-zinc-200 hover:bg-zinc-800"
+                >
+                  {peerTrusted ? "Trusted Proxy -> IP 198.51.100.77" : "Untrusted Peer -> Ignore XFF (203.0.113.9)"}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleInspectRun}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500"
+            >
+              <Play className="h-3.5 w-3.5" aria-hidden="true" />
+              Phân tích Gói tin qua Mini-WAF
+            </button>
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-zinc-800 bg-[#0d1117] p-4 font-mono text-xs text-zinc-200">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+              <div className="flex items-center gap-2">
+                <WindowControls />
+                <span className="font-semibold text-emerald-300">
+                  Inspection Pipeline &amp; Header Hardening Output
+                </span>
+              </div>
+              {inspectionResult && (
+                <span
+                  className={`rounded px-2 py-0.5 text-[11px] font-bold ${
+                    inspectionResult.decision.action === "BLOCKED"
+                      ? "bg-rose-500/20 text-rose-300"
+                      : inspectionResult.decision.action === "MONITORED"
+                      ? "bg-amber-500/20 text-amber-300"
+                      : "bg-emerald-500/20 text-emerald-300"
+                  }`}
+                >
+                  {inspectionResult.decision.action} · Score {inspectionResult.decision.score}
+                </span>
+              )}
+            </div>
+
+            {!inspectionResult ? (
+              <div className="py-12 text-center text-zinc-500">
+                Chưa gửi request. Chọn một mẫu hoặc nhập dữ liệu rồi bấm &quot;Phân tích Gói tin qua Mini-WAF&quot;.
+              </div>
+            ) : (
+              <div className="space-y-2.5 text-[11px]">
+                <div className="rounded border border-zinc-800 bg-[#05070a] p-2.5 space-y-1">
+                  <div>
+                    <span className="text-zinc-500">Client IP    : </span>
+                    <span className="text-sky-300">{inspectionResult.clientIp}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-500">Spaced View  : </span>
+                    <span className="text-amber-300">{inspectionResult.decision.normalized.spaced || "(empty)"}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-500">Collapsed    : </span>
+                    <span className="text-amber-200">{inspectionResult.decision.normalized.collapsed || "(empty)"}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-500">SQL Lexer FP : </span>
+                    <span className="text-emerald-300">{inspectionResult.decision.fingerprint || "(none)"}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-500">Triggered    : </span>
+                    <span className="text-zinc-200">{inspectionResult.decision.reasons.join("; ")}</span>
+                  </div>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="rounded border border-zinc-800 bg-[#05070a] p-2.5">
+                    <div className="font-sans font-bold text-zinc-300 mb-1">
+                      Chuyển tiếp Upstream ({upstreamTarget === "student_portal" ? "Portal :8000" : "DVWA :80"})
+                    </div>
+                    <div className={inspectionResult.upstreamReached ? "text-emerald-300" : "text-rose-300"}>
+                      {inspectionResult.upstreamReached
+                        ? "200 OK · Chuyển tiếp sạch + Xóa Server/X-Powered-By + Gắn HttpOnly; SameSite=Lax & X-Frame-Options: DENY"
+                        : "403 Forbidden · Ngắt kết nối tại tầng biên (0 gói tin chạm máy chủ đích!)"}
+                    </div>
+                  </div>
+                  <div className="rounded border border-zinc-800 bg-[#05070a] p-2.5">
+                    <div className="font-sans font-bold text-zinc-300 mb-1">
+                      Log Sanitization (SQLite WAL)
+                    </div>
+                    <div className="break-all text-zinc-400">
+                      {inspectionResult.maskedSnippet || "(clean)"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: RATE LIMIT & AUTO-BAN */}
+      {subTab === "defense" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleBoundaryBurstDemo}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+            >
+              <Activity className="h-3.5 w-3.5" aria-hidden="true" />
+              Kiểm thử Boundary Burst ({rateAlgo === "sliding" ? "Sliding Window" : "Fixed Window"})
+            </button>
+            <button
+              type="button"
+              onClick={handleTriggerAutoBanSequence}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700"
+            >
+              <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+              Kích hoạt Chuỗi 3 Vi phạm -&gt; Auto-Ban (TTL 300s)
+            </button>
+          </div>
+
+          <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-4 font-mono text-xs text-zinc-200">
+            <div className="mb-2 flex items-center gap-2 border-b border-zinc-800 pb-2">
+              <WindowControls onClose={() => setDefenseOutput(null)} closeTitle="Xóa kết quả phòng thủ" />
+              <span className="font-semibold text-amber-300">
+                Active Defense Trace ({effectiveIp} · Algo: {rateAlgo})
+              </span>
+            </div>
+            {!defenseOutput ? (
+              <div className="py-8 text-center text-zinc-500">
+                Bấm một trong hai nút phía trên để thử nghiệm thuật toán Sliding vs Fixed Window hoặc kích hoạt Auto-Ban 300s.
+              </div>
+            ) : (
+              <pre className="whitespace-pre-wrap text-[11px] leading-relaxed text-emerald-300">
+                {defenseOutput}
+              </pre>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: ADMIN DASHBOARD :8888 */}
+      {subTab === "dashboard" && (
+        <div className="space-y-4">
+          {!adminUnlocked ? (
+            <div className="mx-auto max-w-md rounded-lg border border-hairline bg-subtle p-5 text-xs space-y-3">
+              <div className="flex items-center gap-2 font-bold text-ink text-sm">
+                <Lock className="h-4 w-4 text-accent" aria-hidden="true" />
+                Xác thực Cổng Quản trị Tách biệt (Port 8888)
+              </div>
+              <p className="text-muted">
+                Cổng Proxy (:8080) trả về 404 đối với API quản trị. Chỉ quản trị viên truy cập 127.0.0.1:8888 có mật khẩu đúng mới mở được Dashboard và thao tác Unban.
+              </p>
+              <input
+                type="password"
+                value={adminPwdInput}
+                onChange={(e) => {
+                  setAdminPwdInput(e.target.value);
+                  setAdminAuthError(null);
+                }}
+                aria-label="Mật khẩu Admin Dashboard"
+                className="w-full rounded border border-hairline bg-surface px-3 py-1.5 font-mono text-ink"
+              />
+              {adminAuthError && <div className="text-rose-600">{adminAuthError}</div>}
+              <button
+                type="button"
+                onClick={() => {
+                  if (adminPwdInput === "miniwaf-admin-2026") {
+                    setAdminUnlocked(true);
+                    setAdminAuthError(null);
+                  } else {
+                    setAdminAuthError("401 Unauthorized: Sai mật khẩu quản trị Mini-WAF!");
+                  }
+                }}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded bg-ink px-3.5 py-1.5 font-semibold text-canvas hover:opacity-90"
+              >
+                <Unlock className="h-3.5 w-3.5" aria-hidden="true" />
+                Đăng nhập Dashboard (:8888)
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {logs.length >= 3 && (blockedCount + rateLimitedCount) / logs.length >= 0.5 && (
+                <div className="flex items-center gap-2 rounded-md border border-rose-500/40 bg-rose-500/10 px-3.5 py-2.5 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                  <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  [CẢNH BÁO ĐỘT BIẾN] Mật độ tấn công vượt 50% trong phiên hiện tại. Telegram Bot đã phát cảnh báo ẩn payload nhạy cảm.
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs">
+                <div className="rounded-md border border-hairline bg-subtle p-3">
+                  <div className="text-muted">Tổng yêu cầu</div>
+                  <div className="mt-1 font-mono text-xl font-bold text-ink">{logs.length}</div>
+                  <div className="mt-0.5 font-mono text-[10px] text-muted">
+                    ALLOW {allowedCount} · MON {monitoredCount}
+                  </div>
+                </div>
+                <div className="rounded-md border border-hairline bg-subtle p-3">
+                  <div className="text-muted">Yêu cầu bị chặn</div>
+                  <div className="mt-1 font-mono text-xl font-bold text-rose-600">
+                    {blockedCount + rateLimitedCount}
+                  </div>
+                  <div className="mt-0.5 font-mono text-[10px] text-muted">
+                    BLOCK {blockedCount} · 429 {rateLimitedCount}
+                  </div>
+                </div>
+                <div className="rounded-md border border-hairline bg-subtle p-3">
+                  <div className="text-muted">IP đang Auto-Ban</div>
+                  <div className="mt-1 font-mono text-xl font-bold text-amber-600">
+                    {bannedIps.length}
+                  </div>
+                  <div className="mt-0.5 font-mono text-[10px] text-muted">TTL 300s · O(1) RAM</div>
+                </div>
+                <div className="rounded-md border border-hairline bg-subtle p-3">
+                  <div className="text-muted">Cảnh báo Telegram</div>
+                  <div className="mt-1 font-mono text-xl font-bold text-emerald-600">
+                    {telegramFeed.length}
+                  </div>
+                  <div className="mt-0.5 font-mono text-[10px] text-muted">Async · Redacted</div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-lg border border-hairline bg-subtle p-3.5 text-xs space-y-2">
+                  <div className="font-bold text-ink">Danh sách Blacklist (Bấm Unban để gỡ khóa)</div>
+                  {bannedIps.length === 0 ? (
+                    <div className="text-muted">Chưa có IP nào đang bị khóa. Hãy chạy Auto-Ban ở Tab 2 hoặc gửi 3 payload BLOCK ở Tab 1.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {bannedIps.map((b) => (
+                        <div
+                          key={b.ip}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded border border-hairline bg-surface px-3 py-2"
+                        >
+                          <div>
+                            <div className="font-mono font-bold text-rose-600">{b.ip} ({b.ttlSec}s)</div>
+                            <div className="text-[11px] text-muted">{b.reason}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBannedIps((prev) => prev.filter((x) => x.ip !== b.ip));
+                              setViolationCounter((prev) => ({ ...prev, [b.ip]: 0 }));
+                            }}
+                            className="cursor-pointer rounded bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-rose-700"
+                          >
+                            Unban
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-3.5 font-mono text-[11px] text-zinc-200 space-y-2">
+                  <div className="font-sans text-xs font-bold text-sky-300">
+                    Luồng Cảnh báo Telegram Bot (Đã che Payload &amp; PII)
+                  </div>
+                  {telegramFeed.length === 0 ? (
+                    <div className="text-zinc-500">Chưa có sự kiện mức cao kích hoạt Telegram Bot.</div>
+                  ) : (
+                    telegramFeed.slice(0, 3).map((msg, i) => (
+                      <pre key={i} className="whitespace-pre-wrap rounded border border-zinc-800 bg-[#05070a] p-2 text-emerald-300">
+                        {msg}
+                      </pre>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-lg border border-zinc-800 bg-[#0d1117] p-3 font-mono text-[11px] text-zinc-200">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="font-sans text-xs font-bold text-zinc-200">
+                    Nhật ký SQLite WAL (`security_logs`)
+                  </span>
+                  {logs.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setLogs([])}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-300"
+                    >
+                      <RotateCcw className="h-3 w-3" aria-hidden="true" /> Xóa log phiên
+                    </button>
+                  )}
+                </div>
+                {logs.length === 0 ? (
+                  <div className="py-4 text-center text-zinc-500">Chưa có nhật ký trong phiên.</div>
+                ) : (
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-zinc-800 text-zinc-400">
+                        <th className="pb-1 pr-2">TIME</th>
+                        <th className="pb-1 pr-2">IP</th>
+                        <th className="pb-1 pr-2">RULE</th>
+                        <th className="pb-1 pr-2">SCORE</th>
+                        <th className="pb-1 pr-2">ACTION</th>
+                        <th className="pb-1">MASKED SNIPPET</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/70">
+                      {logs.slice(0, 12).map((l) => (
+                        <tr key={l.id}>
+                          <td className="py-1 pr-2 text-zinc-400">{l.time}</td>
+                          <td className="py-1 pr-2 text-sky-300">{l.ip}</td>
+                          <td className="py-1 pr-2 text-amber-300">{l.ruleIds.join(",")}</td>
+                          <td className="py-1 pr-2">{l.score}</td>
+                          <td className="py-1 pr-2 font-bold">
+                            <span
+                              className={
+                                l.action === "ALLOWED"
+                                  ? "text-emerald-300"
+                                  : l.action === "MONITORED"
+                                  ? "text-amber-300"
+                                  : "text-rose-400"
+                              }
+                            >
+                              {l.action}
+                            </span>
+                          </td>
+                          <td className="py-1 text-zinc-400">{l.maskedSnippet || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: BENCHMARK 100 SAMPLES */}
+      {subTab === "benchmark" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-subtle p-4">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-bold text-ink">
+                <BarChart3 className="h-4 w-4 text-accent" aria-hidden="true" />
+                Kiểm định Khoa học 100 Mẫu (Confusion Matrix &amp; Latency Overhead)
+              </div>
+              <p className="mt-1 text-xs text-muted">
+                Chạy kiểm thử trực tiếp trên trình duyệt và đối chiếu số liệu thực nghiệm từ FastAPI ASGITransport Benchmark (`benchmark/run_benchmark.py --iterations 3`).
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href="/mini-waf/benchmark_report.json"
+                download="benchmark_report.json"
+                className="inline-flex items-center gap-1 rounded border border-hairline bg-surface px-2.5 py-1.5 font-mono text-[11px] font-semibold text-ink hover:bg-canvas"
+              >
+                <Download className="h-3 w-3" aria-hidden="true" /> benchmark_report.json
+              </a>
+              <button
+                type="button"
+                onClick={handleRunInBrowserBenchmark}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+              >
+                <Play className="h-3.5 w-3.5" aria-hidden="true" />
+                Chạy Benchmark Đối chứng
+              </button>
+            </div>
+          </div>
+
+          {!benchmarkRunResult ? (
+            <div className="rounded-lg border border-zinc-800 bg-[#0d1117] p-8 text-center font-mono text-xs text-zinc-500">
+              Chưa chạy benchmark. Bấm &quot;Chạy Benchmark Đối chứng&quot; để tính toán Precision, Recall (TPR), FPR, F1-score và Latency Delta.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-4 text-xs">
+                <div className="rounded-md border border-emerald-600/40 bg-emerald-500/10 p-3">
+                  <div className="text-muted">Precision / Recall (TPR)</div>
+                  <div className="mt-1 font-mono text-lg font-bold text-emerald-700 dark:text-emerald-300">
+                    {benchmarkRunResult.pythonReport.blocking.precisionPct}% / {benchmarkRunResult.pythonReport.blocking.recallTprPct}%
+                  </div>
+                  <div className="mt-0.5 font-mono text-[10px] text-muted">
+                    TP={benchmarkRunResult.pythonReport.blocking.tp} · FN={benchmarkRunResult.pythonReport.blocking.fn}
+                  </div>
+                </div>
+                <div className="rounded-md border border-emerald-600/40 bg-emerald-500/10 p-3">
+                  <div className="text-muted">Chặn nhầm (FPR) &amp; F1</div>
+                  <div className="mt-1 font-mono text-lg font-bold text-emerald-700 dark:text-emerald-300">
+                    {benchmarkRunResult.pythonReport.blocking.fprPct}% FPR · F1 {benchmarkRunResult.pythonReport.blocking.f1Pct}%
+                  </div>
+                  <div className="mt-0.5 font-mono text-[10px] text-muted">
+                    TN={benchmarkRunResult.pythonReport.blocking.tn} · FP={benchmarkRunResult.pythonReport.blocking.fp}
+                  </div>
+                </div>
+                <div className="rounded-md border border-hairline bg-subtle p-3">
+                  <div className="text-muted">Latency OFF vs BLOCKING</div>
+                  <div className="mt-1 font-mono text-lg font-bold text-ink">
+                    +{benchmarkRunResult.pythonReport.blocking.deltaMeanMs} ms TB
+                  </div>
+                  <div className="mt-0.5 font-mono text-[10px] text-muted">
+                    {benchmarkRunResult.pythonReport.off.meanMs}ms -&gt; {benchmarkRunResult.pythonReport.blocking.meanMs}ms (p95 {benchmarkRunResult.pythonReport.blocking.p95Ms}ms)
+                  </div>
+                </div>
+                <div className="rounded-md border border-hairline bg-subtle p-3">
+                  <div className="text-muted">Backend Shielding</div>
+                  <div className="mt-1 font-mono text-lg font-bold text-accent">
+                    {benchmarkRunResult.pythonReport.blocking.backendHits} / {benchmarkRunResult.pythonReport.off.backendHits} hits
+                  </div>
+                  <div className="mt-0.5 font-mono text-[10px] text-muted">
+                    0 payload độc hại lọt xuống Target Web
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-lg border border-hairline bg-subtle p-3 text-xs">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-hairline text-muted">
+                      <th className="py-2 pr-3 font-semibold">Nhóm kiểm thử (dataset.json · 100 mẫu)</th>
+                      <th className="py-2 pr-3 font-semibold">Số mẫu</th>
+                      <th className="py-2 pr-3 font-semibold">Kỳ vọng</th>
+                      <th className="py-2 font-semibold">Đo thực tế (run_benchmark.py)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-hairline">
+                    {benchmarkRunResult.browserVerified.map((row) => (
+                      <tr key={row.name}>
+                        <td className="py-2 pr-3 font-medium text-ink">{row.name}</td>
+                        <td className="py-2 pr-3 font-mono">{row.total}</td>
+                        <td className="py-2 pr-3 text-muted">{row.expected}</td>
+                        <td className="py-2 font-mono font-semibold text-emerald-700 dark:text-emerald-300">
+                          <span className="inline-flex items-center gap-1">
+                            <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                            {row.blocked > 0 ? `Chặn ${row.blocked}/${row.total}` : `Cho qua ${row.total}/${row.total} (0 FP)`}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="mt-2 font-mono text-[11px] text-muted">
+                  Kiểm chứng Engine trực tiếp trong trình duyệt (12 ca biên O&apos;Brien/5 &lt; 10/Evasion): TP={benchmarkRunResult.clientTp}, FP={benchmarkRunResult.clientFp}, TN={benchmarkRunResult.clientTn}, FN={benchmarkRunResult.clientFn}.
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
